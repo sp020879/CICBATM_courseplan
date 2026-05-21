@@ -1,0 +1,16 @@
+# 本地备份目录（备份不进 git）
+_backups/
+
+# sed 自动产生的备份
+*.bak
+
+# macOS
+.DS_Store
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 日志
+*.log
