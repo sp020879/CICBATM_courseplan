@@ -14,3 +14,7 @@ _backups/
 
 # 日志
 *.log
+
+# 只保留 TM
+BA/
+AppsScript/
