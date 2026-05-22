@@ -1553,7 +1553,43 @@ function calcProgress(s, allPC) {
   if(progId !== 'TM' && progId !== 'TourismManagement'){
     return calcProgressGeneric(s, allPC);
   }
-  return calcProgressTM(s, allPC);
+  const result = calcProgressTM(s, allPC);
+
+  // TM 多 ext slot 补丁：calcProgressTM 内部只认硬编码的 'ext2' slot；
+  // 若 prog.meta.extSlots 配了其他 slot（如 ext_1 / ext_2），在这里补算学分。
+  const prog = getProg(progId);
+  const extraSlots = (prog?.meta?.extSlots || []).filter(x => x && x.slot && x.slot !== 'ext2');
+  if(extraSlots.length === 0) return result;
+
+  const c = s.courses || {};
+  const _sv=v=>{if(!v||v==='-'||v==='Transferred')return null;const m=v.match(/^(25\d\d)\/(\d)$/);return m?parseInt(m[1])*10+parseInt(m[2]):null;};
+  const _nowV=_sv(NOW_SEM)||99999;
+  const _semOk=v=>v==='Transferred'||(_sv(v)!==null&&_sv(v)<=_nowV);
+
+  let addCr = 0, addC = 0;
+  extraSlots.forEach(slot => {
+    const raw = c[slot.slot] || '';
+    if(!raw) return;
+    const parts = raw.split('|');
+    const code = parts[0]?.trim().toUpperCase()||'';
+    const sem = parts.length>1 ? parts[1] : raw;
+    const cr = slot.cr || 3;
+    if(raw === 'Transferred'){
+      addCr += cr; addC += 1;
+    } else if(sem && _semOk(sem) && /^25\d\d\/[123]$/.test(sem)){
+      // 有完整学期（不管有没有填代码） → 算 1 门，与 calcProgressTM 里 ext2 的判定一致
+      addCr += cr; addC += 1;
+    }
+  });
+  if(addC === 0) return result;
+
+  // 重新套上限（与 calcProgressTM 同口径：totalC=38, totalCr=123）
+  const totalCr = 123, totalC = 38;
+  const doneCr = Math.min(result.doneCr + addCr, totalCr);
+  const doneC  = Math.min(result.doneC  + addC,  totalC);
+  const remCr  = Math.max(0, totalCr - doneCr);
+  const remC   = Math.max(0, totalC  - doneC);
+  return { ...result, doneCr, doneC, remCr, remC };
 }
 
 // 通用进度计算（按 _gtype/_gcr 算）
