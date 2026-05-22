@@ -3583,14 +3583,17 @@ function parseReport(txt,courses){
     // 找前面最近的学期码
     let curSem=null;
     for(const sp of semPos){ if(sp.pos<pos) curSem=sp.sem; }
-    if(!curSem) continue;
 
     // 在课程代码后面找学分+成绩+分数（最多150字符）
     const after=norm.substring(pos,pos+150);
 
-    // 检查课程代码和成绩之间是否有更新的学期码（如 KB218 ... Innovation 3/2566 ...）
+    // 检查课程代码和成绩之间是否有学期码
+    //  (1) 学期换段时如 KB218 ... Innovation 3/2566 ...
+    //  (2) PDF 栏位顺序导致每段第一笔的学期码也出现在 code 之后（如 KB216 ... 2/2566 ...）
     const inlineSem=after.match(/\b(\d)\/(25\d\d)\b/);
     if(inlineSem) curSem=inlineSem[2]+'/'+inlineSem[1];
+
+    if(!curSem) continue;
 
     // 匹配学分 成绩 分数（分数可选，如 `-` 成绩无分数）
     const gm=after.match(/\b(3|6)\s+([A-Za-z+\-]+)(?:\s+([\d.]+))?/);
