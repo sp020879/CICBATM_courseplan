@@ -715,6 +715,18 @@ function calcProgressTM(s, allPC) {
   if(ext2Code&&ext2Sem&&_semOk(ext2Sem)){doneCr+=3;doneC++;}
   else if(ext2Raw==='Transferred'){doneCr+=3;doneC++;}
 
+  // 语言修选 pre-pass：判断学生走 KE（英文）还是 KH（泰文）路线
+  // 规则：5 门必须同语种，所以选门数多的那语种；混选时少的那语种不计学分
+  let _langKECount = 0, _langKHCount = 0;
+  allPC.forEach(co => {
+    if(co.g !== '语言修选') return;
+    const v = c[co.c]; if(!v || !_semOk(v)) return;
+    if(co.c.startsWith('KE')) _langKECount++;
+    else if(co.c.startsWith('KH')) _langKHCount++;
+  });
+  // 多的那个为主路线；相等时默认 KE（英文）
+  const _langRoute = _langKHCount > _langKECount ? 'KH' : 'KE';
+
   allPC.forEach(co => {
     if (INTERN_CODES.has(co.c) || SKIP_GROUPS.has(co.g)) return;
     const val = c[co.c];
@@ -723,6 +735,9 @@ function calcProgressTM(s, allPC) {
     const isTransfer = val === 'Transferred';
 
     if (co.g === '语言修选') {
+      // 只算主路线的语种课程
+      if(_langRoute === 'KE' && !co.c.startsWith('KE')) return;
+      if(_langRoute === 'KH' && !co.c.startsWith('KH')) return;
       if (langSelDone < 5) { langSelDone++; doneCr += co.cr; doneC++; }
       if (isTransfer && langSelDone <= 5) transferC++;
       return;
@@ -4776,15 +4791,36 @@ function renderWorkbench(){
     }));
     const folded = _WB.hideDone && isAllDone;
 
+    // 语言修选混选检测：本组学生里有几人 KE/KH 都修过
+    let _langMixCount = 0;
+    if(g === '语言修选'){
+      _langMixCount = studs.filter(s=>{
+        const c = s.courses||{};
+        const en = courses.filter(co=>co.c.startsWith('KE') && c[co.c]).length;
+        const th = courses.filter(co=>co.c.startsWith('KH') && c[co.c]).length;
+        return en>0 && th>0;
+      }).length;
+    }
+
     h += `<tr class="wb-group-head"><td colspan="${4 + studs.length}">
       <span class="wb-group-arrow">${folded?'▶':'▼'}</span>
-      <span class="wb-group-name">${g}</span>
-      <span class="wb-group-meta">${courses.length} 门</span>
+      <span class="wb-group-name">${g}${g==='语言修选'?' <span style="font-size:9px;color:rgba(255,255,255,.55);font-weight:400">· 英文(KE) 或 泰文(KH) 5 门</span>':''}</span>
+      <span class="wb-group-meta">${courses.length} 门${_langMixCount?` · <span style="color:#fbbf24">⚠ ${_langMixCount} 人混选</span>`:''}</span>
     </td></tr>`;
 
     if(folded) return;
 
+    // 语言修选：插入 KE/KH sub-header
+    let _prevLangPrefix = null;
     courses.forEach(co => {
+      // sub-header（仅语言修选）
+      if(g === '语言修选'){
+        const prefix = co.c.startsWith('KE') ? 'KE' : co.c.startsWith('KH') ? 'KH' : null;
+        if(prefix && prefix !== _prevLangPrefix){
+          h += `<tr class="wb-lang-sub"><td colspan="${4 + studs.length}" style="padding:3px 16px;background:#f5f3ff;font-size:10px;color:#7c3aed;font-weight:600;border-top:0.5px solid #e9d5ff">└ ${prefix==='KE'?'英文 KE':'泰文 KH'}</td></tr>`;
+          _prevLangPrefix = prefix;
+        }
+      }
       h += '<tr class="wb-row">';
       const rowChecked = _wbIsRowFullySelected(co.c, studs);
       h += `<td class="wb-cell-icon">${(_WB.mode==='multi') ? `<span class="wb-row-pick" onclick="_wbPickRow('${co.c}')" title="选这门课所有 cell">${rowChecked?'☑':'☐'}</span>`:''}</td>`;
