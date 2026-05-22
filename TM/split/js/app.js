@@ -503,9 +503,10 @@ function groups(pid) {
 
 // ── 课程进度计算（统一函数）────────────────────────────
 // 分流：TM 走原硬编码逻辑（兼容）；其他专业走通用 _gtype-based 逻辑
+// 'TM' 和 'TourismManagement' 都视为 TM 专业（兼容历史 id）
 function calcProgress(s, allPC) {
   const progId = s?.prog || activeProg || 'TM';
-  if(progId !== 'TM'){
+  if(progId !== 'TM' && progId !== 'TourismManagement'){
     return calcProgressGeneric(s, allPC);
   }
   return calcProgressTM(s, allPC);
@@ -3038,7 +3039,7 @@ function _wbGetExtSlots(prog){
     return prog.meta.extSlots;
   }
   // TM 旧版兼容：单一 ext2 slot
-  if(prog?.id === 'TM' && prog?.meta?.ext2Enabled !== false){
+  if((prog?.id === 'TM' || prog?.id === 'TourismManagement') && prog?.meta?.ext2Enabled !== false){
     return [{slot:'ext2', name:'外系选修-2', cr:3}];
   }
   return [];
