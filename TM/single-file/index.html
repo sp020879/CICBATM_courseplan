@@ -4128,6 +4128,14 @@ function _wbGetExtSlots(prog){
   return [];
 }
 
+// 切换学年折叠状态
+function _wbToggleYear(yr){
+  if(!window._wbCollapsedYears) window._wbCollapsedYears = new Set();
+  if(window._wbCollapsedYears.has(yr)) window._wbCollapsedYears.delete(yr);
+  else window._wbCollapsedYears.add(yr);
+  if(typeof renderWorkbench === 'function') renderWorkbench();
+}
+
 function openProgEdit(){
   const prog=getProg(activeProg);if(!prog)return;
   document.getElementById('pe-title').textContent='编辑课程架构 · '+prog.name;
@@ -5936,8 +5944,22 @@ function renderWorkbench(){
 
   // 每学期课数表头
   h += `<tr class="wb-tfoot-sep"><td colspan="${4+studs.length}">📊 每学期课数 / 学分（按学年）</td></tr>`;
+  // 学年折叠状态：默认折叠 "整学年已过" 的学年（年/3 < NOW_SEM）
+  if(!window._wbCollapsedYears) window._wbCollapsedYears = new Set();
+  if(!window._wbCollapseInit){
+    const _nowYn = parseInt((NOW_SEM||'').split('/')[0]) || 0;
+    const _nowSn = parseInt((NOW_SEM||'').split('/')[1]) || 0;
+    years.forEach(yr=>{
+      const yn = parseInt(yr);
+      if(yn < _nowYn || (yn === _nowYn && 3 < _nowSn)) window._wbCollapsedYears.add(yr);
+    });
+    window._wbCollapseInit = true;
+  }
   years.forEach((yr, yi) => {
-    h += `<tr class="wb-tfoot-year-h"><td colspan="${4+studs.length}">── ${yr} 学年 ──</td></tr>`;
+    const collapsed = window._wbCollapsedYears.has(yr);
+    const icon = collapsed ? '▶' : '▼';
+    h += `<tr class="wb-tfoot-year-h" onclick="_wbToggleYear('${yr}')" style="cursor:pointer;user-select:none"><td colspan="${4+studs.length}">${icon} ${yr} 学年 ${collapsed?'<span style="opacity:.6;font-size:10px">（点击展开）</span>':''}</td></tr>`;
+    if(collapsed) return;
     [1,2,3].forEach(n => {
       const sem = yr + '/' + n;
       const isMin = n === 3;
