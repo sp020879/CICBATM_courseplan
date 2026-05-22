@@ -1566,7 +1566,7 @@ function calcProgress(s, allPC) {
   const _nowV=_sv(NOW_SEM)||99999;
   const _semOk=v=>v==='Transferred'||(_sv(v)!==null&&_sv(v)<=_nowV);
 
-  let addCr = 0, addC = 0;
+  let addCr = 0, addC = 0, addTransferC = 0, addTransferCr = 0;
   extraSlots.forEach(slot => {
     const raw = c[slot.slot] || '';
     if(!raw) return;
@@ -1576,6 +1576,7 @@ function calcProgress(s, allPC) {
     const cr = slot.cr || 3;
     if(raw === 'Transferred'){
       addCr += cr; addC += 1;
+      addTransferC += 1; addTransferCr += cr;
     } else if(sem && _semOk(sem) && /^25\d\d\/[123]$/.test(sem)){
       // 有完整学期（不管有没有填代码） → 算 1 门，与 calcProgressTM 里 ext2 的判定一致
       addCr += cr; addC += 1;
@@ -1589,7 +1590,9 @@ function calcProgress(s, allPC) {
   const doneC  = Math.min(result.doneC  + addC,  totalC);
   const remCr  = Math.max(0, totalCr - doneCr);
   const remC   = Math.max(0, totalC  - doneC);
-  return { ...result, doneCr, doneC, remCr, remC };
+  const transferC  = (result.transferC  || 0) + addTransferC;
+  const transferCr = (result.transferCr || 0) + addTransferCr;
+  return { ...result, doneCr, doneC, remCr, remC, transferC, transferCr };
 }
 
 // 通用进度计算（按 _gtype/_gcr 算）
@@ -4632,6 +4635,7 @@ function renderClassTable(){
     Object.entries(s.courses||{}).forEach(([code,sem])=>{
       if(_ctExtSlotKeys.has(code)) return; // ext slot 本身已处理
       if(_filledExtCodes.has(code)) return; // 已被 ext slot 计过的代码
+      if(/[^\x00-\x7F]/.test(code)) return; // 中文等孤儿 key（如「外系选修」）直接跳过
       if(sem===selSem) semCodes.add(code);
     });
   });
@@ -4864,6 +4868,7 @@ function printClassTable(){
     Object.entries(s.courses||{}).forEach(([code,sem])=>{
       if(_ctExtSlotKeys.has(code)) return;
       if(_filledExtCodes.has(code)) return;
+      if(/[^\x00-\x7F]/.test(code)) return;
       if(sem===selSem) semCodes.add(code);
     });
   });
@@ -5906,18 +5911,22 @@ function renderWorkbench(){
   for(let i=0; i<4; i++) baseYears.push(String(startYear + i));
   const years = baseYears;
 
-  // 每生在某学期的课数 / 学分（含 ext2 / 实习）
+  // 每生在某学期的课数 / 学分（含所有 ext slot / 实习）· 多 slot 兼容
+  const _wbExtSlotsForStat = (typeof _wbGetExtSlots === 'function') ? _wbGetExtSlots(getProg(activeProg)) : [{slot:'ext2',cr:3}];
+  const _wbExtSlotKeySet = new Set(_wbExtSlotsForStat.map(x=>x.slot));
+  const _wbExtSlotCrMap = {};
+  _wbExtSlotsForStat.forEach(x => { _wbExtSlotCrMap[x.slot] = x.cr || 3; });
   function _wbSemStat(s, sem){
     let cnt = 0, cr = 0;
     Object.entries(s.courses||{}).forEach(([code, val]) => {
       let semVal = val;
-      if(code === 'ext2'){
+      if(_wbExtSlotKeySet.has(code)){
         const parts = (val||'').split('|');
         semVal = parts.length>1 ? parts[1] : val;
       }
       if(semVal === sem){
         cnt++;
-        if(code === 'ext2'){ cr += 3; return; }
+        if(_wbExtSlotKeySet.has(code)){ cr += (_wbExtSlotCrMap[code] || 3); return; }
         const c = allPC.find(x => x.c === code);
         cr += (c?.cr || 3);
       }
