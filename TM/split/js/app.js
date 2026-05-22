@@ -3566,18 +3566,29 @@ function renderClassTable(){
   const studs=selClass==='all'?progStuds:progStuds.filter(s=>(s.classCode||autoClassCode(s.cohort,s.type,s.prog))===selClass);
   const allPC=progCourses(activeProg).length?progCourses(activeProg):(getProg(activeProg)?.courses||getBuiltinTMCourses());
   const courseMap={};allPC.forEach(c=>courseMap[c.c]=c);
+  // 多 ext slot 兼容：取该专业所有 ext slot keys（ext2 / ext_1 / ext_2 / 自定义）
+  const _ctExtSlots = (typeof _wbGetExtSlots === 'function') ? _wbGetExtSlots(getProg(activeProg)) : [{slot:'ext2'}];
+  const _ctExtSlotKeys = new Set(_ctExtSlots.map(x=>x.slot));
   const semCodes=new Set();
   studs.forEach(s=>{
-    Object.entries(s.courses||{}).forEach(([code,sem])=>{
-      if(code==='ext2'){
-        // ext2 格式：代码|学期 或 只有学期
-        const parts=sem.split('|');
-        const extSem=parts.length>1?parts[1]:parts[0];
-        const extCode=parts.length>1?parts[0]:'ext2';
-        if(extSem===selSem&&extCode) semCodes.add('ext2:'+extCode);
-      } else if(sem===selSem){
-        semCodes.add(code);
+    // ① 先处理所有 ext slot keys（多 slot）
+    const _filledExtCodes = new Set();
+    _ctExtSlots.forEach(slot=>{
+      const v = (s.courses||{})[slot.slot] || '';
+      if(!v) return;
+      const parts = v.split('|');
+      const extSem = parts.length>1 ? parts[1] : parts[0];
+      const extCode = parts.length>1 ? parts[0] : '';
+      if(extSem===selSem && extCode){
+        semCodes.add('ext2:'+extCode);
+        _filledExtCodes.add(extCode);
       }
+    });
+    // ② 普通课程 key
+    Object.entries(s.courses||{}).forEach(([code,sem])=>{
+      if(_ctExtSlotKeys.has(code)) return; // ext slot 本身已处理
+      if(_filledExtCodes.has(code)) return; // 已被 ext slot 计过的代码
+      if(sem===selSem) semCodes.add(code);
     });
   });
   const allSems=new Set();
@@ -3681,7 +3692,14 @@ function renderClassTable(){
     const realCode=isExt2?code.replace('ext2:',''):code;
     const c=courseMap[realCode]||{c:realCode,n:'外系选修',cr:3,g:'外系选修'};
     const pickedStuds=isExt2
-      ? studs.filter(s=>{const v=(s.courses||{})['ext2']||'';const parts=v.split('|');return parts.length>1?parts[1]===selSem&&parts[0]===realCode:false;})
+      ? studs.filter(s=>{
+          for(const slot of _ctExtSlots){
+            const v=(s.courses||{})[slot.slot]||'';
+            const parts=v.split('|');
+            if(parts.length>1 && parts[1]===selSem && parts[0]===realCode) return true;
+          }
+          return false;
+        })
       : studs.filter(s=>(s.courses||{})[realCode]===selSem);
     const picked=pickedStuds.length;
     // 班级筛选（多选）
@@ -3785,18 +3803,24 @@ function printClassTable(){
   const allPC=progCourses(activeProg).length?progCourses(activeProg):(prog.courses||getBuiltinTMCourses());
   const courseMap={};allPC.forEach(c=>courseMap[c.c]=c);
 
-  // 收集该学期课程
+  // 收集该学期课程（多 ext slot 兼容）
+  const _ctExtSlots = (typeof _wbGetExtSlots === 'function') ? _wbGetExtSlots(prog) : [{slot:'ext2'}];
+  const _ctExtSlotKeys = new Set(_ctExtSlots.map(x=>x.slot));
   const semCodes=new Set();
   studs.forEach(s=>{
+    const _filledExtCodes=new Set();
+    _ctExtSlots.forEach(slot=>{
+      const v=(s.courses||{})[slot.slot]||'';
+      if(!v) return;
+      const parts=v.split('|');
+      const extSem=parts.length>1?parts[1]:parts[0];
+      const extCode=parts.length>1?parts[0]:'';
+      if(extSem===selSem && extCode){ semCodes.add('ext2:'+extCode); _filledExtCodes.add(extCode); }
+    });
     Object.entries(s.courses||{}).forEach(([code,sem])=>{
-      if(code==='ext2'){
-        const parts=sem.split('|');
-        const extSem=parts.length>1?parts[1]:parts[0];
-        const extCode=parts.length>1?parts[0]:'ext2';
-        if(extSem===selSem&&extCode) semCodes.add('ext2:'+extCode);
-      } else if(sem===selSem){
-        semCodes.add(code);
-      }
+      if(_ctExtSlotKeys.has(code)) return;
+      if(_filledExtCodes.has(code)) return;
+      if(sem===selSem) semCodes.add(code);
     });
   });
 
