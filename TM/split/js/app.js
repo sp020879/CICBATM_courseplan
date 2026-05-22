@@ -540,8 +540,9 @@ function calcProgress(s, allPC) {
   });
   if(addC === 0) return result;
 
-  // 重新套上限（与 calcProgressTM 同口径：totalC=38, totalCr=123）
-  const totalCr = 123, totalC = 38;
+  // 重新套上限：优先用 prog.meta 配置，否则 fallback 38/123
+  const totalCr = prog?.totalCr || 123;
+  const totalC = (prog?.meta?.totalC && prog.meta.totalC > 0) ? prog.meta.totalC : 38;
   const doneCr = Math.min(result.doneCr + addCr, totalCr);
   const doneC  = Math.min(result.doneC  + addC,  totalC);
   const remCr  = Math.max(0, totalCr - doneCr);
@@ -667,6 +668,8 @@ function calcProgressGeneric(s, allPC){
 
   const prog = getProg(progId);
   const totalCr = prog?.totalCr || 123;
+  // 如果 prog.meta.totalC 有显式设定，优先用它（覆盖动态计算的结果）
+  if(prog?.meta?.totalC && prog.meta.totalC > 0) totalC = prog.meta.totalC;
 
   const doneCCapped = Math.min(doneC, totalC);
   const doneCrCapped = Math.min(doneCr, totalCr);
@@ -768,9 +771,12 @@ function calcProgressTM(s, allPC) {
   const internTransfer = c['KT411'] === 'Transferred' || (c['KT331'] === 'Transferred' && c['KT332'] === 'Transferred');
   if (internOk) { doneCr += 6; }
 
-  const totalCr = 123, totalC = 38;
-  const doneCCapped = Math.min(doneC, totalC); // 课数上限 38
-  const doneCrCapped = Math.min(doneCr, totalCr);  // 上限 123
+  // 上限：优先用 prog.meta（用户配置），其次用 TM 硬编码默认 38/123
+  const _tmProg = getProg(s?.prog || activeProg || 'TM');
+  const totalCr = _tmProg?.totalCr || 123;
+  const totalC = (_tmProg?.meta?.totalC && _tmProg.meta.totalC > 0) ? _tmProg.meta.totalC : 38;
+  const doneCCapped = Math.min(doneC, totalC);
+  const doneCrCapped = Math.min(doneCr, totalCr);
   const remCr = Math.max(0, totalCr - doneCrCapped);
   const remC  = Math.max(0, totalC - doneCCapped);
 
@@ -3116,6 +3122,10 @@ function openProgEdit(){
   document.getElementById('pe-sub').textContent=prog.courses?.length+'门课程 · '+prog.totalCr+'学分';
   document.getElementById('pe-name').value=prog.name;
   document.getElementById('pe-cr').value=prog.totalCr||123;
+  // TM 默认 38 课 + 1 实习；其他专业由用户设
+  const _isTM = prog.id==='TM' || prog.id==='TourismManagement';
+  document.getElementById('pe-total-c').value = prog.meta?.totalC ?? (_isTM ? 38 : 0);
+  document.getElementById('pe-intern-c').value = prog.meta?.internC ?? (_isTM ? 1 : 0);
   _peData=JSON.parse(JSON.stringify(prog.courses||[]));
   _peExtSlots=JSON.parse(JSON.stringify(_wbGetExtSlots(prog)));
   // 从课程数据里提取分组元数据
@@ -3437,9 +3447,13 @@ async function peConfirm(){
   const valid=_peData.filter(c=>c.c.trim()&&c.n.trim());
   if(valid.length<_peData.length){if(!confirm(`有 ${_peData.length-valid.length} 门课程代码或名称为空，将被忽略。确认储存？`))return;}
   prog.name=name;prog.totalCr=cr;prog.courses=valid;
-  // 保存外系选修 slot 配置
+  // 保存外系选修 slot 配置 + 总课数 / 实习课数
   prog.meta = prog.meta || {};
   prog.meta.extSlots = JSON.parse(JSON.stringify(_peExtSlots));
+  const _totalC = parseInt(document.getElementById('pe-total-c')?.value);
+  const _internC = parseInt(document.getElementById('pe-intern-c')?.value);
+  if(!isNaN(_totalC) && _totalC > 0) prog.meta.totalC = _totalC;
+  if(!isNaN(_internC) && _internC >= 0) prog.meta.internC = _internC;
   render();
   closeModal('prog-edit-modal');
   try{
@@ -4119,6 +4133,83 @@ function addPreCohort(){
   renderPreCohortList();
   render();
   try{apiSaveProgram(prog);}catch(e){}
+}
+
+// ── 🔍 数字检查 Modal ──────────────────────────────────
+function openProgressDiag(){
+  const m = document.getElementById('diag-modal');
+  if(!m) return;
+  m.classList.add('show');
+  renderProgressDiag();
+}
+function renderProgressDiag(){
+  const out = document.getElementById('diag-out');
+  const sub = document.getElementById('diag-sub');
+  const count = document.getElementById('diag-count');
+  if(!out) return;
+
+  const prog = getProg(activeProg);
+  const studs = DB.students.filter(s=>(s.prog||'TM')===activeProg && !isGraduated(s) && !isOnLeave(s));
+  const expectedC = prog?.meta?.totalC || (activeProg==='TM'||activeProg==='TourismManagement'?38:0);
+
+  const rows = studs.map(s=>{
+    const p = calcProgress(s, progCourses(s.prog));
+    const c = s.courses||{};
+    const ke = ['KE311','KE316','KE325','KE327','KE333'].filter(k=>c[k]).length;
+    const kh = ['KH351','KH352','KH353','KH354','KH355'].filter(k=>c[k]).length;
+    const mix = ke>0 && kh>0;
+    // 该学期下所有 ASCII key 数量（粗略对照）
+    const keyCount = Object.keys(c).filter(k=>!/[^\x00-\x7F]/.test(k)).length;
+    return {
+      s, name:s.name, cls:s.classCode||autoClassCode(s.cohort,s.type,s.prog),
+      doneC:p.doneC, remC:p.remC, doneCr:p.doneCr,
+      internOk:p.internOk, ke, kh, mix,
+      keyCount,
+      ext1: c['ext_1']||c['ext2']||'',
+      ext2: c['ext_2']||'',
+      // 怀疑指标
+      suspect: (mix?1:0) + (p.remC>expectedC?1:0) + (p.doneC>expectedC?1:0)
+    };
+  }).sort((a,b)=>b.suspect-a.suspect || a.cls.localeCompare(b.cls));
+
+  let h = `<div style="font-size:11px;color:var(--ink3);margin-bottom:10px;">活跃 TM 学生：<b style="color:var(--ink)">${studs.length}</b> 人 · 当前总课数上限：<b style="color:var(--ink)">${expectedC}</b> 门 · 排序方式：可疑度优先（混选/超限）</div>`;
+  h += '<table style="width:100%;border-collapse:collapse;font-size:11px">';
+  h += `<thead><tr style="background:var(--g8);color:#fff;">
+    <th style="padding:6px 8px;text-align:left">学生</th>
+    <th style="padding:6px 8px;text-align:left">班级</th>
+    <th style="padding:6px 8px;text-align:right" title="已修课数">doneC</th>
+    <th style="padding:6px 8px;text-align:right" title="剩余课数">remC</th>
+    <th style="padding:6px 8px;text-align:right" title="已修学分">doneCr</th>
+    <th style="padding:6px 8px;text-align:center" title="实习完成">实习</th>
+    <th style="padding:6px 8px;text-align:center" title="英文语言修选门数">KE</th>
+    <th style="padding:6px 8px;text-align:center" title="泰文语言修选门数">KH</th>
+    <th style="padding:6px 8px;text-align:center" title="是否混选">混选</th>
+    <th style="padding:6px 8px;text-align:left" title="外系选修-1">ext_1</th>
+    <th style="padding:6px 8px;text-align:left" title="外系选修-2">ext_2</th>
+  </tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const bg = r.suspect>0 ? '#fef3c7' : '#fff';
+    const remCls = r.remC===0 ? 'color:#16a34a;font-weight:600' : (r.remC>30 ? 'color:#dc2626;font-weight:600' : '');
+    h += `<tr style="background:${bg};border-top:0.5px solid var(--line)">
+      <td style="padding:5px 8px;font-weight:500">${r.name}</td>
+      <td style="padding:5px 8px;font-family:var(--mono);font-size:10px">${r.cls}</td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:600">${r.doneC}</td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);${remCls}">${r.remC}</td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--ink3)">${r.doneCr}</td>
+      <td style="padding:5px 8px;text-align:center">${r.internOk?'✓':'·'}</td>
+      <td style="padding:5px 8px;text-align:center;${r.ke>0?'color:#2563eb':'color:#9ca3af'}">${r.ke||'·'}</td>
+      <td style="padding:5px 8px;text-align:center;${r.kh>0?'color:#7c3aed':'color:#9ca3af'}">${r.kh||'·'}</td>
+      <td style="padding:5px 8px;text-align:center;${r.mix?'color:#dc2626;font-weight:600':''}">${r.mix?'⚠':''}</td>
+      <td style="padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--ink3)">${r.ext1||'·'}</td>
+      <td style="padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--ink3)">${r.ext2||'·'}</td>
+    </tr>`;
+  });
+  h += '</tbody></table>';
+
+  out.innerHTML = h;
+  const suspectCount = rows.filter(r=>r.suspect>0).length;
+  if(sub) sub.textContent = `所有学生 doneC / remC / 语言混选 / ext slot 状态 · ${suspectCount} 人有疑虑（黄色行）`;
+  if(count) count.textContent = `共 ${rows.length} 人 · 可疑 ${suspectCount}`;
 }
 
 function delPreCohort(idx){
