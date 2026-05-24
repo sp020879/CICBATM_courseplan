@@ -4778,8 +4778,11 @@ function renderClassTable(){
   const _selClass2Set = window._ctClass2;
   const allClassCodes=[...new Set(studs.map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog)))].sort();
 
-  // 真实上课人数（有修该学期任何课的学生）
-  const _activeStuds=studs.filter(s=>Object.values(s.courses||{}).some(v=>v===selSem));
+  // 真实上课人数（有修该学期任何课 · 且该学期不在休学中）
+  const _activeStuds=studs.filter(s=>
+    !isOnLeaveAt(s, selSem) &&
+    Object.values(s.courses||{}).some(v=>v===selSem)
+  );
   h+=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px 12px;background:var(--paper);border:0.5px solid var(--line);border-radius:8px;">
     <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--g8)">${semCodes.size}</span><span style="font-size:11px;color:var(--ink3)">门课</span>
     <span style="color:var(--line2);font-size:12px">·</span>
@@ -4788,7 +4791,7 @@ function renderClassTable(){
     <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--g7)">${_activeStuds.length}</span><span style="font-size:11px;color:var(--ink3)">位上课学生</span>
     <div style="flex:1"></div>
     ${(()=>{
-      const allCC=[...new Set(studs.flatMap(s=>Object.entries(s.courses||{}).filter(([,v])=>v===selSem).map(()=>s.classCode||autoClassCode(s.cohort,s.type,s.prog))))].sort();
+      const allCC=[...new Set(studs.filter(s=>!isOnLeaveAt(s, selSem)).flatMap(s=>Object.entries(s.courses||{}).filter(([,v])=>v===selSem).map(()=>s.classCode||autoClassCode(s.cohort,s.type,s.prog))))].sort();
       // _ctClass2 现在是 Set（多选）；保持向后兼容字符串
       if(typeof window._ctClass2 === 'string'){
         window._ctClass2 = window._ctClass2 ? new Set([window._ctClass2]) : new Set();
@@ -4976,10 +4979,10 @@ function printClassTable(){
   // 统计
   const sortedCodes=[...semCodes].sort((a,b)=>a.replace('ext2:','').localeCompare(b.replace('ext2:','')));
   const totalCr=sortedCodes.reduce((a,code)=>{const c=courseMap[code.replace('ext2:','')];return a+(c?c.cr:3);},0);
-  const activeStuds=studs.filter(s=>Object.values(s.courses||{}).some(v=>v===selSem));
+  const activeStuds=studs.filter(s=>!isOnLeaveAt(s, selSem) && Object.values(s.courses||{}).some(v=>v===selSem));
 
   // 班级颜色图例
-  const allCC=[...new Set(studs.flatMap(s=>Object.entries(s.courses||{}).filter(([,v])=>v===selSem).map(()=>s.classCode||autoClassCode(s.cohort,s.type,s.prog))))].sort();
+  const allCC=[...new Set(studs.filter(s=>!isOnLeaveAt(s, selSem)).flatMap(s=>Object.entries(s.courses||{}).filter(([,v])=>v===selSem).map(()=>s.classCode||autoClassCode(s.cohort,s.type,s.prog))))].sort();
 
   // 表格行
   let rn=0;
