@@ -5869,7 +5869,23 @@ function renderWorkbench(){
     if(!groups[g]) groups[g] = [];
     groups[g].push(c);
   });
-  const groupOrder = Object.keys(groups);
+  // 偏好顺序：通识必修 → 语言与跨文化 → 终身学习 → 价值论理(必修→选修) → 生活质量(必修→选修) → 专业课组
+  const _WB_GROUP_ORDER = [
+    '通识课·必修', '语言与跨文化',
+    '终身学习-必修', '终身学习-选修',
+    '价值论理-必修', '价值论理-选修',
+    '生活质量-必修', '生活质量-选修',
+    '基础专业课', '旅游专业·必修', '旅游专业·选修',
+    '语言修选', 'Capstone', '实习课程'
+  ];
+  const _wbOrderIdx = g => {
+    const i = _WB_GROUP_ORDER.indexOf(g);
+    return i < 0 ? 999 : i;  // 未列出的组排到最后
+  };
+  const groupOrder = Object.keys(groups).sort((a,b) => {
+    const da = _wbOrderIdx(a), db = _wbOrderIdx(b);
+    return da !== db ? da - db : a.localeCompare(b);
+  });
 
   // ─ 顶部工具栏 ─
   let h = `<div class="wb-toolbar">
@@ -5981,10 +5997,12 @@ function renderWorkbench(){
       }).length;
     }
 
+    const _isGeSelGroup = ['终身学习-选修','价值论理-选修','生活质量-选修'].includes(g);
+    const _gMetaExtra = _isGeSelGroup ? ' · <span style="color:#fde68a">选 1 门 (3 学分)</span>' : '';
     h += `<tr class="wb-group-head"><td colspan="${4 + studs.length}">
       <span class="wb-group-arrow">${folded?'▶':'▼'}</span>
       <span class="wb-group-name">${g}${g==='语言修选'?' <span style="font-size:9px;color:rgba(255,255,255,.55);font-weight:400">· 英文(KE) 或 泰文(KH) 5 门</span>':''}</span>
-      <span class="wb-group-meta">${courses.length} 门${_langMixCount?` · <span style="color:#fbbf24">⚠ ${_langMixCount} 人混选</span>`:''}</span>
+      <span class="wb-group-meta">${courses.length} 门${_gMetaExtra}${_langMixCount?` · <span style="color:#fbbf24">⚠ ${_langMixCount} 人混选</span>`:''}</span>
     </td></tr>`;
 
     if(folded) return;
