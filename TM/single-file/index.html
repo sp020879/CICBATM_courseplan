@@ -544,6 +544,13 @@ input[type=file]{display:none;}
 .wb-foot-stat{display:inline-flex;align-items:center;padding:3px 9px;border-radius:9px;font-family:var(--mono);font-size:11px;border:0.5px solid;}
 .wb-foot-stat.over{background:var(--red-l)!important;color:var(--red)!important;font-weight:700;}
 
+/* 查看模式（只读）：隐藏 cell-modal 的编辑元素 */
+#cell-modal.readonly .sl,
+#cell-modal.readonly .sgrid,
+#cell-modal.readonly .sp-row,
+#cell-modal.readonly #ext-modal-code,
+#cell-modal.readonly .mf .tbtn.acc{display:none!important;}
+#cell-modal.readonly .mf::before{content:'🔍 只读 · 若要修改请切换到 ⚡ 单次排课';color:var(--ink3);font-size:11px;flex:1;text-align:right;padding-right:6px;}
 
 </style>
 </head>
@@ -1599,6 +1606,11 @@ function calcProgress(s, allPC) {
     const sem = parts.length>1 ? parts[1] : raw;
     const cr = slot.cr || 3;
     if(raw === 'Transferred'){
+      // 旧格式：纯 'Transferred'（无 code 前缀）
+      addCr += cr; addC += 1;
+      addTransferC += 1; addTransferCr += cr;
+    } else if(sem === 'Transferred'){
+      // 新格式：'CODE|Transferred'
       addCr += cr; addC += 1;
       addTransferC += 1; addTransferCr += cr;
     } else if(sem && _semOk(sem) && /^25\d\d\/[123]$/.test(sem)){
@@ -2996,6 +3008,8 @@ function openCell(sid,code,pid){
   const s=DB.students.find(x=>x.id===sid);
   const course=progCourses(pid||activeProg).find(x=>x.c===code);
   if(!s||!course) return;
+  // 进入前先清掉 readonly class（避免之前查看模式残留）
+  const _cm=document.getElementById('cell-modal'); if(_cm) _cm.classList.remove('readonly');
   const cur=(s.courses||{})[code]||'';
   cellCtx={sid,code,pid:pid||activeProg}; pickedVal=cur;
   document.getElementById('cm-n').textContent=shortName(s.name);
@@ -3117,6 +3131,8 @@ function extCodeChangedV2(co, n, slot, newCode) {
 }
 function openExtCell(sid, slot, co, n) {
   const s=DB.students.find(x=>x.id===sid); if(!s) return;
+  // 进入前先清掉 readonly class（避免之前查看模式残留）
+  const _cm=document.getElementById('cell-modal'); if(_cm) _cm.classList.remove('readonly');
   const val=(s.courses||{})[slot]||'';
   const parts=val.split('|');
   const curCode=parts[0]||'';
@@ -6295,6 +6311,9 @@ function _wbClickCell(sid, code, ev){
 
   if(_WB.mode === 'view'){
     _wbCellModal(sid, code);
+    // 查看模式：把 cell-modal 标记为只读，CSS 会自动隐藏编辑元素
+    const _m = document.getElementById('cell-modal');
+    if(_m) _m.classList.add('readonly');
     return;
   }
   if(_WB.mode === 'quick'){
