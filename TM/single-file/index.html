@@ -2082,7 +2082,7 @@ function render() {
       const leaveN=yrStuds.filter(s=>{const sd=s.statusDetail||{};return sd.leave&&sd.leave.length&&!sd.withdrawn;}).length;
       const activeN=cnt-leaveN;
       const tip=leaveN>0?`在学${activeN} · 休学${leaveN}`:`在学${activeN}`;
-      return `<span title="${tip}" style="font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};padding:2px 8px;border-radius:20px;white-space:nowrap;cursor:default;">${yr}·${cnt}</span>`;
+      return `<span onclick="_jumpToCohort('${yr}')" title="${tip} · 点击查看 ${yr} 届" style="font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};padding:2px 8px;border-radius:20px;white-space:nowrap;cursor:pointer;transition:filter .12s" onmouseover="this.style.filter='brightness(0.92)'" onmouseout="this.style.filter='none'">${yr}·${cnt}</span>`;
     }).join('');
   }
   const atRisk = progStuds.filter(s=>s.gpa&&parseFloat(s.gpa)<2.0).length;
@@ -2136,6 +2136,18 @@ function switchProg(id) {
   if(active==='classtable') renderClassTable();
 }
 function setFilter(f) { activeFilter=f; renderCards(); renderBlocks(); }
+// 顶部届别 pill 点击 → 切到学生进度 + 过滤届别
+function _jumpToCohort(yr){
+  if(typeof switchTab === 'function') switchTab('progress');
+  const ccsel = document.getElementById('bar-classcode');
+  if(ccsel){
+    ccsel.value = yr;
+    ccsel.dispatchEvent(new Event('change'));
+  }
+  // 滚动到顶部，方便看
+  const shell = document.getElementById('main-shell');
+  if(shell) shell.scrollTop = 0;
+}
 function toggleListExpand(sid,btn){
   const body=document.getElementById('lv-body-'+sid);
   const icon=document.getElementById('lv-icon-'+sid);
