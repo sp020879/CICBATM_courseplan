@@ -2293,7 +2293,13 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
         <div class="sc-badges" style="margin-top:1px;display:flex;flex-wrap:wrap;gap:3px;">
           ${bt?`<span class="bdg ${bl}">${bt}</span>`:''}
           <span class="bdg ${s.type==='transfer'?'b-x':'b-n'}">${s.type==='transfer'?'专升本':'全日生'}</span>
-          ${(()=>{const sd=s.statusDetail||{};if(sd.withdrawn){const wi=[sd.withdrawDate,sd.withdrawSem].filter(Boolean).join(' ');return `<span class="bdg" style="background:#f5f3ff;color:#7c3aed">退学${wi?' · '+wi:''}</span>`;}if(sd.leave&&sd.leave.length)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">休学 ${sd.leave.join(', ')}</span>`;if(isComplete)return `<span class="bdg" style="background:#854d0e;color:#fff">达标毕业</span>`;
+          ${(()=>{const sd=s.statusDetail||{};if(sd.withdrawn){const wi=[sd.withdrawDate,sd.withdrawSem].filter(Boolean).join(' ');return `<span class="bdg" style="background:#f5f3ff;color:#7c3aed">退学${wi?' · '+wi:''}</span>`;}
+              if(sd.leave&&sd.leave.length){
+                // 每个休学学期独立 chip 可点 ✕ 复学
+                const _chips = sd.leave.map(sm => `<span class="bdg" style="background:#fef2f2;color:#b91c1c;display:inline-flex;align-items:center;gap:2px" title="${sm} 休学"><span>🌙 ${sm}</span><button onclick="event.stopPropagation();quickResumeLeave('${s.id}','${sm}')" title="移除此学期休学（复学）" style="border:none;background:none;cursor:pointer;color:#b91c1c;font-size:11px;line-height:1;padding:0 2px;margin-left:1px">✕</button></span>`).join('');
+                return _chips;
+              }
+              if(isComplete)return `<span class="bdg" style="background:#854d0e;color:#fff">达标毕业</span>`;
               if(internDone&&!gpaOk)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">GPA 不足</span>`;return '<span class="bdg" style="background:#f0fdf4;color:#166534">在学</span>';})()}
           ${tepBadge}
         </div>
@@ -3120,6 +3126,28 @@ function renderLeaveTags(){
   const el=document.getElementById('f-leave-tags');
   if(!el)return;
   el.innerHTML=_leaveSems.map((s,i)=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:4px;padding:2px 6px;font-size:10px;font-family:var(--mono)">${s}<button onclick="removeLeaveSem(${i})" style="border:none;background:none;cursor:pointer;color:#b91c1c;font-size:11px;line-height:1;padding:0 2px">×</button></span>`).join('');
+}
+// 学生卡上一键复学（移除单一学期的休学记录）
+async function quickResumeLeave(sid, sem){
+  const s = DB.students.find(x => x.id === sid);
+  if(!s) return;
+  const sd = s.statusDetail || {};
+  if(!sd.leave || !sd.leave.includes(sem)) return;
+  if(!confirm(`确认让 ${s.cname||s.name} 在 ${sem} 复学？\n\n会从休学记录中移除此学期。`)) return;
+  sd.leave = sd.leave.filter(v => v !== sem);
+  if(!sd.leave.length){
+    // 全部移除 → 转为「在学」（删 leave 字段）
+    delete sd.leave;
+  }
+  s.statusDetail = sd;
+  try{
+    await apiSaveStudent(s);
+    // 刷新当前视图
+    if(typeof _renderOverviewKeepScroll === 'function') _renderOverviewKeepScroll();
+    else if(typeof renderOverview === 'function') renderOverview();
+    if(typeof renderWorkbench === 'function' && document.getElementById('workbench-page')?.classList.contains('on')) renderWorkbench();
+    if(typeof renderClassTable === 'function' && document.getElementById('classtable-page')?.classList.contains('on')) renderClassTable();
+  }catch(e){ alert('同步失败：' + e.message); }
 }
 function extCodeChangedV2(co, n, slot, newCode) {
   const code = (newCode||'').trim().toUpperCase();
