@@ -3151,10 +3151,15 @@ async function confirmTep(){
 
 // ── Add / Edit student ─────────────────────────────────
 function renderProgSelect(){document.getElementById('f-prog').innerHTML=DB.programs.map(p=>`<option value="${p.id}"${p.id===activeProg?' selected':''}>${p.name}</option>`).join('');}
+// 专业 ID → 班级代码缩写映射（避免「TourismManagement67」这种）
+const _PROG_SHORT = { 'TourismManagement': 'TM', 'BusinessAdministration': 'BA' };
 function autoClassCode(cohort,type,progId){
   // progId 优先（如果调用方传了 student.prog）；否则用 activeProg
   const pid = progId || activeProg || 'TM';
-  return pid + (cohort||'') + (type==='transfer'?'ZSB':'');
+  // 优先用 program.meta.shortCode；其次查 _PROG_SHORT 表；都没有就直接用 id
+  const _p = (typeof DB !== 'undefined') ? DB.programs?.find(x=>x.id===pid) : null;
+  const short = _p?.meta?.shortCode || _PROG_SHORT[pid] || pid;
+  return short + (cohort||'') + (type==='transfer'?'ZSB':'');
 }
 function toggleOther(v){document.getElementById('f-other-row').style.display=v==='other'?'flex':'none';}
 
