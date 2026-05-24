@@ -2232,6 +2232,7 @@ function _updateClearBtn(){
 }
 function renderCards() {
   _updateClearBtn();
+  _renderPendingLeaveBanner();  // 顶部黄条提示待确认复学
   const grid=document.getElementById('cards');
   const q=(document.getElementById('bar-search')?.value||'').trim().toLowerCase();
   let studs=visStudents();
@@ -3218,6 +3219,61 @@ async function quickConfirmReturn(sid){
   sd.leaveResumedAt = NOW_SEM;
   s.statusDetail = sd;
   try{ await apiSaveStudent(s); _refreshLeaveViews(); }catch(e){ alert('同步失败：' + e.message); }
+}
+
+// 顶部黄条：扫描所有「待确认」学生，本 session 可关闭
+function _renderPendingLeaveBanner(){
+  const container = document.getElementById('cards');
+  if(!container) return;
+  // 移除旧 banner
+  const old = document.getElementById('pending-leave-banner');
+  if(old) old.remove();
+  if(sessionStorage.getItem('pending_leave_banner_closed') === NOW_SEM) return;
+  const pending = DB.students.filter(s => (s.prog||'TM')===activeProg && getLeaveStatus(s) === 'pending');
+  if(!pending.length) return;
+  const banner = document.createElement('div');
+  banner.id = 'pending-leave-banner';
+  banner.style.cssText = 'margin-bottom:12px;padding:10px 14px;background:#fef9c3;border:1px solid #fde047;border-radius:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+  banner.innerHTML = `
+    <span style="font-size:18px">⚠</span>
+    <span style="font-size:12px;color:#854d0e;font-weight:600;">上学期休学 <b>${pending.length}</b> 位学生尚未确认本学期 (${NOW_SEM}) 是否复学</span>
+    <div style="flex:1"></div>
+    <button onclick="_openPendingLeaveModal()" style="padding:4px 12px;border:1px solid #854d0e;border-radius:5px;background:#fff;color:#854d0e;font-size:11px;font-weight:600;cursor:pointer">逐一确认</button>
+    <button onclick="_batchResumeLeave('extend')" style="padding:4px 12px;border:1px solid #b91c1c;border-radius:5px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:600;cursor:pointer">全部续休</button>
+    <button onclick="_batchResumeLeave('return')" style="padding:4px 12px;border:1px solid #166534;border-radius:5px;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;cursor:pointer">全部复学</button>
+    <button onclick="sessionStorage.setItem('pending_leave_banner_closed','${NOW_SEM}');document.getElementById('pending-leave-banner')?.remove();" title="本 session 不再显示" style="padding:4px 8px;border:none;background:transparent;color:#854d0e;font-size:14px;cursor:pointer">✕</button>
+  `;
+  container.parentNode.insertBefore(banner, container);
+}
+
+// 批次：全部续休 or 全部复学
+async function _batchResumeLeave(mode){
+  const pending = DB.students.filter(s => (s.prog||'TM')===activeProg && getLeaveStatus(s) === 'pending');
+  if(!pending.length) return;
+  const action = mode === 'extend' ? '续休' : '复学';
+  if(!confirm(`确认让 ${pending.length} 位学生全部 ${action} 本学期 (${NOW_SEM})？\n\n${pending.map(s=>'  · '+(s.cname||s.name)).join('\n')}`)) return;
+  for(const s of pending){
+    const sd = s.statusDetail || {};
+    if(mode === 'extend'){
+      sd.leave = sd.leave || [];
+      if(!sd.leave.includes(NOW_SEM)) sd.leave.push(NOW_SEM);
+      delete sd.leaveResumedAt;
+    } else {
+      sd.leaveResumedAt = NOW_SEM;
+    }
+    s.statusDetail = sd;
+    try{ await apiSaveStudent(s); }catch(e){ console.error(`保存 ${s.id} 失败`, e); }
+  }
+  _refreshLeaveViews();
+}
+
+// 逐一确认 modal（简易版：alert 列出 + 让用户回卡片操作）
+function _openPendingLeaveModal(){
+  const pending = DB.students.filter(s => (s.prog||'TM')===activeProg && getLeaveStatus(s) === 'pending');
+  if(!pending.length){ alert('没有待确认的学生'); return; }
+  // 把搜索栏内容清掉，并把状态过滤设到「休学」让卡片置顶
+  const searchEl = document.getElementById('bar-search'); if(searchEl) searchEl.value = '';
+  alert(`请逐一在以下学生卡片上点击 [续休] 或 [✓ 复学]：\n\n${pending.map(s=>'  · '+(s.cname||s.name)+' ('+(s.statusDetail?.leave||[]).join(', ')+')').join('\n')}\n\n（小提示：每张卡的黄色「⚠ 待确认」chip 上有两个按钮）`);
 }
 function extCodeChangedV2(co, n, slot, newCode) {
   const code = (newCode||'').trim().toUpperCase();
@@ -4785,12 +4841,15 @@ function _ctToggleClass(cc){
 
 function renderClassTable(){
   const page=document.getElementById('classtable-page');if(!page)return;
-  let progStuds=DB.students.filter(s=>(s.prog||'TM')===activeProg);
+  // 下拉選單用「所有 TM 學生」推算 classCode（不受过滤器影响 → 毕业/休学班级也保留）
+  const _allProgStuds = DB.students.filter(s=>(s.prog||'TM')===activeProg);
+  let progStuds = _allProgStuds;
   if(window._hideGrads) progStuds = progStuds.filter(s => !isGraduated(s));
   if(window._hideLeave) progStuds = progStuds.filter(s => !isOnLeave(s));
   const _ctProg=getProg(activeProg);
   const _preClassCodes=_ctProg?.preCohorts||[];
-  const codes=[...new Set([...progStuds.map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog)),..._preClassCodes].filter(Boolean))].sort();
+  // codes 包含所有班级代码（含已毕业 / 休学的），避免下拉漏选
+  const codes=[...new Set([..._allProgStuds.map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog)),..._preClassCodes].filter(Boolean))].sort();
   const selClass=window._ctClass||'all';  // 默认全部班级
   const selSem=window._ctSem||NOW_SEM;
   if(!window._ctSem)window._ctSem=NOW_SEM;
