@@ -617,7 +617,7 @@ input[type=file]{display:none;}
     <button class="bar-btn bar-btn-primary" onclick="openAddStudent()">+ 新增学生</button>
     <button class="bar-btn" onclick="openBuildModal()">批次建档</button>
     <button class="bar-btn" onclick="openGradeModal()">更新成绩</button>
-    <button class="bar-btn" onclick="openPreCohortsModal()">🏫 预建班级</button>
+    <button class="bar-btn" onclick="openPreCohortsModal()">🏫 班级届别</button>
     <button class="bar-btn" onclick="openAdvisorsModal()">👨‍🏫 辅导员老师</button>
     <button class="bar-btn" onclick="openMasterModal()">📚 课程库</button>
     <button class="bar-btn" onclick="openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态">🔍 数字检查</button>
@@ -784,9 +784,11 @@ input[type=file]{display:none;}
       </div>
       <div class="fr"><label>班级代码</label>
         <div style="display:flex;gap:6px">
-          <input type="text" id="f-classcode" placeholder="例：TM66" style="flex:1;font-family:var(--mono);font-weight:600;">
+          <input type="text" id="f-classcode" list="f-classcode-options" placeholder="选/填，例：TM66" style="flex:1;font-family:var(--mono);font-weight:600;">
+          <datalist id="f-classcode-options"></datalist>
           <button type="button" onclick="document.getElementById('f-classcode').value=autoClassCode(document.getElementById('f-cohort').value,document.getElementById('f-type').value)" style="padding:5px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--g1);color:var(--g7);font-size:11px;cursor:pointer;white-space:nowrap;font-family:var(--font)">自动生成</button>
         </div>
+        <div style="font-size:10px;color:var(--ink3);margin-top:4px">从「🏫 班级届别」清单挑或手填新代码</div>
       </div>
       <div class="fr"><label>辅导员老师</label><input type="text" id="f-advisor" placeholder="例：Mr. Peng Lu"></div>
       <div class="fr"><label>在籍状况</label>
@@ -1039,11 +1041,11 @@ input[type=file]{display:none;}
   </div>
 </div>
 
-<!-- 预建班级 Modal -->
+<!-- 班级届别 Modal（原「预建班级」） -->
 <div class="overlay" id="precohort-modal">
-  <div class="modal" style="width:420px">
+  <div class="modal" style="width:480px">
     <div class="mh">
-      <div><h3>🏫 预建班级</h3><div class="sub">预先建立班级代码，无需等待新生入学即可排课</div></div>
+      <div><h3>🏫 班级届别管理</h3><div class="sub">维护所有班级代码 · 包含已注册（有学生）和预建（待新生入学）</div></div>
       <button class="mx" onclick="closeModal('precohort-modal')">✕</button>
     </div>
     <div class="mb">
@@ -1060,7 +1062,7 @@ input[type=file]{display:none;}
         </div>
         <div style="font-size:10px;color:var(--ink3);margin-top:4px">全新生如 TM69，专升本加 ZSB 如 TM69ZSB</div>
       </div>
-      <div id="pc-list" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
+      <div id="pc-list" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     </div>
     <div class="mf"><button class="tbtn" onclick="closeModal('precohort-modal')">关闭</button></div>
   </div>
@@ -3339,11 +3341,25 @@ function openExtCell(sid, slot, co, n) {
   document.getElementById('sp-t').className='sp sp-t'+(curSem==='Transferred'?' sel':'');
   openModal('cell-modal');
 }
+// 填入班级代码 datalist 选项（合并：班级届别清单 + 学生实际班级）
+function _populateClassCodeOptions(){
+  const dl = document.getElementById('f-classcode-options');
+  if(!dl) return;
+  const prog = getProg(activeProg);
+  const pre = prog?.preCohorts || [];
+  const fromStuds = [...new Set(DB.students
+    .filter(s=>(s.prog||'TM')===activeProg)
+    .map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog))
+    .filter(Boolean))];
+  const all = [...new Set([...pre, ...fromStuds])].sort();
+  dl.innerHTML = all.map(cc => `<option value="${cc}">`).join('');
+}
 function openAddStudent(){
   document.getElementById('am-title').textContent='新增学生';
   ['f-id','f-name','f-cname','f-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const ccEl=document.getElementById('f-classcode');
   if(ccEl) ccEl.value=autoClassCode(document.getElementById('f-cohort').value,document.getElementById('f-type').value);
+  _populateClassCodeOptions();
   _leaveSems=[];renderLeaveTags();
   document.querySelectorAll('input[name="f-status"]').forEach((r,i)=>{r.checked=i===0;});
   toggleStatusFields('在学');
@@ -3353,6 +3369,7 @@ function openAddStudent(){
 function openEditStudent(id){
   const s=DB.students.find(x=>x.id===id); if(!s) return;
   document.getElementById('am-title').textContent='编辑学生';
+  _populateClassCodeOptions();
   document.getElementById('f-id').value=s.id;
   document.getElementById('f-name').value=s.name;
   document.getElementById('f-cname').value=s.cname||'';
@@ -5390,20 +5407,74 @@ function openPreCohortsModal(){
 function renderPreCohortList(){
   const pid=document.getElementById('pc-prog-sel')?.value||activeProg;
   const prog=getProg(pid);
-  const list=prog?.preCohorts||[];
+  const preList=prog?.preCohorts||[];
+  // 学生实际 classCode 集合
+  const studByCC = {};
+  DB.students.filter(s=>(s.prog||'TM')===pid).forEach(s=>{
+    const cc = s.classCode || autoClassCode(s.cohort, s.type, s.prog);
+    if(!cc) return;
+    (studByCC[cc] = studByCC[cc] || []).push(s);
+  });
+  const studClasses = Object.keys(studByCC);
+  // 合并：preCohorts + 学生实际班级
+  const all = [...new Set([...preList, ...studClasses])].sort();
   const el=document.getElementById('pc-list');
   if(!el) return;
-  if(!list.length){
-    el.innerHTML='<div style="text-align:center;color:var(--ink3);font-size:12px;padding:16px">暂无预建班级</div>';
+  if(!all.length){
+    el.innerHTML='<div style="text-align:center;color:var(--ink3);font-size:12px;padding:16px">暂无班级 · 在上方新增第一个</div>';
     return;
   }
-  el.innerHTML=list.map((cc,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--paper);border:1px solid var(--line);border-radius:7px">
-      <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--g7);flex:1">${cc}</span>
-      <span style="font-size:11px;color:var(--ink3)">${cc.includes('ZSB')?'专升本':'全新生'}</span>
-      <button onclick="delPreCohort(${i})" style="padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;font-size:11px;cursor:pointer;">删除</button>
-    </div>
-  `).join('');
+  el.innerHTML=all.map(cc=>{
+    const isPreOnly = preList.includes(cc) && !studByCC[cc];      // 预建未注册
+    const isStudOnly = !preList.includes(cc) && studByCC[cc];     // 有学生但未入册
+    const isBoth = preList.includes(cc) && studByCC[cc];          // 已注册且有学生
+    const studN = (studByCC[cc]||[]).length;
+    let tag, tagBg, tagFg, badge;
+    if(isStudOnly){
+      tag='未入册'; tagBg='#fef9c3'; tagFg='#854d0e';
+      badge=`<button onclick="addPreCohortDirect('${cc}')" title="加入班级届别清单" style="padding:2px 8px;border:1px solid #166534;border-radius:4px;background:#f0fdf4;color:#166534;font-size:10px;cursor:pointer;font-weight:600">＋ 加入</button>`;
+    } else if(isPreOnly){
+      tag='预建'; tagBg='#f3f4f6'; tagFg='#6b7280';
+      badge=`<button onclick="delPreCohortByCode('${cc}')" style="padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;font-size:11px;cursor:pointer;">删除</button>`;
+    } else {
+      tag='已注册'; tagBg='#dcfce7'; tagFg='#166534';
+      badge=`<button onclick="delPreCohortByCode('${cc}')" title="只移出班级届别清单，不影响学生" style="padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;font-size:11px;cursor:pointer;">移出清单</button>`;
+    }
+    const subType = cc.includes('ZSB')?'专升本':'全新生';
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--paper);border:1px solid var(--line);border-radius:7px">
+        <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--g7);min-width:110px">${cc}</span>
+        <span style="font-size:10px;background:${tagBg};color:${tagFg};border-radius:4px;padding:1px 6px;font-weight:600">${tag}</span>
+        <span style="font-size:11px;color:var(--ink3);min-width:42px">${subType}</span>
+        <span style="font-size:11px;color:${studN>0?'var(--g7)':'var(--ink3)'};font-weight:${studN>0?'600':'400'};flex:1">${studN>0?`${studN} 位学生`:'—'}</span>
+        ${badge}
+      </div>
+    `;
+  }).join('');
+}
+// 新工具：直接以代码新增（用于「+ 加入」按钮）
+function addPreCohortDirect(cc){
+  const pid=document.getElementById('pc-prog-sel')?.value||activeProg;
+  const prog=getProg(pid);
+  if(!prog) return;
+  if(!prog.preCohorts) prog.preCohorts=[];
+  if(prog.preCohorts.includes(cc)) return;
+  prog.preCohorts.push(cc);
+  prog.preCohorts.sort();
+  renderPreCohortList();
+  render();
+  try{apiSaveProgram(prog);}catch(e){}
+}
+// 按代码删除（用于「删除」「移出清单」按钮）
+function delPreCohortByCode(cc){
+  const pid=document.getElementById('pc-prog-sel')?.value||activeProg;
+  const prog=getProg(pid);
+  if(!prog || !prog.preCohorts) return;
+  if(!confirm(`从「班级届别」清单移除 ${cc}？\n\n（若有学生使用此班级，学生资料不变）`)) return;
+  prog.preCohorts = prog.preCohorts.filter(x => x !== cc);
+  renderPreCohortList();
+  render();
+  try{apiSaveProgram(prog);}catch(e){}
 }
 
 function addPreCohort(){
