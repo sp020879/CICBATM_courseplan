@@ -1418,12 +1418,14 @@ async function apiDeleteMasterCourse(code) {
 // 多 slot 时找第一个空 slot 或匹配的 slot；TM 旧版兼容到 'ext2'
 function _assignToExtSlot(s, code, semVal, prog){
   if(!s.courses) s.courses = {};
+  // 同步清掉同 code 的普通 key，避免 ext slot 与普通 key 重复算数
+  const _cleanupOrphan = () => { if(code && Object.prototype.hasOwnProperty.call(s.courses, code)) delete s.courses[code]; };
   const extSlots = (typeof _wbGetExtSlots === 'function') ? _wbGetExtSlots(prog) : [];
   if(!extSlots.length){
     // 没配置 slots → 沿用旧 ext2 行为
     const cur = s.courses['ext2'] || '';
     const curCode = cur.split('|')[0];
-    if(!curCode || curCode === code) s.courses['ext2'] = code + '|' + semVal;
+    if(!curCode || curCode === code){ s.courses['ext2'] = code + '|' + semVal; _cleanupOrphan(); }
     return;
   }
   // 1. 先找已经有这个代码的 slot
@@ -1431,6 +1433,7 @@ function _assignToExtSlot(s, code, semVal, prog){
     const cur = s.courses[slot.slot] || '';
     if(cur.split('|')[0] === code){
       s.courses[slot.slot] = code + '|' + semVal;
+      _cleanupOrphan();
       return;
     }
   }
@@ -1439,6 +1442,7 @@ function _assignToExtSlot(s, code, semVal, prog){
     const cur = s.courses[slot.slot] || '';
     if(!cur){
       s.courses[slot.slot] = code + '|' + semVal;
+      _cleanupOrphan();
       return;
     }
   }
@@ -6071,6 +6075,8 @@ function renderWorkbench(){
   const _wbExtSlotKeySet = new Set(_wbExtSlotsForStat.map(x=>x.slot));
   const _wbExtSlotCrMap = {};
   _wbExtSlotsForStat.forEach(x => { _wbExtSlotCrMap[x.slot] = x.cr || 3; });
+  // allPC 课表代码集合（用于过滤孤儿 key，避免与 ext slot 重复算数）
+  const _wbAllPCSet = new Set((allPC||[]).map(x=>x.c));
   function _wbSemStat(s, sem){
     let cnt = 0, cr = 0;
     Object.entries(s.courses||{}).forEach(([code, val]) => {
@@ -6078,6 +6084,9 @@ function renderWorkbench(){
       if(_wbExtSlotKeySet.has(code)){
         const parts = (val||'').split('|');
         semVal = parts.length>1 ? parts[1] : val;
+      } else {
+        // 孤儿 key 守门：code 不在 ext slot 也不在课表 → 跳过（多半是旧资料残留）
+        if(!_wbAllPCSet.has(code) || code.includes('|') || /[^\x00-\x7F]/.test(code)) return;
       }
       if(semVal === sem){
         cnt++;
