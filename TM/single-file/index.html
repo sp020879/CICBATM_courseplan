@@ -5985,13 +5985,22 @@ function renderWorkbench(){
     const gradBadge = isGrad
       ? '<span style="font-size:13px;margin-left:3px" title="🎓 已达标毕业">🎓</span>'
       : '';
-    h += `<th class="wb-th-stu" style="background:${pal.bg};color:${pal.fg};border-bottom-color:${pal.bd}">
+    // 该 TARGET 学期是否休学（影响 column 整体灰化 + 加 🌙 标记）
+    const _onLeaveT = isOnLeaveAt(s, TARGET);
+    const _leaveBadge = _onLeaveT
+      ? `<span style="font-size:11px;margin-left:3px;color:#b91c1c" title="本学期 (${TARGET}) 休学">🌙</span>`
+      : '';
+    const _thBg = _onLeaveT ? '#f1f5f9' : pal.bg;            // 灰底
+    const _thFg = _onLeaveT ? '#94a3b8' : pal.fg;            // 灰字
+    const _thBd = _onLeaveT ? '#cbd5e1' : pal.bd;
+    const _thTitle = _onLeaveT ? `title="🌙 ${shortName(s.name)} 本学期 (${TARGET}) 休学，不计入在课人数"` : '';
+    h += `<th class="wb-th-stu${_onLeaveT?' on-leave':''}" ${_thTitle} style="background:${_thBg};color:${_thFg};border-bottom-color:${_thBd};${_onLeaveT?'opacity:.7;':''}">
       ${(_WB.mode==='multi') ? `<div class="wb-col-pick" onclick="_wbPickColumn('${s.id}')" title="选这位学生所有 cell">${colChecked?'☑':'☐'}</div>` : ''}
       <div style="display:flex;align-items:center;justify-content:center;">
-        <span class="wb-th-stu-id">${s.id}</span>${gradBadge}
+        <span class="wb-th-stu-id">${s.id}</span>${gradBadge}${_leaveBadge}
       </div>
       <div class="wb-th-stu-name">${shortName(s.name)}</div>
-      <div class="wb-th-stu-cc" style="color:${pal.fg}">${cc}</div>
+      <div class="wb-th-stu-cc" style="color:${_thFg}">${cc}</div>
     </th>`;
   });
   h += '</tr></thead><tbody>';
@@ -6076,6 +6085,10 @@ function renderWorkbench(){
         const hasVal = val && String(val).trim() && /^25\d\d\/[123]$/.test(val);
         const cellKey = s.id + '|' + co.c;
         const isSel = _WB.selectedCells.has(cellKey);
+        // 资料矛盾检测：cell 排了某学期，但该生那学期休学
+        const _cellConflict = hasVal && isOnLeaveAt(s, val);
+        // TARGET 学期休学：cell 整体灰化（提示别在这格排）
+        const _targetLeave = isOnLeaveAt(s, TARGET);
         let cellStyle = '', cellTxt = '·';
         if(isTrans){
           cellStyle = 'background:#dbeafe;color:#1e40af;font-size:7.5px;letter-spacing:-.4px;font-weight:600';
@@ -6084,7 +6097,18 @@ function renderWorkbench(){
           cellStyle = globalSemStyle(val);
           cellTxt = val;
         }
-        h += `<td class="wb-cell-data${hasVal||isTrans?' filled':' empty'}${isSel?' sel':''}" style="${cellStyle}" onclick="_wbClickCell('${s.id}','${co.c}',event)">${cellTxt}</td>`;
+        if(_cellConflict){
+          cellStyle += ';border:1.5px solid #dc2626;background:#fef2f2;color:#991b1b';
+          cellTxt = '⚠ '+cellTxt;
+        } else if(_targetLeave && !hasVal && !isTrans){
+          // 空格 + TARGET 休学 → 灰底提示别排
+          cellStyle = 'background:#f1f5f9;color:#cbd5e1;opacity:.6';
+          cellTxt = '🌙';
+        }
+        const _cellTitle = _cellConflict
+          ? `title="⚠ ${shortName(s.name)} 在 ${val} 休学，但此格已排课，资料矛盾"`
+          : (_targetLeave ? `title="🌙 ${shortName(s.name)} 本学期 (${TARGET}) 休学"` : '');
+        h += `<td class="wb-cell-data${hasVal||isTrans?' filled':' empty'}${isSel?' sel':''}${_cellConflict?' leave-conflict':''}${_targetLeave?' target-leave':''}" ${_cellTitle} style="${cellStyle}" onclick="_wbClickCell('${s.id}','${co.c}',event)">${cellTxt}</td>`;
       });
       h += '</tr>';
     });
