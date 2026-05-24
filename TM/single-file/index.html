@@ -603,7 +603,7 @@ input[type=file]{display:none;}
     </button>
     <span class="bar-divv"></span>
     <span id="login-label" style="font-size:11px;color:var(--h-text);font-family:var(--mono);"></span>
-    <button id="login-btn" onclick="login()" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">登出</button>
+    <button id="login-btn" onclick="logout()" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">登出</button>
   </div>
   <!-- Row 2: 新增学生 建档 更新成绩 排课 → → → 新增专业 | 专业选+笔 -->
   <div class="bar-r2">
@@ -1204,7 +1204,7 @@ function fromRow(r) {
     statusDetail: (()=>{try{return typeof r.status_detail==='object'?r.status_detail:JSON.parse(r.status_detail||'{}')}catch(e){return{}}})(),
     courses: r.courses || {},
     tep: r.tep || {},
-    gpa: r.gpa != null ? parseFloat(r.gpa) : null,
+    gpa: (()=>{ if(r.gpa==null) return null; const n=parseFloat(r.gpa); return Number.isFinite(n)?n:null; })(),
     gpaHistory: r.gpa_history || [],
     gpaUpdated: r.gpa_updated || '',
     dpuTepScore: r.dpu_tep_score || null,
@@ -1217,7 +1217,7 @@ function fromProgRow(r) {
   const courses=Array.isArray(r.courses)?r.courses:(typeof r.courses==='string'?JSON.parse(r.courses||'[]'):[]);
   let meta = null;
   try{ meta = typeof r.meta === 'object' ? r.meta : (r.meta ? JSON.parse(r.meta) : null); }catch(e){ meta = null; }
-  return { id: r.id, name: r.name, totalCr: r.total_cr || 123, courses, preCohorts: r.pre_cohorts || [], meta };
+  return { id: r.id, name: r.name, totalCr: r.total_cr ?? 123, courses, preCohorts: r.pre_cohorts || [], meta };
 }
 
 // ── API helpers (replaces GAS api()) ──────────────────
@@ -3856,7 +3856,7 @@ function unskipBatchRow(i){
   if(window.batchSkipped) window.batchSkipped.delete(i);
   // 恢复按钮
   const btns=document.getElementById('batch-btns-'+i);
-  if(btns&&r) btns.innerHTML=`<button class="di-apply" style="font-size:10px;padding:2px 8px" onclick="quickAddStudent('${r.sid}','${(r.pdfName||'').replace(/'/g,"\'")}',${i})">新增</button><button onclick="skipBatchRow(${i})" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--line2);background:transparent;cursor:pointer;color:var(--ink3)">略过</button>`;
+  if(btns&&r) btns.innerHTML=`<button class="di-apply" style="font-size:10px;padding:2px 8px" onclick="quickAddStudent('${r.sid}','${(r.pdfName||'').replace(/'/g,"\\'")}',${i})">新增</button><button onclick="skipBatchRow(${i})" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--line2);background:transparent;cursor:pointer;color:var(--ink3)">略过</button>`;
   updateBatchApplyBtn();
 }
 function unskipAll(){
@@ -3868,7 +3868,7 @@ function unskipAll(){
     const el=document.getElementById('batch-row-'+i);
     if(el) el.style.opacity='1';
     const btns=document.getElementById('batch-btns-'+i);
-    if(btns&&r) btns.innerHTML=`<button class="di-apply" style="font-size:10px;padding:2px 8px" onclick="quickAddStudent('${r.sid}','${(r.pdfName||'').replace(/'/g,"\'")}',${i})">新增</button><button onclick="skipBatchRow(${i})" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--line2);background:transparent;cursor:pointer;color:var(--ink3)">略过</button>`;
+    if(btns&&r) btns.innerHTML=`<button class="di-apply" style="font-size:10px;padding:2px 8px" onclick="quickAddStudent('${r.sid}','${(r.pdfName||'').replace(/'/g,"\\'")}',${i})">新增</button><button onclick="skipBatchRow(${i})" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--line2);background:transparent;cursor:pointer;color:var(--ink3)">略过</button>`;
   });
   updateBatchApplyBtn();
 }
