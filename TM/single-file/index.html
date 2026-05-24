@@ -1872,10 +1872,18 @@ function isGraduated(s){
   const g = parseFloat(s.gpa);
   return p.remC === 0 && p.internOk && (s.gpa == null || g >= 2.0);
 }
-// 判断学生是否当前休学
+// 判断学生「歷史上有沒有休過」（用于全域隐藏、统计徽章等）
 function isOnLeave(s){
   const sd = s.statusDetail || {};
   return !!(sd.leave && sd.leave.length && !sd.withdrawn);
+}
+// 判断学生「指定学期是否正在休学」（用于 per-sem 排课计算）
+function isOnLeaveAt(s, sem){
+  if(!sem) return false;
+  const sd = s.statusDetail || {};
+  if(sd.withdrawn) return false;
+  if(!sd.leave || !sd.leave.length) return false;
+  return sd.leave.includes(sem);
 }
 // 全局开关：默认隐藏已毕业学生
 if(typeof window !== 'undefined' && window._hideGrads === undefined) window._hideGrads = true;
@@ -4818,7 +4826,7 @@ function renderClassTable(){
     const isExt2=code.startsWith('ext2:');
     const realCode=isExt2?code.replace('ext2:',''):code;
     const c=courseMap[realCode]||{c:realCode,n:'外系选修',cr:3,g:'外系选修'};
-    const pickedStuds=isExt2
+    const pickedStuds=(isExt2
       ? studs.filter(s=>{
           for(const slot of _ctExtSlots){
             const v=(s.courses||{})[slot.slot]||'';
@@ -4827,7 +4835,8 @@ function renderClassTable(){
           }
           return false;
         })
-      : studs.filter(s=>(s.courses||{})[realCode]===selSem);
+      : studs.filter(s=>(s.courses||{})[realCode]===selSem)
+    ).filter(s=>!isOnLeaveAt(s, selSem));  // selSem 当下休学者不算入修课人数
     const picked=pickedStuds.length;
     // 班级筛选（多选）
     if(_selClass2Set.size){
@@ -4978,7 +4987,7 @@ function printClassTable(){
     const isExt2=code.startsWith('ext2:');
     const realCode=isExt2?code.replace('ext2:',''):code;
     const c=courseMap[realCode]||{c:realCode,n:'外系选修',cr:3};
-    const pickedStuds=isExt2
+    const pickedStuds=(isExt2
       ? studs.filter(s=>{
           for(const slot of _ctExtSlots){
             const v=(s.courses||{})[slot.slot]||'';
@@ -4987,7 +4996,8 @@ function printClassTable(){
           }
           return false;
         })
-      : studs.filter(s=>(s.courses||{})[realCode]===selSem);
+      : studs.filter(s=>(s.courses||{})[realCode]===selSem)
+    ).filter(s=>!isOnLeaveAt(s, selSem));  // selSem 当下休学者不算入修课人数
     rn++;
     const classCodes=[...new Set(pickedStuds.map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog)))].sort();
     const noteKey='ctnote_'+activeProg+'_'+selSem+'_'+realCode;
@@ -6151,6 +6161,8 @@ function renderWorkbench(){
   const _wbAllPCSet = new Set((allPC||[]).map(x=>x.c));
   function _wbSemStat(s, sem){
     let cnt = 0, cr = 0;
+    // 该学期休学者：直接回 0（不在校，不计入「该学期在课人数」）
+    if(isOnLeaveAt(s, sem)) return { cnt, cr };
     Object.entries(s.courses||{}).forEach(([code, val]) => {
       let semVal = val;
       if(_wbExtSlotKeySet.has(code)){
