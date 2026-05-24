@@ -5982,29 +5982,33 @@ function renderWorkbench(){
   // 每个组
   groupOrder.forEach(g => {
     const courses = groups[g];
-    // 判断「全组完成」（按组别规则）
+    // 判断「全组完成」（按组别规则 · 以 NOW_SEM 为准，未来学期不算已修）
     const _isGeSelGrp = ['终身学习-选修','价值论理-选修','生活质量-选修'].includes(g);
     const isAllDone = (() => {
+      // 以 NOW_SEM 为准：只有 Transferred 或 <= NOW_SEM 的学期才算已修
+      const _sv = v => { if(!v||v==='-'||v==='Transferred') return null; const m=v.match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):null; };
+      const _nowV = _sv(NOW_SEM) || 99999;
+      const _doneOk = v => v==='Transferred' || (_sv(v)!==null && _sv(v) <= _nowV);
       if(_isGeSelGrp){
-        // GE 选修：每位学生在本组至少 1 门有值
+        // GE 选修：每位学生在本组至少 1 门已修
         return studs.every(s => courses.some(co => {
           const v = (s.courses||{})[co.c];
-          return v && _ssIsDoneValStub(v);
+          return v && _doneOk(v);
         }));
       }
       if(g === '语言修选'){
         // 语言修选：每位学生主路线 (KE 或 KH) 已修 >=5 门
         return studs.every(s => {
           const cc = s.courses||{};
-          const ke = courses.filter(co => co.c.startsWith('KE') && cc[co.c] && _ssIsDoneValStub(cc[co.c])).length;
-          const kh = courses.filter(co => co.c.startsWith('KH') && cc[co.c] && _ssIsDoneValStub(cc[co.c])).length;
+          const ke = courses.filter(co => co.c.startsWith('KE') && cc[co.c] && _doneOk(cc[co.c])).length;
+          const kh = courses.filter(co => co.c.startsWith('KH') && cc[co.c] && _doneOk(cc[co.c])).length;
           return Math.max(ke, kh) >= 5;
         });
       }
-      // 默认（必修等）：每位学生每门都有值
+      // 默认（必修等）：每位学生每门都已修
       return courses.every(co => studs.every(s => {
         const v = (s.courses||{})[co.c];
-        return v && _ssIsDoneValStub(v);
+        return v && _doneOk(v);
       }));
     })();
     // 首次渲染时：自动折叠已修完的组
