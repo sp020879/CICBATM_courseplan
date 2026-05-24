@@ -4835,10 +4835,17 @@ function renderClassTable(){
       if(!hasClass) return;
     }
     rn++;
+    // 每班修这门课的人数
+    const _classCnt = {};
+    pickedStuds.forEach(s => {
+      const _cc = s.classCode||autoClassCode(s.cohort,s.type,s.prog);
+      _classCnt[_cc] = (_classCnt[_cc]||0) + 1;
+    });
     const classCodes=[...new Set(pickedStuds.map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog)))].sort();
     const classHtml=classCodes.map(cc=>{
       const pal=getClassColor(cc);
-      return `<span style="font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 7px;border-radius:20px;margin-right:3px;">${cc}</span>`;
+      const n = _classCnt[cc]||0;
+      return `<span title="${cc} 班修这门课：${n} 人" style="display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 4px 1px 7px;border-radius:20px;margin-right:3px;cursor:default;">${cc}<span style="background:rgba(0,0,0,.18);color:#fff;padding:0 5px;border-radius:9px;font-size:9px;line-height:1.4;min-width:14px;text-align:center">${n}</span></span>`;
     }).join('');
     // 备注（储存在 localStorage）
     const noteKey='ctnote_'+activeProg+'_'+selSem+'_'+realCode;
