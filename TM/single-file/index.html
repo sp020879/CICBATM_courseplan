@@ -6511,15 +6511,37 @@ function renderWorkbench(){
     const isGrad = p.remC === 0 && p.internOk;
     const overTag = p.overC > 0 ? `<span class="ss-over" title="实际多修 ${p.overC} 门">⚠ 超修 +${p.overC}</span>` : '';
     const gradTag = isGrad ? `<span class="ss-grad">🎓 达标</span>` : '';
+    // 实习显示学期：KT411 单 6 学分优先；否则 KT331+332 取较晚者；Transferred → "Transfer"
+    const _c = s.courses || {};
+    const _kt411 = _c['KT411'], _kt331 = _c['KT331'], _kt332 = _c['KT332'];
+    let internSem = '', internCode = '';
+    if(_kt411){
+      internCode = 'KT411';
+      internSem = _kt411 === 'Transferred' ? 'Transfer' : _kt411;
+    } else if(_kt331 && _kt332){
+      internCode = 'KT331+332';
+      if(_kt331 === 'Transferred' && _kt332 === 'Transferred') internSem = 'Transfer';
+      else {
+        // 取较晚学期
+        const sv = v => { const m = (v||'').match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):0; };
+        internSem = sv(_kt332) >= sv(_kt331) ? _kt332 : _kt331;
+      }
+    } else if(_kt331 || _kt332){
+      internCode = _kt331 ? 'KT331(待 332)' : 'KT332(待 331)';
+      internSem = _kt331 || _kt332;
+    }
     const internCls = p.internOk ? 'ok' : 'no';
     const internIcon = p.internOk ? '✓' : '待';
-    h += `<td title="已修 ${p.doneC}/${p.totalC} 门 · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}">
+    const internLabel = internSem
+      ? `${internIcon} 实习 ${internSem}`
+      : `${internIcon} 实习`;
+    h += `<td title="已修 ${p.doneC}/${p.totalC} 门 · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'}${internCode?'（'+internCode+(internSem?' '+internSem:'')+'）':''} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}">
       <div class="ss">
         <div class="ss-prog">${pct}%</div>
         <div class="ss-bar"><i style="width:${Math.min(100,pct)}%;background:${isGrad?'var(--amber)':pct>=90?'var(--g6)':pct>=60?'var(--sky)':'var(--g5)'}"></i></div>
         <div class="ss-c">${p.doneC}/${p.totalC} 门</div>
         <div class="ss-cr">${p.doneCr}/${p.totalCr}cr</div>
-        <div class="ss-intern ${internCls}">${internIcon} 实习</div>
+        <div class="ss-intern ${internCls}">${internLabel}</div>
         ${gradTag || overTag}
       </div>
     </td>`;
