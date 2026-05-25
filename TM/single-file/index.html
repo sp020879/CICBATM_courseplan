@@ -1794,6 +1794,13 @@ function switchTab(tab) {
   sessionStorage.setItem('activeTab', tab);
 }
 
+// Dashboard「最近活动」折叠 toggle
+function _dashToggleRecent(){
+  const cur = localStorage.getItem('dash_recent_collapsed') === '1';
+  localStorage.setItem('dash_recent_collapsed', cur ? '0' : '1');
+  if(typeof renderDashboard === 'function') renderDashboard();
+}
+
 // ── Dashboard / 总览 tab ──────────────────────────────────
 async function renderDashboard(){
   const page = document.getElementById('dash-page');
@@ -1921,26 +1928,30 @@ async function renderDashboard(){
       </div>
     </div>
 
-    <!-- 最近活动 -->
-    <div style="margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
-      <div style="background:var(--g8);color:#fff;padding:8px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px">
-        🗂 最近活动
-        <span style="font-size:10px;font-weight:400;opacity:.7">audit log · 最新 ${recent.length} 笔</span>
-      </div>
-      ${recent.length === 0
-        ? '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:12px">(无记录或 audit_log 表未建立)</div>'
-        : `<div style="max-height:280px;overflow-y:auto">
-            ${recent.map(r => {
-              const ts = (r.ts||'').substring(5,16).replace('T',' ');
-              return `<div style="display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:0.5px solid var(--line);font-size:11px">
-                <span style="font-family:var(--mono);color:var(--ink3);min-width:80px">${ts}</span>
-                <span style="font-family:var(--mono);color:var(--sky);min-width:80px;font-weight:600">${r.who||'?'}</span>
-                <span style="font-family:var(--mono);color:var(--g7);min-width:140px">${r.action||''}</span>
-                <span style="flex:1;color:var(--ink2)">${r.note||r.target_id||''}</span>
-              </div>`;
-            }).join('')}
-          </div>`}
-    </div>
+    <!-- 最近活动（可折叠 · 状态存 localStorage） -->
+    ${(() => {
+      const collapsed = localStorage.getItem('dash_recent_collapsed') === '1';
+      return `<div style="margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+        <div onclick="_dashToggleRecent()" style="background:var(--g8);color:#fff;padding:8px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none" title="点击折叠/展开">
+          <span style="font-size:10px;width:12px;text-align:center">${collapsed?'▶':'▼'}</span>
+          🗂 最近活动
+          <span style="font-size:10px;font-weight:400;opacity:.7">audit log · 最新 ${recent.length} 笔</span>
+        </div>
+        ${collapsed ? '' : (recent.length === 0
+          ? '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:12px">(无记录或 audit_log 表未建立)</div>'
+          : `<div style="max-height:280px;overflow-y:auto">
+              ${recent.map(r => {
+                const ts = (r.ts||'').substring(5,16).replace('T',' ');
+                return `<div style="display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:0.5px solid var(--line);font-size:11px">
+                  <span style="font-family:var(--mono);color:var(--ink3);min-width:80px">${ts}</span>
+                  <span style="font-family:var(--mono);color:var(--sky);min-width:80px;font-weight:600">${r.who||'?'}</span>
+                  <span style="font-family:var(--mono);color:var(--g7);min-width:140px">${r.action||''}</span>
+                  <span style="flex:1;color:var(--ink2)">${r.note||r.target_id||''}</span>
+                </div>`;
+              }).join('')}
+            </div>`)}
+      </div>`;
+    })()}
   `;
   page.innerHTML = h;
 }
