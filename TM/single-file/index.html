@@ -21,8 +21,8 @@
   <div style="background:#fff;border-radius:12px;padding:40px 48px;box-shadow:0 20px 60px rgba(0,0,0,.4);width:320px;text-align:center;">
     <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5f9975;letter-spacing:.5px;margin-bottom:4px;">CIC 本科</div>
     <div style="font-size:18px;font-weight:700;color:#0d2818;margin-bottom:24px;">旅游管理排课追踪系统</div>
-    <div style="text-align:left;margin-bottom:6px;font-size:11px;font-weight:600;color:#6b7280;letter-spacing:.5px;text-transform:uppercase;">密码</div>
-    <input id="pw-input" type="password" placeholder="请输入密码"
+    <div style="text-align:left;margin-bottom:6px;font-size:11px;font-weight:600;color:#6b7280;letter-spacing:.5px;text-transform:uppercase;">PIN</div>
+    <input id="pw-input" type="password" placeholder="请输入 PIN"
       style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:7px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;box-sizing:border-box;outline:none;transition:border-color .15s;"
       onfocus="this.style.borderColor='#27a558'" onblur="this.style.borderColor='#e5e7eb'"
       onkeydown="if(event.key==='Enter')doLogin()">
@@ -597,23 +597,52 @@ function masterLookup(code){
 }
 let currentUser = null;
 
-const _PW = 'CICTM2569';
+// ── 旧的硬编码 PIN 已废弃，改查 Supabase passcodes 表 ──
+// const _PW = 'CICTM2569';   // 不再使用
 
-function doLogin(){
-  const val=document.getElementById('pw-input')?.value||'';
-  if(val===_PW){
-    sessionStorage.setItem('cic_auth','1');
-    const ov=document.getElementById('login-overlay');
-    if(ov) ov.style.display='none';
-    document.getElementById('pw-error').textContent='';
-  } else {
-    const err=document.getElementById('pw-error');
-    if(err){ err.textContent='密码错误，请再试一次'; }
-    const inp=document.getElementById('pw-input');
-    if(inp){ inp.value=''; inp.focus(); inp.style.borderColor='#dc2626'; setTimeout(()=>inp.style.borderColor='#e5e7eb',1500); }
-    // shake 动画
-    const box=document.getElementById('login-box');
-    if(box){ box.classList.remove('login-shake'); void box.offsetWidth; box.classList.add('login-shake'); }
+async function doLogin(){
+  const inp=document.getElementById('pw-input');
+  const errEl=document.getElementById('pw-error');
+  const box=document.getElementById('login-box');
+  const val=(inp?.value||'').trim();
+  if(!val){ if(errEl) errEl.textContent='请输入 PIN'; return; }
+
+  // 防重复点击
+  if(box?.dataset.loggingIn === '1') return;
+  if(box) box.dataset.loggingIn = '1';
+  if(errEl) errEl.textContent='验证中...';
+
+  try{
+    // 查 Supabase passcodes 表（必须 enabled = true）
+    const rows = await sb(`passcodes?pin=eq.${encodeURIComponent(val)}&enabled=is.true&select=pin,name`);
+    if(rows && rows.length){
+      const match = rows[0];
+      sessionStorage.setItem('cic_auth','1');
+      // 登入成功 → 自动设 audit_who 为对应名字
+      localStorage.setItem('audit_who', match.name);
+      const _whoEl = document.getElementById('audit-who-label');
+      if(_whoEl) _whoEl.textContent = match.name;
+      // 更新 last_used (fire-and-forget)
+      sb(`passcodes?pin=eq.${encodeURIComponent(val)}`, {
+        method:'PATCH',
+        body: JSON.stringify({ last_used: new Date().toISOString() }),
+        prefer:'return=minimal'
+      }).catch(()=>{});
+      // 关闭登入框
+      const ov=document.getElementById('login-overlay');
+      if(ov) ov.style.display='none';
+      if(errEl) errEl.textContent='';
+      // 记录登入 audit
+      if(typeof apiAudit === 'function') apiAudit('login', 'system', null, `${match.name} 登入`);
+    } else {
+      if(errEl) errEl.textContent='PIN 错误，请再试一次';
+      if(inp){ inp.value=''; inp.focus(); inp.style.borderColor='#dc2626'; setTimeout(()=>inp.style.borderColor='#e5e7eb',1500); }
+      if(box){ box.classList.remove('login-shake'); void box.offsetWidth; box.classList.add('login-shake'); }
+    }
+  }catch(e){
+    if(errEl) errEl.textContent='连线失败：'+e.message;
+  }finally{
+    if(box) box.dataset.loggingIn = '';
   }
 }
 function checkAuth(){
