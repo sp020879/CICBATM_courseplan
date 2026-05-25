@@ -1,0 +1,71 @@
+name: Supabase Backup
+
+on:
+  schedule:
+    # 每天 UTC 19:00 = 泰国 02:00 / 北京 03:00
+    - cron: '0 19 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: write  # 允许 push 备份到 repo
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backup Supabase tables
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          set -e
+          mkdir -p backups
+          TS=$(date -u +%Y-%m-%d)
+          OUT="backups/${TS}.json"
+
+          echo "Backing up to $OUT ..."
+
+          # 抓 5 张表
+          dump_table() {
+            local table=$1
+            curl -fsS \
+              -H "apikey: $SUPABASE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              "$SUPABASE_URL/rest/v1/$table?select=*"
+          }
+
+          {
+            echo "{"
+            echo "  \"backup_at\": \"$(date -u -Iseconds)\","
+            echo "  \"students\": $(dump_table students),"
+            echo "  \"programs\": $(dump_table programs),"
+            echo "  \"course_master\": $(dump_table course_master),"
+            echo "  \"audit_log\": $(dump_table audit_log 2>/dev/null || echo '[]')"
+            echo "}"
+          } > "$OUT"
+
+          # 验证 JSON 合法
+          python3 -c "import json; json.load(open('$OUT'))" && echo "✓ JSON valid"
+
+          # 显示大小
+          ls -lh "$OUT"
+
+      - name: Prune old backups (keep 30 days)
+        run: |
+          # 删 30 天前的备份
+          find backups -name "*.json" -mtime +30 -delete 2>/dev/null || true
+          ls backups/ | head -5
+
+      - name: Commit backup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backups/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🤖 backup $(date -u +%Y-%m-%d)"
+            git push
+          fi
