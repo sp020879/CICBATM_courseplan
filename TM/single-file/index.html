@@ -1876,10 +1876,13 @@ async function renderDashboard(){
       </div>`;
 
   // ── 渲染 ──
+  const _allSysCount = DB.students.length;
+  const _otherCount = _allSysCount - allStuds.length;
   let h = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
       <h2 style="font-size:18px;color:var(--g8);margin:0">📊 总览</h2>
-      <span style="font-size:11px;color:var(--ink3)">· ${prog?.name||activeProg} · 当下学期 ${NOW_SEM}</span>
+      <span style="font-size:11px;color:var(--ink3)">· 仅显示 <b style="color:var(--g7)">${prog?.name||activeProg}</b> · 当下学期 ${NOW_SEM}</span>
+      ${_otherCount > 0 ? `<span style="font-size:10px;background:#e0f2fe;color:#075985;border-radius:3px;padding:2px 8px" title="其他专业有 ${_otherCount} 位学生 · 切右上专业 dropdown 查看">另有 ${_otherCount} 位在其他专业</span>` : ''}
       <div style="flex:1"></div>
       <button onclick="renderDashboard()" style="padding:4px 10px;border:1px solid var(--line2);border-radius:5px;background:#fff;color:var(--ink2);font-size:11px;cursor:pointer">🔄 刷新</button>
     </div>
@@ -1923,7 +1926,7 @@ async function renderDashboard(){
           </div>
         </div>
         <div style="padding:0 14px 14px;font-size:11px;color:var(--ink3);text-align:center">
-          总学生 <b style="color:var(--ink);font-family:var(--mono);font-size:13px">${stats.total}</b> 位
+          本专业 <b style="color:var(--ink);font-family:var(--mono);font-size:13px">${stats.total}</b> 位 · 全系统共 <b style="color:var(--ink2);font-family:var(--mono)">${_allSysCount}</b> 位
         </div>
       </div>
     </div>
