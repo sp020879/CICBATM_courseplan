@@ -883,7 +883,8 @@ input[type=file]{display:none;}
         <p style="font-size:12px;color:var(--ink3);margin-top:3px">自动提取课程列表</p>
       </div>
       <div style="text-align:center;font-size:12px;color:var(--ink3);margin:-4px 0 6px">— 或 —</div>
-      <button id="tm-builtin-btn" onclick="useTMBuiltin()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--g6);background:var(--g1);color:var(--g7);font-family:var(--font);font-size:12px;cursor:pointer;margin-bottom:8px;">✓ 直接使用内建 TM 课程架构（38门课 + 实习 · 123学分）</button>
+      <button id="tm-builtin-btn" onclick="useTMBuiltin()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--g6);background:var(--g1);color:var(--g7);font-family:var(--font);font-size:12px;cursor:pointer;margin-bottom:6px;">✓ 直接使用内建 TM 课程架构（38门课 + 实习 · 123学分）</button>
+      <button id="pm-pick-master-btn" onclick="pickFromMaster()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--sky);background:var(--sky-l);color:var(--sky);font-family:var(--font);font-size:12px;cursor:pointer;margin-bottom:8px;">📚 从课程库挑选（<span id="pm-master-count">0</span> 门可选）</button>
       <input type="file" id="f-pm-pdf" accept=".pdf" onchange="handleProgPdfFile(this)">
       <div id="pm-preview"></div>
     </div>
@@ -4380,16 +4381,58 @@ async function _accumulateToMaster(results){
 // ── Program management ─────────────────────────────────
 function openAddProg(){
   document.getElementById('pm-name').value='';document.getElementById('pm-cr').value='123';document.getElementById('pm-preview').innerHTML='';
+  // 清掉专业 ID 输入
+  const idEl = document.getElementById('pm-id'); if(idEl) idEl.value='';
   pendingProgCourses=[];window._allProgCourses=null;
   const tmBtn=document.getElementById('tm-builtin-btn');if(tmBtn)tmBtn.style.display='none';
   const nameEl=document.getElementById('pm-name');
   if(nameEl)nameEl.oninput=()=>{const isTM=/tourism|旅游/i.test(nameEl.value);if(tmBtn)tmBtn.style.display=isTM?'':'none';};
+  // 更新「从课程库挑选」按钮数字 + 没库时禁用
+  const masterN = (DB.masterCourses||[]).length;
+  const cntSpan = document.getElementById('pm-master-count'); if(cntSpan) cntSpan.textContent = masterN;
+  const pickBtn = document.getElementById('pm-pick-master-btn');
+  if(pickBtn){
+    pickBtn.disabled = masterN === 0;
+    pickBtn.style.opacity = masterN === 0 ? '.5' : '1';
+    pickBtn.style.cursor = masterN === 0 ? 'not-allowed' : 'pointer';
+    pickBtn.title = masterN === 0 ? '课程库为空 · 先到 📚 课程库新增或灌入课程' : `从 ${masterN} 门已累积的课程挑选`;
+  }
   openModal('prog-modal');
 }
 function useTMBuiltin(){
   document.getElementById('pm-name').value=document.getElementById('pm-name').value||'Tourism Management 旅游管理';
   document.getElementById('pm-cr').value='123';
   renderProgSelector(getBuiltinTMCourses());
+}
+// 从课程库挑选课程组成新专业课表
+function pickFromMaster(){
+  const master = DB.masterCourses || [];
+  if(!master.length){
+    alert('📚 课程库目前是空的。\n\n请先到「📚 课程库」新增课程，或在那边按「🌱 灌入 TM 52 门」一键累积 TM 课表。');
+    return;
+  }
+  // 把 master 转成 program courses 格式（c/n/cr/g）→ renderProgSelector 复用
+  const converted = master.map(m => ({
+    c: (m.code||'').toUpperCase().trim(),
+    n: m.name_en || m.name_cn || m.code || '',
+    cr: m.default_cr || 3,
+    g: m.category || '未分类',
+    _gtype: 'required',   // 用户后续可以在编辑课表 modal 改
+    _gcr: 0
+  })).filter(x => x.c);
+  // 按 group 排序后再丢给 selector
+  converted.sort((a,b) => (a.g||'').localeCompare(b.g||'') || a.c.localeCompare(b.c));
+  renderProgSelector(converted);
+  // 课程库挑选默认全部勾选（用户去掉不要的）
+  if(typeof checkAllProg === 'function') checkAllProg(true);
+  // 预览区上方加一行提示，让用户知道是从课程库来的
+  const prev = document.getElementById('pm-preview');
+  if(prev){
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:11px;color:var(--sky);background:var(--sky-l);border:1px solid var(--sky-m);border-radius:6px;padding:6px 10px;margin-bottom:8px';
+    hint.innerHTML = `📚 从课程库挑选 · 已默认全部勾选 ${converted.length} 门 · 取消不要的即可`;
+    prev.insertBefore(hint, prev.firstChild);
+  }
 }
 async function handleProgPdfFile(inp){
   if(!inp.files[0])return;
