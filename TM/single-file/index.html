@@ -64,6 +64,7 @@
     </button>
     <span class="bar-divv"></span>
     <span id="login-label" style="font-size:11px;color:var(--h-text);font-family:var(--mono);"></span>
+    <button onclick="setAuditWho()" title="设定 audit log 操作者名称" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;margin-right:4px" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">👤 <span id="audit-who-label">—</span></button>
     <button id="login-btn" onclick="logout()" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">登出</button>
   </div>
   <!-- Row 2: 新增学生 建档 更新成绩 排课 → → → 新增专业 | 专业选+笔 -->
@@ -734,6 +735,31 @@ function setSyncError() {
   document.getElementById('sync-label').textContent = '同步失败';
 }
 
+// ── Audit log ──────────────────────────────────────────
+function getAuditWho(){ return localStorage.getItem('audit_who') || 'anonymous'; }
+function setAuditWho(){
+  const cur = getAuditWho();
+  const v = window.prompt('设定操作者名称（用于 audit log 追踪）：', cur === 'anonymous' ? '' : cur);
+  if(v !== null && v.trim()){
+    localStorage.setItem('audit_who', v.trim());
+    const el = document.getElementById('audit-who-label');
+    if(el) el.textContent = v.trim();
+    alert(`✓ 已设定为「${v.trim()}」`);
+  }
+}
+// Fire-and-forget audit log writer (不阻塞主流程，失败也不影响业务)
+function apiAudit(action, target_type, target_id, note, before, after){
+  const payload = {
+    who: getAuditWho(),
+    action, target_type, target_id: target_id || null,
+    note: note || null,
+    before: before === undefined ? null : before,
+    after: after === undefined ? null : after
+  };
+  sb('audit_log', { method:'POST', body:JSON.stringify(payload), prefer:'return=minimal' })
+    .catch(e => console.warn('[audit_log] write failed:', e.message));
+}
+
 async function apiGetAll() {
   setSyncing(true);
   try {
@@ -758,20 +784,24 @@ async function apiSaveStudent(s) {
       prefer: 'resolution=merge-duplicates,return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_student', 'student', s.id, `${s.cname||''} ${s.name||''}`.trim());
   } catch(e) { setSyncError(); throw e; }
 }
 
 async function apiDeleteStudent(id) {
+  const s = DB.students.find(x => x.id === id);
   setSyncing(true);
   try {
     await sb(`students?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', prefer: 'return=minimal' });
     setSyncing(false);
+    apiAudit('delete_student', 'student', id, s ? `${s.cname||''} ${s.name||''}`.trim() : id);
   } catch(e) { setSyncError(); throw e; }
 }
 
 async function apiSaveCourse(studentId, courseCode, value) {
   const s = DB.students.find(x => x.id === studentId); if (!s) return;
   if (!s.courses) s.courses = {};
+  const before = s.courses[courseCode];
   if (value) s.courses[courseCode] = value; else delete s.courses[courseCode];
   setSyncing(true);
   try {
@@ -781,6 +811,8 @@ async function apiSaveCourse(studentId, courseCode, value) {
       prefer: 'return=minimal'
     });
     setSyncing(false);
+    const stuName = `${s.cname||''} ${s.name||''}`.trim();
+    apiAudit('update_course', 'student', studentId, `${stuName} · ${courseCode}: ${before||'空'} → ${value||'清空'}`, {[courseCode]:before}, {[courseCode]:value});
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -796,11 +828,13 @@ async function apiSaveTep(studentId, type, data) {
       prefer: 'return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_tep', 'student', studentId, `${s.cname||''} ${s.name||''} · ${type}`.trim(), null, data);
   } catch(e) { setSyncError(); throw e; }
 }
 
 async function apiSaveGpa(studentId, gpa, updatedAt) {
   const s = DB.students.find(x => x.id === studentId); if (!s) return;
+  const before = s.gpa;
   setSyncing(true);
   try {
     await sb(`students?id=eq.${encodeURIComponent(studentId)}`, {
@@ -809,6 +843,7 @@ async function apiSaveGpa(studentId, gpa, updatedAt) {
       prefer: 'return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_gpa', 'student', studentId, `${s.cname||''} ${s.name||''} · GPA ${before||'—'} → ${gpa}`.trim(), {gpa:before}, {gpa});
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -828,6 +863,7 @@ async function apiSaveCounselor(studentId, data) {
       prefer: 'return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_counselor', 'student', studentId, `${s.cname||''} ${s.name||''}`.trim(), null, data);
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -847,6 +883,7 @@ async function apiSaveBatch(students) {
       prefer: 'resolution=merge-duplicates,return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_batch', 'student', null, `批次保存 ${unique.length} 位学生`, null, {count: unique.length, ids: unique.map(s=>s.id).slice(0,20)});
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -855,6 +892,7 @@ async function apiDeleteProgram(progId) {
   try {
     await sb('programs?id=eq.'+encodeURIComponent(progId), {method:'DELETE'});
     setSyncing(false);
+    apiAudit('delete_program', 'program', progId);
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -864,12 +902,13 @@ async function apiGetMaster() {
   return data || [];
 }
 async function apiSaveMasterCourse(course) {
+  const code = (course.code||'').trim().toUpperCase();
   setSyncing(true);
   try {
     await sb('course_master', {
       method: 'POST',
       body: JSON.stringify({
-        code: (course.code||'').trim().toUpperCase(),
+        code,
         name_en: (course.name_en||course.n||'').trim(),
         name_cn: (course.name_cn||'').trim(),
         default_cr: parseInt(course.default_cr||course.cr||3),
@@ -880,6 +919,7 @@ async function apiSaveMasterCourse(course) {
       prefer: 'resolution=merge-duplicates,return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_master_course', 'master_course', code, course.name_en||course.n||'', null, course);
   } catch(e) { setSyncError(); throw e; }
 }
 async function apiSaveMasterBatch(courses) {
@@ -908,6 +948,7 @@ async function apiSaveMasterBatch(courses) {
       prefer: 'resolution=merge-duplicates,return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_master_batch', 'master_course', null, `批次保存 ${rows.length} 门课程`, null, {count:rows.length, codes:rows.map(r=>r.code).slice(0,20)});
   } catch(e) { setSyncError(); throw e; }
 }
 async function apiDeleteMasterCourse(code) {
@@ -915,6 +956,7 @@ async function apiDeleteMasterCourse(code) {
   try {
     await sb('course_master?code=eq.'+encodeURIComponent(code), { method: 'DELETE' });
     setSyncing(false);
+    apiAudit('delete_master_course', 'master_course', code);
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -989,6 +1031,7 @@ async function apiSaveProgram(prog) {
       prefer: 'resolution=merge-duplicates,return=minimal'
     });
     setSyncing(false);
+    apiAudit('save_program', 'program', prog.id, `${prog.name} · ${(prog.courses||[]).length} 门课 · ${(prog.preCohorts||[]).length} 班级`);
   } catch(e) { setSyncError(); throw e; }
 }
 
@@ -1024,6 +1067,9 @@ function importJSON(inp) {
 // ── Init ────────────────────────────────────────────────
 async function init() {
   document.getElementById('sync-label').textContent = '连接中...';
+  // 初始化 audit who label
+  const _whoEl = document.getElementById('audit-who-label');
+  if(_whoEl) _whoEl.textContent = getAuditWho();
   try {
     const data = await apiGetAll();
     DB.students = (data.students||[]).map(s=>({...s,classCode:s.classCode||autoClassCode(s.cohort,s.type,s.prog)}));
