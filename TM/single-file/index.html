@@ -718,6 +718,19 @@ function fromRow(r) {
   };
 }
 
+// ══════════════════════════════════════════════════════
+// ★ 共用规则常数（之前散落 17+ 处，集中在这里）
+// ══════════════════════════════════════════════════════
+const _RULES = {
+  INTERN_CODES: new Set(['KT411','KT331','KT332']),           // 实习课（不占 38 名额）
+  GE_SEL_GROUPS: new Set(['终身学习-选修','价值论理-选修','生活质量-选修']),  // GE 选修组（每组只算 1 门）
+  SKIP_GROUPS: new Set(['实习课程','旅游专业·选修']),         // calcProgress 跳过的组
+  LANG_GROUP: '语言修选',                                       // 语言修选组名（最多 5 门）
+  LANG_GROUP_NAMES: new Set(['语言修选']),                     // generic 用 set
+  LANG_MAX: 5,                                                 // 语言修选最多算 5 门
+  GE_SEL_PER_GROUP: 1                                          // GE 选修每组算 1 门
+};
+
 function fromProgRow(r) {
   const courses=Array.isArray(r.courses)?r.courses:(typeof r.courses==='string'?JSON.parse(r.courses||'[]'):[]);
   let meta = null;
@@ -1208,10 +1221,10 @@ function calcProgressGeneric(s, allPC){
   let internOk = false, internTransfer = false;
   const groupTakenCount = {}; // 每组已修门数
 
-  // 旧数据 fallback：按组名识别实习/通识选修
-  const SKIP_GROUP_NAMES = new Set(['实习课程','旅游专业·选修']);
-  const GE_SEL_GROUP_NAMES = new Set(['终身学习-选修','价值论理-选修','生活质量-选修']);
-  const LANG_GROUP_NAMES = new Set(['语言修选']);
+  // 旧数据 fallback：按组名识别实习/通识选修（使用 _RULES 集中常数）
+  const SKIP_GROUP_NAMES = _RULES.SKIP_GROUPS;
+  const GE_SEL_GROUP_NAMES = _RULES.GE_SEL_GROUPS;
+  const LANG_GROUP_NAMES = _RULES.LANG_GROUP_NAMES;
 
   Object.entries(groups).forEach(([gname, courses]) => {
     // _gtype 优先；没设时按组名 fallback
@@ -1222,7 +1235,7 @@ function calcProgressGeneric(s, allPC){
       else if(LANG_GROUP_NAMES.has(gname)) gtype = 'elective';
       else gtype = 'required';
     }
-    const gcr = courses[0]?._gcr || (gname==='语言修选'?15:(GE_SEL_GROUP_NAMES.has(gname)?3:0));
+    const gcr = courses[0]?._gcr || (gname===_RULES.LANG_GROUP?15:(GE_SEL_GROUP_NAMES.has(gname)?3:0));
     const avgCr = courses.reduce((s,c)=>s+(c.cr||0),0) / Math.max(courses.length,1);
     const maxCount = gtype === 'elective' ? Math.round((gcr||0)/(avgCr||3)) : courses.length;
 
@@ -1325,9 +1338,9 @@ function calcProgressGeneric(s, allPC){
 // TM 专属（原硬编码逻辑保留）
 function calcProgressTM(s, allPC) {
   const c = s.courses || {};
-  const INTERN_CODES = new Set(['KT411','KT331','KT332']);
-  const GE_SEL_GROUPS = new Set(['终身学习-选修','价值论理-选修','生活质量-选修']);
-  const SKIP_GROUPS = new Set(['实习课程','旅游专业·选修']);  // 自由选修现在计入
+  const INTERN_CODES = _RULES.INTERN_CODES;
+  const GE_SEL_GROUPS = _RULES.GE_SEL_GROUPS;
+  const SKIP_GROUPS = _RULES.SKIP_GROUPS;  // 自由选修现在计入
   const EXT1_CODE = 'KH160';
 
   let doneCr = 0, doneC = 0, transferC = 0, transferCr = 0;
@@ -1344,7 +1357,7 @@ function calcProgressTM(s, allPC) {
   // 外系选修（不在课程架构里的课）计入学分，但排除 ext2 slot 本身和实习代码
   const ext2Val=(c['ext2']||'').split('|');
   const ext2Code=ext2Val[0]?.trim().toUpperCase()||'';
-  const INTERN_EXTRA=new Set(['KT411','KT331','KT332']);
+  const INTERN_EXTRA=_RULES.INTERN_CODES;
   Object.keys(c).forEach(code=>{
     if(pcCodes.has(code)) return;
     if(code==='ext2') return; // ext2 slot 本身不计（代码才计）
@@ -2229,9 +2242,9 @@ function blockHTML(co, _studs, _classCode, _prebuilt) {
     // 计算有效课数（与 calcProgress 同口径）：
     // 必修等单独算，GE 选修组×3 各算1门，语言修选算5门，ext2 算1门，实习不计入 38
     const _effCount=(()=>{
-      const SKIP=new Set(['实习课程','旅游专业·选修']);
-      const INTERN=new Set(['KT411','KT331','KT332']);
-      const GE_SEL=new Set(['终身学习-选修','价值论理-选修','生活质量-选修']);
+      const SKIP=_RULES.SKIP_GROUPS;
+      const INTERN=_RULES.INTERN_CODES;
+      const GE_SEL=_RULES.GE_SEL_GROUPS;
       let c=0;
       const geSeen={},langSeen={count:0};
       courses.forEach(co=>{
@@ -2293,14 +2306,15 @@ function blockHTML(co, _studs, _classCode, _prebuilt) {
   }
   function semData(s){
     const cnt={},cr={};
-    const SKIP2=new Set(['实习课程','旅游专业·选修','自由选修']);
-    const INTERN2=new Set(['KT411','KT331','KT332']);
+    // semData 的 SKIP2 还包含「自由选修」，所以单独建（不能直接用 _RULES.SKIP_GROUPS）
+    const SKIP2=new Set([..._RULES.SKIP_GROUPS, '自由选修']);
+    const INTERN2=_RULES.INTERN_CODES;
     const geSelSeen2={};
     let langSel2=0;
     allProgCourses.forEach(c=>{
       if(INTERN2.has(c.c)||SKIP2.has(c.g)) return;
       // GE选修每组只算1门
-      if(['终身学习-选修','价值论理-选修','生活质量-选修'].includes(c.g)){
+      if(_RULES.GE_SEL_GROUPS.has(c.g)){
         if(geSelSeen2[c.g]) return;
         if((s.courses||{})[c.c]) geSelSeen2[c.g]=true; else return;
       }
@@ -4160,7 +4174,7 @@ function peRender(){
   if(count){
     // ── 按规则计算「有效应到学分」和「达标门数」────────────────
     // 规则：必修全计；选修组只算 required_cr 上限；skip 不计；实习另算
-    const INTERN_SET=new Set(['KT411','KT331','KT332']);
+    const INTERN_SET=_RULES.INTERN_CODES;
     const groups={};
     _peData.forEach(c=>{ if(!groups[c.g])groups[c.g]=[];groups[c.g].push(c); });
     let effCr=0, effC=0, internCr=0;
@@ -6270,7 +6284,7 @@ function renderWorkbench(){
   groupOrder.forEach(g => {
     const courses = groups[g];
     // 判断「全组完成」（按组别规则 · 以 NOW_SEM 为准，未来学期不算已修）
-    const _isGeSelGrp = ['终身学习-选修','价值论理-选修','生活质量-选修'].includes(g);
+    const _isGeSelGrp = _RULES.GE_SEL_GROUPS.has(g);
     const isAllDone = (() => {
       // 以 NOW_SEM 为准：只有 Transferred 或 <= NOW_SEM 的学期才算已修
       const _sv = v => { if(!v||v==='-'||v==='Transferred') return null; const m=v.match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):null; };
