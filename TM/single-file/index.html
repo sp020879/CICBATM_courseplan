@@ -1451,7 +1451,16 @@ function _assignToExtSlot(s, code, semVal, prog){
     if(!curCode || curCode === code){ s.courses['ext2'] = code + '|' + semVal; _cleanupOrphan(); }
     return;
   }
-  // 1. 先找已经有这个代码的 slot
+  // 0. ★ 优先找「slot.name === code」的 slot（如 ext_1 的 name 设为 KH160 → KH160 永远进 ext_1）
+  const upCode = (code||'').toUpperCase();
+  for(const slot of extSlots){
+    if((slot.name||'').toUpperCase() === upCode){
+      s.courses[slot.slot] = code + '|' + semVal;
+      _cleanupOrphan();
+      return;
+    }
+  }
+  // 1. 找已经有这个代码的 slot
   for(const slot of extSlots){
     const cur = s.courses[slot.slot] || '';
     if(cur.split('|')[0] === code){
@@ -1460,8 +1469,11 @@ function _assignToExtSlot(s, code, semVal, prog){
       return;
     }
   }
-  // 2. 再找第一个空 slot
+  // 2. 找第一个空 slot（但要跳过有专属 name 的 slot · 留给该代码的学生用）
+  const reservedNames = new Set(extSlots.map(x=>(x.name||'').toUpperCase()).filter(n=>/^[A-Z]{2,4}\d{3,4}$/.test(n)));
   for(const slot of extSlots){
+    const slotReservedFor = (slot.name||'').toUpperCase();
+    if(reservedNames.has(slotReservedFor) && slotReservedFor !== upCode) continue;  // 这个 slot 被别的 code 预订了，跳过
     const cur = s.courses[slot.slot] || '';
     if(!cur){
       s.courses[slot.slot] = code + '|' + semVal;
@@ -4185,8 +4197,9 @@ async function addAllNewStudents(){
       const _progX=getProg(getPdfProg());
       Object.keys(r.found).forEach(code=>{
         if(!r.found[code]) return;
-        s.courses[code]=r.found[code];
-        if(!_pcX.has(code)&&code!=='KH160'&&r.found[code]!=='Transferred'){
+        if(_pcX.has(code)){
+          s.courses[code]=r.found[code];
+        } else {
           _assignToExtSlot(s, code, r.found[code], _progX);
         }
       });
@@ -4233,8 +4246,9 @@ async function quickAddStudent(sid,name,idx){
     const _prog3=getProg(s.prog||'TM');
     Object.keys(r.found).forEach(code=>{
       if(!r.found[code]) return;
-      s.courses[code]=r.found[code];
-      if(!_pc3.has(code)&&code!=='KH160'&&r.found[code]!=='Transferred'){
+      if(_pc3.has(code)){
+        s.courses[code]=r.found[code];
+      } else {
         _assignToExtSlot(s, code, r.found[code], _prog3);
       }
     });
@@ -4276,8 +4290,12 @@ async function applyBatchAll(){
         const _progPx=getProg(getPdfProg());
         Object.keys(r.found).forEach(code=>{
           if(!r.found[code]) return;
-          s.courses[code]=r.found[code];
-          if(!_pcX.has(code)&&code!=='KH160'&&r.found[code]!=='Transferred'){
+          if(_pcX.has(code)){
+            // 课表内的课 → 直接进普通 key
+            s.courses[code]=r.found[code];
+          } else {
+            // 不在课表 = 外系（含 KH160 / Transferred）→ 路由到 ext slot
+            // _assignToExtSlot 会按 slot.name 优先（KH160→ext_1），其他找空 slot；并 cleanup 同 code 的孤儿
             _assignToExtSlot(s, code, r.found[code], _progPx);
           }
         });
@@ -4297,8 +4315,9 @@ async function applyBatchAll(){
       const _prog2=getProg(s.prog||'TM');
       Object.keys(r.found).forEach(code=>{
         if(!r.found[code]) return;
-        s.courses[code]=r.found[code];
-        if(!_pc2.has(code)&&code!=='KH160'&&r.found[code]!=='Transferred'){
+        if(_pc2.has(code)){
+          s.courses[code]=r.found[code];
+        } else {
           _assignToExtSlot(s, code, r.found[code], _prog2);
         }
       });
@@ -5653,10 +5672,137 @@ function renderProgressDiag(){
   });
   h += '</tbody></table>';
 
+  // ── 孤儿 key 检测面板 ──
+  const orphans = _scanOrphanKeys();
+  h += '<div style="margin-top:20px;padding:12px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px">';
+  h += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+    <span style="font-size:14px">⚠</span>
+    <span style="font-weight:600;color:#9a3412">孤儿 key 检测</span>
+    <span style="font-size:11px;color:var(--ink3)">外系课程没正确归到 ext slot · 会跟 ext slot 重复算数</span>
+    <div style="flex:1"></div>`;
+  if(orphans.actions.length > 0){
+    h += `<button onclick="_cleanAllOrphans()" style="padding:4px 12px;border-radius:5px;border:1px solid #16a34a;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;cursor:pointer">🧹 一键清理全部 ${orphans.actions.length} 个</button>`;
+  }
+  h += '</div>';
+  if(!orphans.affected.length){
+    h += '<div style="font-size:12px;color:var(--g7);padding:8px">✓ 没有孤儿 key，资料干净</div>';
+  } else {
+    h += `<div style="font-size:11px;color:var(--ink3);margin-bottom:6px">受影响 <b>${orphans.affected.length}</b> 位学生，共 <b>${orphans.actions.length}</b> 笔孤儿（自动操作）+ <b>${orphans.conflicts.length}</b> 笔冲突（需人工）</div>`;
+    h += '<div style="max-height:240px;overflow-y:auto;background:#fff;border-radius:6px;padding:8px">';
+    orphans.affected.forEach(g => {
+      h += `<div style="padding:6px 8px;border-bottom:0.5px solid var(--line);font-size:11px">
+        <div style="font-weight:500">[${g.sid}] ${g.name}</div>
+        <div style="margin-top:3px;padding-left:8px;color:var(--ink3);font-family:var(--mono);font-size:10px">`;
+      g.items.forEach(it => {
+        const icon = it.type === 'AUTO' ? '✓' : (it.type === 'CONFLICT' ? '⚠' : '✗');
+        const color = it.type === 'AUTO' ? 'var(--g7)' : (it.type === 'CONFLICT' ? 'var(--red)' : 'var(--ink3)');
+        h += `<div style="color:${color}">${icon} ${it.code}=${it.val} → ${it.action}</div>`;
+      });
+      h += `</div></div>`;
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
   out.innerHTML = h;
   const suspectCount = rows.filter(r=>r.suspect>0).length;
   if(sub) sub.textContent = `所有学生 doneC / remC / 语言混选 / ext slot 状态 · ${suspectCount} 人有疑虑（黄色行）`;
   if(count) count.textContent = `共 ${rows.length} 人 · 可疑 ${suspectCount}`;
+}
+
+// 扫描所有学生的孤儿 key（不在课表 + 不是 ext slot key 的代码）
+function _scanOrphanKeys(){
+  const prog = getProg(activeProg);
+  const allPC = progCourses(activeProg);
+  const pcCodes = new Set(allPC.map(c => c.c));
+  const extSlots = (typeof _wbGetExtSlots === 'function') ? _wbGetExtSlots(prog) : [];
+  const extSlotKeys = new Set(extSlots.map(x => x.slot));
+  const reservedNames = new Set(extSlots.map(x=>(x.name||'').toUpperCase()).filter(n=>/^[A-Z]{2,4}\d{3,4}$/.test(n)));
+  const studs = DB.students.filter(s => (s.prog||'TM') === activeProg);
+  const affected = [];
+  const actions = [];
+  const conflicts = [];
+  studs.forEach(s => {
+    const c = s.courses || {};
+    const items = [];
+    Object.entries(c).forEach(([code, val]) => {
+      if(extSlotKeys.has(code)) return;
+      if(/[^\x00-\x7F]/.test(code)) return;          // 中文/非 ASCII 直接跳
+      if(!/^[A-Z]{2,4}\d{3,4}$/.test(code)) return;  // 不像课程代码跳
+      if(pcCodes.has(code)) return;                  // 在课表内，OK
+      // 是孤儿 → 看能否自动 _assignToExtSlot 收容
+      // 模拟一次：检查是否会跟既有 ext slot 冲突
+      const upCode = code.toUpperCase();
+      // 优先看 name 对应（专属 slot）
+      const nameSlot = extSlots.find(x => (x.name||'').toUpperCase() === upCode);
+      let action = '', type = '';
+      if(nameSlot){
+        const cur = c[nameSlot.slot];
+        if(cur && cur.split('|')[0]?.toUpperCase() !== upCode && cur !== val){
+          type = 'CONFLICT';
+          action = `专属 slot ${nameSlot.slot} 已被 ${cur} 占用`;
+          conflicts.push({sid:s.id, code, val, slot:nameSlot.slot, existing:cur});
+        } else {
+          type = 'AUTO';
+          action = `→ ${nameSlot.slot}（专属）`;
+          actions.push({sid:s.id, code, val});
+        }
+      } else {
+        // 找已有同 code 的 slot
+        const sameSlot = extSlots.find(x => (c[x.slot]||'').split('|')[0]?.toUpperCase() === upCode);
+        if(sameSlot){
+          type = 'AUTO';
+          action = `→ ${sameSlot.slot}（覆盖同 code）`;
+          actions.push({sid:s.id, code, val});
+        } else {
+          // 找空 slot（避开专属）
+          const emptySlot = extSlots.find(x => {
+            const reservedFor = (x.name||'').toUpperCase();
+            if(reservedNames.has(reservedFor) && reservedFor !== upCode) return false;
+            return !c[x.slot];
+          });
+          if(emptySlot){
+            type = 'AUTO';
+            action = `→ ${emptySlot.slot}（找空 slot）`;
+            actions.push({sid:s.id, code, val});
+          } else {
+            type = 'CONFLICT';
+            action = '所有 ext slot 已满';
+            conflicts.push({sid:s.id, code, val});
+          }
+        }
+      }
+      items.push({code, val, type, action});
+    });
+    if(items.length){
+      affected.push({sid:s.id, name:`${s.cname||''} ${s.name||''}`.trim(), items});
+    }
+  });
+  return {affected, actions, conflicts};
+}
+
+// 一键清理所有可自动处理的孤儿 key
+async function _cleanAllOrphans(){
+  const orphans = _scanOrphanKeys();
+  if(!orphans.actions.length){ alert('没有可自动清理的孤儿 key'); return; }
+  const msg = `将自动清理 ${orphans.actions.length} 笔孤儿 key（${new Set(orphans.actions.map(a=>a.sid)).size} 位学生）${orphans.conflicts.length?`\n\n⚠ 还有 ${orphans.conflicts.length} 笔冲突需要人工处理（不会动）`:''}\n\n继续？`;
+  if(!confirm(msg)) return;
+
+  const prog = getProg(activeProg);
+  // 按学生分组
+  const bySid = {};
+  orphans.actions.forEach(a => { (bySid[a.sid] = bySid[a.sid] || []).push(a); });
+  let ok = 0, fail = 0;
+  for(const sid of Object.keys(bySid)){
+    const s = DB.students.find(x => x.id === sid);
+    if(!s) { fail++; continue; }
+    if(!s.courses) s.courses = {};
+    // _assignToExtSlot 会自动 cleanup 同 code 的普通 key
+    bySid[sid].forEach(a => { _assignToExtSlot(s, a.code, a.val, prog); });
+    try{ await apiSaveStudent(s); ok++; }catch(e){ console.error(sid, e); fail++; }
+  }
+  alert(`✓ 完成 · 成功 ${ok} 位${fail?` · 失败 ${fail} 位`:''}`);
+  renderProgressDiag();  // 重新扫描刷新画面
 }
 
 function delPreCohort(idx){
