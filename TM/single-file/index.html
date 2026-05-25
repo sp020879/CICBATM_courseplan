@@ -3401,6 +3401,7 @@ function _populateClassCodeOptions(){
 }
 function openAddStudent(){
   document.getElementById('am-title').textContent='新增学生';
+  renderProgSelect();  // ★ 重新渲染专业 dropdown，确保跟上当前 activeProg
   ['f-id','f-name','f-cname','f-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const ccEl=document.getElementById('f-classcode');
   if(ccEl) ccEl.value=autoClassCode(document.getElementById('f-cohort').value,document.getElementById('f-type').value);
@@ -3414,6 +3415,8 @@ function openAddStudent(){
 function openEditStudent(id){
   const s=DB.students.find(x=>x.id===id); if(!s) return;
   document.getElementById('am-title').textContent='编辑学生';
+  renderProgSelect();  // ★ 先渲染专业 dropdown 再设值，否则旧选项可能没该学生的 prog
+  document.getElementById('f-prog').value = s.prog || activeProg;  // ★ 设成学生原本的 prog
   _populateClassCodeOptions();
   document.getElementById('f-id').value=s.id;
   document.getElementById('f-name').value=s.name;
