@@ -517,6 +517,19 @@ input[type=file]{display:none;}
 /* tfoot 汇总区（从排课总览搬来）*/
 .wb-tfoot td{font-family:var(--mono);font-size:10px;background:#fafaf9;}
 .wb-tfoot-sep td{background:var(--g8)!important;color:#e4f0e8!important;padding:4px 10px;font-family:var(--font);font-size:11px;font-weight:600;position:sticky;left:0;}
+/* 学生 summary cell */
+.wb-tfoot-summary td{vertical-align:top;padding:4px 3px;background:#fff;}
+.wb-tfoot-summary .ss{display:flex;flex-direction:column;gap:1px;align-items:center;line-height:1.25;}
+.wb-tfoot-summary .ss-prog{font-size:10px;font-weight:700;font-family:var(--mono);color:var(--g7);}
+.wb-tfoot-summary .ss-bar{width:100%;height:3px;background:#e5e7eb;border-radius:2px;overflow:hidden;margin:1px 0;}
+.wb-tfoot-summary .ss-bar i{display:block;height:100%;background:var(--g6);}
+.wb-tfoot-summary .ss-c{font-size:9px;color:var(--ink2);}
+.wb-tfoot-summary .ss-cr{font-size:9px;color:var(--ink3);}
+.wb-tfoot-summary .ss-intern{font-size:10px;}
+.wb-tfoot-summary .ss-intern.ok{color:var(--g7);}
+.wb-tfoot-summary .ss-intern.no{color:var(--ink3);}
+.wb-tfoot-summary .ss-over{font-size:9px;color:var(--red);font-weight:700;}
+.wb-tfoot-summary .ss-grad{font-size:9px;color:var(--amber);font-weight:700;}
 .wb-tfoot-sep.transfer td{background:#1e40af!important;}
 .wb-tfoot-sep.rem td{background:var(--amber)!important;color:#fff!important;}
 .wb-tfoot-year-h td{background:#e2e8f0!important;color:var(--ink2);font-size:10px;padding:3px 10px;font-weight:600;position:sticky;left:0;font-family:var(--mono);}
@@ -1625,13 +1638,18 @@ function calcProgress(s, allPC) {
   // 重新套上限：优先用 prog.meta 配置，否则 fallback 38/123
   const totalCr = prog?.totalCr || 123;
   const totalC = (prog?.meta?.totalC && prog.meta.totalC > 0) ? prog.meta.totalC : 38;
-  const doneCr = Math.min(result.doneCr + addCr, totalCr);
-  const doneC  = Math.min(result.doneC  + addC,  totalC);
+  // 累加原始 doneC + addC，再分别给 capped 和 over
+  const rawDoneC  = (result.doneC  || 0) + (result.overC  || 0) + addC;
+  const rawDoneCr = (result.doneCr || 0) + (result.overCr || 0) + addCr;
+  const doneC  = Math.min(rawDoneC,  totalC);
+  const doneCr = Math.min(rawDoneCr, totalCr);
+  const overC  = Math.max(0, rawDoneC  - totalC);
+  const overCr = Math.max(0, rawDoneCr - totalCr);
   const remCr  = Math.max(0, totalCr - doneCr);
   const remC   = Math.max(0, totalC  - doneC);
   const transferC  = (result.transferC  || 0) + addTransferC;
   const transferCr = (result.transferCr || 0) + addTransferCr;
-  return { ...result, doneCr, doneC, remCr, remC, transferC, transferCr };
+  return { ...result, doneCr, doneC, remCr, remC, transferC, transferCr, overC, overCr, totalC, totalCr };
 }
 
 // 通用进度计算（按 _gtype/_gcr 算）
@@ -1757,8 +1775,11 @@ function calcProgressGeneric(s, allPC){
   const doneCrCapped = Math.min(doneCr, totalCr);
   const remCr = Math.max(0, totalCr - doneCrCapped);
   const remC  = Math.max(0, totalC - doneCCapped);
+  // 超修：实际 doneC 大于 totalC 时记录差值，让 UI 可以警示
+  const overC = Math.max(0, doneC - totalC);
+  const overCr = Math.max(0, doneCr - totalCr);
 
-  return { doneCr: doneCrCapped, doneC: doneCCapped, remCr, remC, internOk, transferC, transferCr, internTransfer };
+  return { doneCr: doneCrCapped, doneC: doneCCapped, remCr, remC, internOk, transferC, transferCr, internTransfer, overC, overCr, totalC, totalCr };
 }
 
 // TM 专属（原硬编码逻辑保留）
@@ -1861,8 +1882,11 @@ function calcProgressTM(s, allPC) {
   const doneCrCapped = Math.min(doneCr, totalCr);
   const remCr = Math.max(0, totalCr - doneCrCapped);
   const remC  = Math.max(0, totalC - doneCCapped);
+  // 超修：实际 doneC 大于 totalC 时记录差值，让 UI 可以警示
+  const overC = Math.max(0, doneC - totalC);
+  const overCr = Math.max(0, doneCr - totalCr);
 
-  return { doneCr: doneCrCapped, doneC: doneCCapped, remCr, remC, internOk, transferC, transferCr, internTransfer };
+  return { doneCr: doneCrCapped, doneC: doneCCapped, remCr, remC, internOk, transferC, transferCr, internTransfer, overC, overCr, totalC, totalCr };
 }
 
 function doneCredits(s) { return calcProgress(s, progCourses(s.prog||'TM')).doneCr; }
@@ -6477,6 +6501,30 @@ function renderWorkbench(){
     });
     return { cnt, cr };
   }
+
+  // ─ 每生总览 summary（已修/总 · 学分 · 实习 · 进度） ─
+  h += `<tr class="wb-tfoot-sep"><td colspan="${4+studs.length}">📋 学生总览 · 已修 / 学分 / 实习 / 进度</td></tr>`;
+  h += `<tr class="wb-tfoot-summary"><td colspan="4" class="wb-tfoot-l" style="text-align:right;padding-right:8px">每生汇总</td>`;
+  studs.forEach(s => {
+    const p = calcProgress(s, allPC);
+    const pct = p.totalC > 0 ? Math.round(p.doneC / p.totalC * 100) : 0;
+    const isGrad = p.remC === 0 && p.internOk;
+    const overTag = p.overC > 0 ? `<span class="ss-over" title="实际多修 ${p.overC} 门">⚠ 超修 +${p.overC}</span>` : '';
+    const gradTag = isGrad ? `<span class="ss-grad">🎓 达标</span>` : '';
+    const internCls = p.internOk ? 'ok' : 'no';
+    const internIcon = p.internOk ? '✓' : '待';
+    h += `<td title="已修 ${p.doneC}/${p.totalC} 门 · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}">
+      <div class="ss">
+        <div class="ss-prog">${pct}%</div>
+        <div class="ss-bar"><i style="width:${Math.min(100,pct)}%;background:${isGrad?'var(--amber)':pct>=90?'var(--g6)':pct>=60?'var(--sky)':'var(--g5)'}"></i></div>
+        <div class="ss-c">${p.doneC}/${p.totalC} 门</div>
+        <div class="ss-cr">${p.doneCr}/${p.totalCr}cr</div>
+        <div class="ss-intern ${internCls}">${internIcon} 实习</div>
+        ${gradTag || overTag}
+      </div>
+    </td>`;
+  });
+  h += '</tr>';
 
   // 每学期课数表头
   h += `<tr class="wb-tfoot-sep"><td colspan="${4+studs.length}">📊 每学期课数 / 学分（按学年）</td></tr>`;
