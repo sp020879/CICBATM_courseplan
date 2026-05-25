@@ -4694,16 +4694,45 @@ function peCopyFrom(){
 async function peDeleteProg(){
   const prog=getProg(activeProg);if(!prog)return;
   if(DB.programs.length<=1){alert('至少保留一个专业，无法删除');return;}
-  const studCount=DB.students.filter(s=>(s.prog||'TM')===activeProg).length;
-  if(!confirm(`确认删除专业「${prog.name}」？${studCount>0?`\n\n⚠ 有 ${studCount} 位学生属于此专业，删除后学生记录不受影响。`:''}`)) return;
-  DB.programs=DB.programs.filter(p=>p.id!==activeProg);
-  activeProg=DB.programs[0]?.id||'TM';
+  const progStuds = DB.students.filter(s=>(s.prog||'TM')===activeProg);
+  const studCount = progStuds.length;
+
+  let alsoDeleteStuds = false;
+  if(studCount > 0){
+    // 三种选择：1) 同时删除学生  2) 取消  3) 自己先转移再来删
+    const choice = window.prompt(
+      `「${prog.name}」专业下有 ${studCount} 位学生：\n\n` +
+      progStuds.slice(0,8).map(s=>'  · '+(s.cname||s.name||s.id)).join('\n') +
+      (progStuds.length>8?`\n  ...还有 ${progStuds.length-8} 位`:'') +
+      `\n\n请输入：\n  1 = 同时删除这 ${studCount} 位学生（不可还原）\n  2 = 取消删除（专业保留 · 自行处理学生）\n\n选择 (1/2):`,
+      ''
+    );
+    if(choice !== '1') return;
+    if(!confirm(`⚠ 最后确认：将永久删除\n  - 专业「${prog.name}」\n  - ${studCount} 位学生（含全部 courses / TEP / GPA / 辅导员记录）\n\n继续？`)) return;
+    alsoDeleteStuds = true;
+  } else {
+    if(!confirm(`确认删除专业「${prog.name}」？（无学生，直接删除）`)) return;
+  }
+
+  // 1. 先删学生（如有）
+  if(alsoDeleteStuds){
+    for(const s of progStuds){
+      try{ await apiDeleteStudent(s.id); }catch(e){ console.error('删学生失败', s.id, e); }
+    }
+    // 从内存移除
+    DB.students = DB.students.filter(s => (s.prog||'TM') !== activeProg);
+  }
+
+  // 2. 删 program
+  DB.programs = DB.programs.filter(p=>p.id!==activeProg);
+  const oldProgName = prog.name;
+  activeProg = DB.programs[0]?.id || 'TM';
   closeModal('prog-edit-modal');
   render();
   try{
     await apiDeleteProgram(prog.id);
-    alert(`✅ 专业「${prog.name}」已删除`);
-  }catch(e){alert('⚠ Supabase 删除失败：'+e.message);}
+    alert(`✅ 已删除：专业「${oldProgName}」${alsoDeleteStuds?` + ${studCount} 位学生`:''}`);
+  }catch(e){ alert('⚠ Supabase 删除专业失败：'+e.message); }
 }
 
 async function peConfirm(){
