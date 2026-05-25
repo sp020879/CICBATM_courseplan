@@ -1057,15 +1057,15 @@ input[type=file]{display:none;}
 
 <!-- 班级届别 Modal（原「预建班级」） -->
 <div class="overlay" id="precohort-modal">
-  <div class="modal" style="width:480px">
+  <div class="modal" style="width:520px;max-height:90vh;display:flex;flex-direction:column">
     <div class="mh">
-      <div><h3>🏫 班级届别管理</h3><div class="sub">维护所有班级代码 · 包含已注册（有学生）和预建（待新生入学）</div></div>
+      <div><h3>🏫 班级届别管理</h3><div class="sub">维护班级代码 + 外系选修 (ext slot) 配置</div></div>
       <button class="mx" onclick="closeModal('precohort-modal')">✕</button>
     </div>
-    <div class="mb">
+    <div class="mb" style="overflow-y:auto;flex:1">
       <div class="fr" style="margin-bottom:10px">
         <label>选择专业</label>
-        <select id="pc-prog-sel" onchange="renderPreCohortList()" style="width:100%;font-size:13px;font-weight:500">
+        <select id="pc-prog-sel" onchange="renderPreCohortList();renderExtSlotList()" style="width:100%;font-size:13px;font-weight:500">
         </select>
       </div>
       <div class="fr">
@@ -1076,7 +1076,21 @@ input[type=file]{display:none;}
         </div>
         <div style="font-size:10px;color:var(--ink3);margin-top:4px">全新生如 TM69，专升本加 ZSB 如 TM69ZSB</div>
       </div>
-      <div id="pc-list" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
+      <div id="pc-list" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto"></div>
+
+      <!-- ⚙ ext slot 配置区段 -->
+      <div style="margin-top:18px;padding:12px;background:var(--sky-l);border:1px solid var(--sky-m);border-radius:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:14px">⚙</span>
+          <span style="font-weight:600;color:var(--sky)">外系选修 (ext slot) 配置</span>
+          <div style="flex:1"></div>
+          <button onclick="addExtSlot()" class="tbtn acc" style="padding:3px 10px;font-size:11px">＋ 新增 slot</button>
+        </div>
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:8px">
+          每个 slot 装一门外系选修课 · slot 的 name 若是课程代码（如 KH160），该代码会优先进这个 slot
+        </div>
+        <div id="ext-slot-list" style="display:flex;flex-direction:column;gap:5px"></div>
+      </div>
     </div>
     <div class="mf"><button class="tbtn" onclick="closeModal('precohort-modal')">关闭</button></div>
   </div>
@@ -5510,8 +5524,80 @@ function openPreCohortsModal(){
   }
   document.getElementById('pc-input').value='';
   renderPreCohortList();
+  renderExtSlotList();
   openModal('precohort-modal');
   setTimeout(()=>document.getElementById('pc-input')?.focus(),100);
+}
+
+// ── ext slot 配置（CRUD） ──
+function _getProgInModal(){
+  const pid = document.getElementById('pc-prog-sel')?.value || activeProg;
+  return getProg(pid);
+}
+function renderExtSlotList(){
+  const prog = _getProgInModal();
+  const el = document.getElementById('ext-slot-list');
+  if(!el || !prog) return;
+  if(!prog.meta) prog.meta = {};
+  const slots = prog.meta.extSlots || [];
+  if(!slots.length){
+    el.innerHTML = '<div style="text-align:center;color:var(--ink3);font-size:11px;padding:10px">尚无 ext slot · 点上方「＋ 新增 slot」开始</div>';
+    return;
+  }
+  el.innerHTML = slots.map((s, i) => {
+    const isCodeName = /^[A-Z]{2,4}\d{3,4}$/.test((s.name||'').toUpperCase());
+    const reservedBadge = isCodeName
+      ? `<span style="font-size:9px;background:#fef3c7;color:#854d0e;border-radius:3px;padding:1px 5px;margin-left:4px" title="该 slot 是 ${s.name} 专属，该代码会优先进此 slot">🔒 专属</span>`
+      : `<span style="font-size:9px;background:#e0f2fe;color:#075985;border-radius:3px;padding:1px 5px;margin-left:4px" title="自由 slot · 任何外系代码可放">🆓 自由</span>`;
+    return `
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:6px;font-size:11px">
+        <span style="font-family:var(--mono);font-weight:600;color:var(--g7);min-width:50px">${s.slot}</span>
+        <input type="text" value="${s.name||''}" onchange="updateExtSlot(${i},'name',this.value)" placeholder="如 KH160 或 外系选修-2" style="flex:1;padding:3px 6px;border:1px solid var(--line2);border-radius:4px;font-family:var(--font);font-size:11px">
+        <input type="number" value="${s.cr||3}" min="1" max="12" onchange="updateExtSlot(${i},'cr',parseInt(this.value)||3)" style="width:48px;padding:3px 4px;border:1px solid var(--line2);border-radius:4px;font-family:var(--mono);font-size:11px;text-align:center" title="学分">
+        <span style="font-size:9px;color:var(--ink3)">cr</span>
+        ${reservedBadge}
+        <button onclick="delExtSlot(${i})" title="删除此 slot" style="padding:2px 6px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;font-size:10px;cursor:pointer">删</button>
+      </div>
+    `;
+  }).join('');
+}
+async function addExtSlot(){
+  const prog = _getProgInModal();
+  if(!prog) return;
+  if(!prog.meta) prog.meta = {};
+  if(!prog.meta.extSlots) prog.meta.extSlots = [];
+  // 找下一个未用的 slot 编号（ext_1, ext_2, ext_3, ...）
+  const usedNums = new Set(prog.meta.extSlots.map(s => {
+    const m = (s.slot||'').match(/^ext_(\d+)$/);
+    return m ? parseInt(m[1]) : 0;
+  }));
+  let next = 1;
+  while(usedNums.has(next)) next++;
+  prog.meta.extSlots.push({ slot: `ext_${next}`, name: `外系选修-${next}`, cr: 3 });
+  renderExtSlotList();
+  try{ await apiSaveProgram(prog); render(); }catch(e){ alert('保存失败：'+e.message); }
+}
+async function updateExtSlot(idx, field, value){
+  const prog = _getProgInModal();
+  if(!prog?.meta?.extSlots?.[idx]) return;
+  prog.meta.extSlots[idx][field] = value;
+  // 不重 render（避免输入框失焦）；只 save
+  try{ await apiSaveProgram(prog); }catch(e){ alert('保存失败：'+e.message); }
+}
+async function delExtSlot(idx){
+  const prog = _getProgInModal();
+  if(!prog?.meta?.extSlots?.[idx]) return;
+  const slot = prog.meta.extSlots[idx];
+  // 检查有学生用此 slot 吗
+  const usedBy = DB.students.filter(s => (s.prog||'TM')===prog.id && (s.courses||{})[slot.slot]);
+  let warn = '';
+  if(usedBy.length){
+    warn = `\n\n⚠ 注意：有 ${usedBy.length} 位学生此 slot 已填资料，删除后学生 courses 内的 ${slot.slot} 不会自动清掉（变成无主资料）`;
+  }
+  if(!confirm(`确认删除 ${slot.slot}（${slot.name||'未命名'}）？${warn}`)) return;
+  prog.meta.extSlots.splice(idx, 1);
+  renderExtSlotList();
+  try{ await apiSaveProgram(prog); render(); }catch(e){ alert('保存失败：'+e.message); }
 }
 
 function renderPreCohortList(){
