@@ -65,6 +65,7 @@
     <span class="bar-divv"></span>
     <span id="login-label" style="font-size:11px;color:var(--h-text);font-family:var(--mono);"></span>
     <button onclick="setAuditWho()" title="设定 audit log 操作者名称" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;margin-right:4px" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">👤 <span id="audit-who-label">—</span></button>
+    <button id="user-mgmt-btn" onclick="openUserMgmt()" title="管理所有登入帐号 (仅主帐号可见)" style="display:none;padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;margin-right:4px" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">🔑 用户管理</button>
     <button id="login-btn" onclick="logout()" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">登出</button>
   </div>
   <!-- Row 2: 新增学生 建档 更新成绩 排课 → → → 新增专业 | 专业选+笔 -->
@@ -569,6 +570,25 @@
   </div>
 </div>
 
+<!-- 用户管理 Modal（仅主帐号可见） -->
+<div class="overlay" id="user-mgmt-modal">
+  <div class="modal" style="width:620px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="mh">
+      <div><h3>🔑 用户管理</h3><div class="sub">管理所有登入 PIN · 仅主帐号可见</div></div>
+      <button class="mx" onclick="closeModal('user-mgmt-modal')">✕</button>
+    </div>
+    <div class="mb" style="overflow-y:auto;flex:1;padding:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <button onclick="addUserRow()" class="tbtn acc" style="padding:5px 12px;font-size:11px">＋ 新增用户</button>
+        <div style="flex:1"></div>
+        <button onclick="renderUserMgmt()" class="tbtn" style="padding:5px 10px;font-size:11px">🔄 刷新</button>
+      </div>
+      <div id="user-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="mf"><button class="tbtn" onclick="closeModal('user-mgmt-modal')">关闭</button></div>
+  </div>
+</div>
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
@@ -614,14 +634,18 @@ async function doLogin(){
 
   try{
     // 查 Supabase passcodes 表（必须 enabled = true）
-    const rows = await sb(`passcodes?pin=eq.${encodeURIComponent(val)}&enabled=is.true&select=pin,name`);
+    const rows = await sb(`passcodes?pin=eq.${encodeURIComponent(val)}&enabled=is.true&select=pin,name,is_admin`);
     if(rows && rows.length){
       const match = rows[0];
       sessionStorage.setItem('cic_auth','1');
+      sessionStorage.setItem('cic_is_admin', match.is_admin ? '1' : '0');
       // 登入成功 → 自动设 audit_who 为对应名字
       localStorage.setItem('audit_who', match.name);
       const _whoEl = document.getElementById('audit-who-label');
       if(_whoEl) _whoEl.textContent = match.name;
+      // 显示/隐藏用户管理按钮
+      const _adminBtn = document.getElementById('user-mgmt-btn');
+      if(_adminBtn) _adminBtn.style.display = match.is_admin ? '' : 'none';
       // 更新 last_used (fire-and-forget)
       sb(`passcodes?pin=eq.${encodeURIComponent(val)}`, {
         method:'PATCH',
@@ -657,6 +681,9 @@ function checkAuth(){
 }
 function logout(){
   sessionStorage.removeItem('cic_auth');
+  sessionStorage.removeItem('cic_is_admin');
+  const _adminBtn = document.getElementById('user-mgmt-btn');
+  if(_adminBtn) _adminBtn.style.display = 'none';
   const ov=document.getElementById('login-overlay');
   if(ov){ ov.style.display='flex'; }
   const inp=document.getElementById('pw-input');
@@ -794,6 +821,105 @@ function setAuditWho(){
     alert(`✓ 已设定为「${v.trim()}」`);
   }
 }
+// ── 用户管理（仅主帐号） ─────────────────────────────
+async function openUserMgmt(){
+  if(sessionStorage.getItem('cic_is_admin') !== '1'){
+    alert('仅主帐号可使用此功能'); return;
+  }
+  openModal('user-mgmt-modal');
+  renderUserMgmt();
+}
+async function renderUserMgmt(){
+  const el = document.getElementById('user-list');
+  if(!el) return;
+  el.innerHTML = '<div style="text-align:center;color:var(--ink3);font-size:11px;padding:10px">载入中...</div>';
+  try{
+    const rows = await sb('passcodes?select=*&order=is_admin.desc,pin');
+    if(!rows.length){ el.innerHTML = '<div style="text-align:center;color:var(--ink3);font-size:11px;padding:10px">尚无任何用户</div>'; return; }
+    el.innerHTML = rows.map(r => {
+      const badge = r.is_admin
+        ? '<span style="font-size:10px;background:#fef3c7;color:#854d0e;border-radius:3px;padding:1px 6px;font-weight:600;margin-left:4px">👑 主帐号</span>'
+        : '';
+      const enabledBadge = r.enabled
+        ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border-radius:3px;padding:1px 6px">✓ 启用</span>'
+        : '<span style="font-size:10px;background:#fee2e2;color:#b91c1c;border-radius:3px;padding:1px 6px">✗ 停用</span>';
+      const lastUsed = r.last_used ? r.last_used.substring(5,16).replace('T',' ') : '从未';
+      return `
+        <div data-pin="${r.pin}" style="padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:7px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--g7)">${r.pin}</span>
+            ${badge}
+            ${enabledBadge}
+            <div style="flex:1"></div>
+            <span style="font-size:10px;color:var(--ink3)">最后登入：${lastUsed}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <input type="text" value="${(r.name||'').replace(/"/g,'&quot;')}" onchange="updateUser('${r.pin}','name',this.value)" placeholder="名字" style="flex:1;min-width:120px;padding:4px 7px;border:1px solid var(--line2);border-radius:4px;font-size:11px">
+            <input type="text" value="${(r.note||'').replace(/"/g,'&quot;')}" onchange="updateUser('${r.pin}','note',this.value)" placeholder="备注" style="flex:1;min-width:100px;padding:4px 7px;border:1px solid var(--line2);border-radius:4px;font-size:11px;color:var(--ink3)">
+            <button onclick="changeUserPin('${r.pin}')" style="padding:3px 9px;border:1px solid var(--sky);border-radius:4px;background:var(--sky-l);color:var(--sky);font-size:11px;cursor:pointer">🔑 改 PIN</button>
+            <button onclick="toggleUserEnabled('${r.pin}',${!r.enabled})" style="padding:3px 9px;border:1px solid var(--line2);border-radius:4px;background:#fff;font-size:11px;cursor:pointer">${r.enabled?'停用':'启用'}</button>
+            <button onclick="toggleUserAdmin('${r.pin}',${!r.is_admin})" style="padding:3px 9px;border:1px solid #fde047;border-radius:4px;background:#fef9c3;color:#854d0e;font-size:11px;cursor:pointer">${r.is_admin?'撤主':'设主'}</button>
+            <button onclick="deleteUser('${r.pin}')" style="padding:3px 9px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;font-size:11px;cursor:pointer">删</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }catch(e){
+    el.innerHTML = `<div style="color:var(--red);font-size:11px;padding:10px">载入失败：${e.message}</div>`;
+  }
+}
+async function addUserRow(){
+  const pin = window.prompt('新用户的 PIN（建议 6 位数字）：');
+  if(!pin || !pin.trim()) return;
+  const name = window.prompt('名字（用于 audit log）：');
+  if(!name || !name.trim()) return;
+  try{
+    await sb('passcodes', { method:'POST', body: JSON.stringify({ pin: pin.trim(), name: name.trim(), enabled: true, is_admin: false }), prefer:'return=minimal' });
+    apiAudit('admin_add_user', 'passcode', pin.trim(), `新增「${name.trim()}」`);
+    renderUserMgmt();
+  }catch(e){ alert('新增失败：'+e.message+'\n\n（PIN 可能已存在）'); }
+}
+async function updateUser(pin, field, value){
+  try{
+    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'PATCH', body: JSON.stringify({[field]: value}), prefer:'return=minimal' });
+    apiAudit('admin_update_user', 'passcode', pin, `改 ${field} = ${value}`);
+  }catch(e){ alert('保存失败：'+e.message); }
+}
+async function changeUserPin(oldPin){
+  const newPin = window.prompt(`修改 PIN（旧：${oldPin}）\n\n新 PIN：`);
+  if(!newPin || !newPin.trim()) return;
+  if(newPin.trim() === oldPin) return;
+  if(!confirm(`确认把 PIN 从 ${oldPin} 改成 ${newPin.trim()}？`)) return;
+  try{
+    await sb(`passcodes?pin=eq.${encodeURIComponent(oldPin)}`, { method:'PATCH', body: JSON.stringify({pin: newPin.trim()}), prefer:'return=minimal' });
+    apiAudit('admin_change_pin', 'passcode', newPin.trim(), `${oldPin} → ${newPin.trim()}`);
+    renderUserMgmt();
+  }catch(e){ alert('改 PIN 失败：'+e.message+'\n\n（新 PIN 可能已存在）'); }
+}
+async function toggleUserEnabled(pin, newVal){
+  try{
+    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'PATCH', body: JSON.stringify({enabled: newVal}), prefer:'return=minimal' });
+    apiAudit('admin_toggle_enabled', 'passcode', pin, newVal ? '启用' : '停用');
+    renderUserMgmt();
+  }catch(e){ alert('切换失败：'+e.message); }
+}
+async function toggleUserAdmin(pin, newVal){
+  if(!confirm(newVal ? `把 ${pin} 设为主帐号？将能管理所有 PIN` : `撤销 ${pin} 的主帐号权限？`)) return;
+  try{
+    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'PATCH', body: JSON.stringify({is_admin: newVal}), prefer:'return=minimal' });
+    apiAudit('admin_toggle_admin', 'passcode', pin, newVal ? '设为主帐号' : '撤销主帐号');
+    renderUserMgmt();
+  }catch(e){ alert('切换失败：'+e.message); }
+}
+async function deleteUser(pin){
+  if(!confirm(`确认删除 PIN ${pin}？\n\n此 PIN 之后无法登入。audit log 历史保留。`)) return;
+  try{
+    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'DELETE', prefer:'return=minimal' });
+    apiAudit('admin_delete_user', 'passcode', pin, '删除用户');
+    renderUserMgmt();
+  }catch(e){ alert('删除失败：'+e.message); }
+}
+
 // Fire-and-forget audit log writer (不阻塞主流程，失败也不影响业务)
 function apiAudit(action, target_type, target_id, note, before, after){
   const payload = {
