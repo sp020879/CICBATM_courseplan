@@ -3117,7 +3117,7 @@ async function confirmCell(){
     const codeInp=document.getElementById('ext-modal-code');
     const code=(codeInp?.value||cellCtx.extCode||'').trim().toUpperCase();
     if(!pickedVal){delete s.courses[cellCtx.code];}
-    else if(pickedVal==='Transferred'){s.courses[cellCtx.code]='Transferred';}
+    else if(pickedVal==='Transferred'){s.courses[cellCtx.code]=code?code+'|Transferred':'Transferred';}
     else{s.courses[cellCtx.code]=code?code+'|'+pickedVal:pickedVal;}
     closeModal('cell-modal'); _renderOverviewKeepScroll();
     try{await apiSaveCourse(cellCtx.sid,cellCtx.code,s.courses[cellCtx.code]||'');}
@@ -3331,8 +3331,17 @@ function openExtCell(sid, slot, co, n) {
   const _cm=document.getElementById('cell-modal'); if(_cm) _cm.classList.remove('readonly');
   const val=(s.courses||{})[slot]||'';
   const parts=val.split('|');
-  const curCode=parts[0]||'';
-  const rawSem=parts.length>1?parts[1]:'';
+  // 兼容旧格式：若值只有一段且像 sem 或 'Transferred'，视为「无 code」（避免把学期当 code 显示）
+  let curCode, rawSem;
+  if(parts.length > 1){
+    curCode = parts[0] || '';
+    rawSem = parts[1];
+  } else {
+    const only = parts[0] || '';
+    const looksLikeSem = /^25\d\d\/[123]$/.test(only) || only === 'Transferred';
+    curCode = looksLikeSem ? '' : only;
+    rawSem = looksLikeSem ? only : '';
+  }
   const curSem=rawSem&&/^\d\/25\d\d$/.test(rawSem)?(rawSem.match(/^(\d)\/(25\d\d)$/)||[])[2]+'/'+rawSem.split('/')[0]:rawSem;
   cellCtx={sid,code:slot,pid:activeProg,isExt:true,extCode:curCode,extCo:co,extN:n};
   pickedVal=curSem||'';
@@ -6806,10 +6815,10 @@ async function _wbApply(action){
       const s = DB.students.find(x => x.id === sid);
       if(!s) { errCnt++; continue; }
       if(!s.courses) s.courses = {};
-      // ext slot：保留原有代码前缀
+      // ext slot：保留原有代码前缀（fill 和 transfer 都要）
       let writeVal = newVal;
       const isExtSlot = code === 'ext2' || /^ext_\d+$/.test(code);
-      if(isExtSlot && action === 'fill'){
+      if(isExtSlot && (action === 'fill' || action === 'transfer')){
         const raw = s.courses[code] || '';
         const parts = raw.split('|');
         const existingCode = (parts.length > 1) ? parts[0] : '';
