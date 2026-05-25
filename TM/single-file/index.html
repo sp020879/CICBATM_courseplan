@@ -1008,6 +1008,7 @@ input[type=file]{display:none;}
           <option value="">全部部门</option>
         </select>
         <button onclick="openMasterAdd()" class="tbtn acc" style="padding:5px 12px;font-size:11px;">+ 新增课程</button>
+        <button onclick="openMasterBulkImport()" class="tbtn" style="padding:5px 12px;font-size:11px;border-color:var(--sky);color:var(--sky)">📋 批量导入</button>
         <button onclick="seedMasterFromTM()" class="tbtn" style="padding:5px 12px;font-size:11px;">🌱 灌入 TM 52 门</button>
       </div>
       <div id="master-list"></div>
@@ -1052,6 +1053,31 @@ input[type=file]{display:none;}
     <div class="mf">
       <button class="tbtn" onclick="closeModal('master-edit-modal')">取消</button>
       <button class="tbtn acc" onclick="confirmMasterEdit()">储存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 课程库 · 批量导入 Modal -->
+<div class="overlay" id="master-bulk-modal">
+  <div class="modal" style="width:680px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="mh">
+      <div><h3>📋 课程库批量导入</h3><div class="sub">每行一门课 · 逗号或 Tab 分隔</div></div>
+      <button class="mx" onclick="closeModal('master-bulk-modal')">✕</button>
+    </div>
+    <div class="mb" style="overflow-y:auto;flex:1;padding:12px 18px">
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#166534">
+        <div style="font-weight:600;margin-bottom:5px">📌 格式说明</div>
+        <div>每行一门，依序填：<code style="background:#fff;padding:1px 4px;border-radius:3px">代码 , 英文名 , 学分 , 分类</code></div>
+        <div style="margin-top:3px">最少只填代码 · 学分预设 3 · 分类可空</div>
+        <div style="margin-top:5px;padding:6px 8px;background:#fff;border-radius:4px;font-family:var(--mono);font-size:10px;color:var(--ink2)">KB217, Operation and Logistics, 3, 基础专业课<br>KB218, Principles of Marketing, 3, 基础专业课<br>KE316, Basic Writing for Tourism<br>FA301</div>
+      </div>
+      <textarea id="bulk-input" placeholder="贴上课程清单（每行一门）..." oninput="bulkPreview()" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--line2);border-radius:6px;font-family:var(--mono);font-size:11px;line-height:1.5;resize:vertical"></textarea>
+      <div id="bulk-preview" style="margin-top:10px"></div>
+    </div>
+    <div class="mf">
+      <span id="bulk-summary" style="flex:1;font-size:11px;color:var(--ink3)"></span>
+      <button class="tbtn" onclick="closeModal('master-bulk-modal')">取消</button>
+      <button class="tbtn acc" id="bulk-apply-btn" onclick="confirmBulkImport()" disabled style="opacity:.5">✓ 确认导入</button>
     </div>
   </div>
 </div>
@@ -6081,6 +6107,108 @@ async function delMasterCourse(code){
     _rebuildMasterIndex();
     renderMasterList();
   }catch(e){ alert('删除失败：' + e.message); }
+}
+
+// ── 课程库 · 批量导入 ──
+let _bulkParsed = [];
+function openMasterBulkImport(){
+  document.getElementById('bulk-input').value = '';
+  document.getElementById('bulk-preview').innerHTML = '';
+  document.getElementById('bulk-summary').textContent = '';
+  const btn = document.getElementById('bulk-apply-btn');
+  btn.disabled = true; btn.style.opacity = '.5';
+  openModal('master-bulk-modal');
+  setTimeout(() => document.getElementById('bulk-input')?.focus(), 100);
+}
+function bulkPreview(){
+  const raw = document.getElementById('bulk-input').value || '';
+  const existing = new Set((DB.masterCourses||[]).map(c => (c.code||'').toUpperCase()));
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const parsed = [];
+  const errors = [];
+  const seen = new Set();
+  lines.forEach((line, i) => {
+    // 自动侦测分隔符（tab / comma）
+    const parts = (line.indexOf('\t') >= 0 ? line.split('\t') : line.split(','))
+      .map(p => p.trim());
+    const code = (parts[0]||'').toUpperCase();
+    if(!code){ errors.push({line:i+1, reason:'代码为空'}); return; }
+    if(!/^[A-Z]{1,5}\d{2,5}$/.test(code)){ errors.push({line:i+1, reason:`代码格式无效: ${code}`}); return; }
+    if(seen.has(code)){ errors.push({line:i+1, reason:`本批重复: ${code}`}); return; }
+    seen.add(code);
+    const name_en = parts[1] || '';
+    const cr_str = parts[2] || '3';
+    const cr = parseInt(cr_str) || 3;
+    const category = parts[3] || '';
+    parsed.push({
+      code, name_en, default_cr: cr, category,
+      department: _detectDept(code),
+      isUpdate: existing.has(code)
+    });
+  });
+  _bulkParsed = parsed;
+  const newCnt = parsed.filter(p => !p.isUpdate).length;
+  const updCnt = parsed.filter(p => p.isUpdate).length;
+  const previewEl = document.getElementById('bulk-preview');
+  if(!parsed.length && !errors.length){
+    previewEl.innerHTML = '';
+    document.getElementById('bulk-summary').textContent = '请贴上内容';
+    const btn = document.getElementById('bulk-apply-btn');
+    btn.disabled = true; btn.style.opacity = '.5';
+    return;
+  }
+  let h = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+    <div style="padding:6px 10px;background:var(--g1);border:1px solid var(--g4);border-radius:5px;text-align:center;font-size:11px">
+      <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--g7)">${newCnt}</div>
+      <div style="color:var(--ink3);font-size:10px;margin-top:2px">新增</div>
+    </div>
+    <div style="padding:6px 10px;background:var(--sky-l);border:1px solid var(--sky-m);border-radius:5px;text-align:center;font-size:11px">
+      <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--sky)">${updCnt}</div>
+      <div style="color:var(--ink3);font-size:10px;margin-top:2px">更新（已存在）</div>
+    </div>
+    <div style="padding:6px 10px;background:${errors.length?'var(--red-l)':'#fff'};border:1px solid ${errors.length?'var(--red-m)':'var(--line2)'};border-radius:5px;text-align:center;font-size:11px">
+      <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:${errors.length?'var(--red)':'var(--ink3)'}">${errors.length}</div>
+      <div style="color:var(--ink3);font-size:10px;margin-top:2px">错误</div>
+    </div>
+  </div>`;
+  if(parsed.length){
+    h += '<div style="max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;font-size:11px">';
+    h += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--paper);position:sticky;top:0"><th style="padding:4px 8px;text-align:left">代码</th><th style="padding:4px 8px;text-align:left">英文名</th><th style="padding:4px 8px;text-align:center;width:40px">cr</th><th style="padding:4px 8px;text-align:left;width:120px">分类</th><th style="padding:4px 8px;text-align:center;width:50px">状态</th></tr></thead><tbody>';
+    parsed.forEach(p => {
+      h += `<tr style="border-top:0.5px solid var(--line)">
+        <td style="padding:3px 8px;font-family:var(--mono);font-weight:600;color:var(--g8)">${p.code}</td>
+        <td style="padding:3px 8px">${p.name_en||'<span style="color:var(--ink3)">—</span>'}</td>
+        <td style="padding:3px 8px;text-align:center;font-family:var(--mono)">${p.default_cr}</td>
+        <td style="padding:3px 8px;color:var(--ink3)">${p.category||'—'}</td>
+        <td style="padding:3px 8px;text-align:center"><span style="font-size:9px;padding:1px 5px;border-radius:3px;${p.isUpdate?'background:var(--sky-l);color:var(--sky)':'background:var(--g1);color:var(--g7)'}">${p.isUpdate?'更新':'新增'}</span></td>
+      </tr>`;
+    });
+    h += '</tbody></table></div>';
+  }
+  if(errors.length){
+    h += `<div style="margin-top:8px;padding:8px;background:var(--red-l);border:1px solid var(--red-m);border-radius:5px;font-size:11px;color:var(--red)">
+      <div style="font-weight:600;margin-bottom:3px">⚠ ${errors.length} 行有问题</div>
+      ${errors.map(e=>`<div>第 ${e.line} 行：${e.reason}</div>`).join('')}
+    </div>`;
+  }
+  previewEl.innerHTML = h;
+  document.getElementById('bulk-summary').textContent =
+    `解析 ${parsed.length} 笔（${newCnt} 新增 / ${updCnt} 更新）${errors.length?` · ${errors.length} 错误`:''}`;
+  const btn = document.getElementById('bulk-apply-btn');
+  btn.disabled = parsed.length === 0;
+  btn.style.opacity = btn.disabled ? '.5' : '1';
+}
+async function confirmBulkImport(){
+  if(!_bulkParsed.length) return;
+  if(!confirm(`确认导入 ${_bulkParsed.length} 笔课程到课程库？\n（已存在的会覆盖更新）`)) return;
+  try{
+    await apiSaveMasterBatch(_bulkParsed);
+    DB.masterCourses = await apiGetMaster();
+    _rebuildMasterIndex();
+    renderMasterList();
+    alert(`✓ 已导入 ${_bulkParsed.length} 笔。当前课程库共 ${DB.masterCourses.length} 门。`);
+    closeModal('master-bulk-modal');
+  }catch(e){ alert('导入失败：' + e.message); }
 }
 
 async function seedMasterFromTM(){
