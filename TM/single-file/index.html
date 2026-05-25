@@ -6726,10 +6726,34 @@ function renderWorkbench(){
   // ── 外系选修 slot 特殊行（多 slot · 动态渲染）──
   const _extSlots = _wbGetExtSlots(prog);
   if(_extSlots.length){
+    // 检测「外系课数超过 slot 数」的学生
+    const _pcCodesSet = new Set(allPC.map(c => c.c));
+    const _extSlotKeySet = new Set(_extSlots.map(x => x.slot));
+    const _overflowList = [];
+    studs.forEach(s => {
+      const c = s.courses || {};
+      const codesInSlots = _extSlots.map(slot => {
+        const raw = c[slot.slot] || '';
+        return raw.split('|')[0] || '';
+      }).filter(Boolean);
+      const orphanCodes = Object.keys(c).filter(k =>
+        !_pcCodesSet.has(k) &&
+        !_extSlotKeySet.has(k) &&
+        !/[^\x00-\x7F]/.test(k) &&
+        /^[A-Z]{2,4}\d{3,4}$/.test(k)
+      );
+      const distinct = new Set([...codesInSlots, ...orphanCodes]);
+      if(distinct.size > _extSlots.length){
+        _overflowList.push({ s, count: distinct.size });
+      }
+    });
+    const _overflowBadge = _overflowList.length
+      ? ` · <span style="color:#fde68a;font-weight:600" title="${_overflowList.map(x=>shortName(x.s.name)+'('+x.count+')').join(', ')} · 到「🏫 班级届别」 → ⚙ ext slot 配置加 slot">⚠ ${_overflowList.length} 位学生超额</span>`
+      : '';
     h += `<tr class="wb-group-head"><td colspan="${4 + studs.length}">
       <span class="wb-group-arrow">▼</span>
       <span class="wb-group-name">外系选修</span>
-      <span class="wb-group-meta">${_extSlots.length} 个 slot · 自定义课程代码</span>
+      <span class="wb-group-meta">${_extSlots.length} 个 slot · 自定义课程代码${_overflowBadge}</span>
     </td></tr>`;
 
     _extSlots.forEach((slot) => {
@@ -6751,6 +6775,7 @@ function renderWorkbench(){
         const hasVal = !!sem;
         const cellKey = s.id + '|' + slotKey;
         const isSel = _WB.selectedCells.has(cellKey);
+        const isOverflow = _overflowList.some(x => x.s.id === s.id);
 
         let cellStyle = '', cellTxt = '·', tip = '';
         if(isTrans){
@@ -6764,7 +6789,12 @@ function renderWorkbench(){
             tip = ` title="${extCode}"`;
           }
         }
-        h += `<td class="wb-cell-data${hasVal||isTrans?' filled':' empty'}${isSel?' sel':''}" style="${cellStyle}"${tip} onclick="_wbClickCell('${s.id}','${slotKey}',event)">${cellTxt}</td>`;
+        // 该学生外系超额 → cell 加红色边框 + ⚠ 提示
+        if(isOverflow){
+          cellStyle += ';outline:1px solid #f87171;outline-offset:-2px';
+          if(!tip) tip = ` title="⚠ 此学生外系课数 > slot 数 · 到「🏫 班级届别」加 slot 才装得下"`;
+        }
+        h += `<td class="wb-cell-data${hasVal||isTrans?' filled':' empty'}${isSel?' sel':''}${isOverflow?' ext-overflow':''}" style="${cellStyle}"${tip} onclick="_wbClickCell('${s.id}','${slotKey}',event)">${cellTxt}</td>`;
       });
       h += '</tr>';
     });
