@@ -525,9 +525,10 @@ input[type=file]{display:none;}
 .wb-thead-summary-cell .ss-bar{width:100%;height:3px;background:#e5e7eb;border-radius:2px;overflow:hidden;margin:1px 0;}
 .wb-thead-summary-cell .ss-bar i{display:block;height:100%;background:var(--g6);}
 .wb-thead-summary-cell .ss-c{font-size:9px;color:var(--ink2);font-family:var(--mono);}
-.wb-thead-summary-cell .ss-intern{font-size:9px;font-family:var(--mono);}
-.wb-thead-summary-cell .ss-intern.ok{color:var(--g7);}
-.wb-thead-summary-cell .ss-intern.no{color:var(--ink3);}
+.wb-thead-summary-cell .ss-intern{font-size:9px;font-family:var(--mono);padding:0 4px;border-radius:3px;}
+.wb-thead-summary-cell .ss-intern.ok{color:#fff;background:var(--g6);}            /* ✓ 已完成 = 綠 */
+.wb-thead-summary-cell .ss-intern.planned{color:#7c3a00;background:#fde68a;}      /* 待 + 有学期 = 黃 */
+.wb-thead-summary-cell .ss-intern.unplanned{color:#fff;background:var(--red);}    /* 待 + 无学期 = 紅 */
 .wb-thead-summary-cell .ss-over{font-size:9px;color:var(--red);font-weight:700;}
 .wb-thead-summary-cell .ss-grad{font-size:9px;color:var(--amber);font-weight:700;}
 .wb-tfoot-sep.transfer td{background:#1e40af!important;}
@@ -2416,10 +2417,11 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
                 if(internDone&&!gpaOk)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">GPA 不足</span>${_pastChip}`;
                 return `<span class="bdg" style="background:#f0fdf4;color:#166534">在学</span>${_pastChip}`;
               }
-              // active
+              // active 状态加「+ 休本学期」一键
+              const _leaveQuickBtn = `<button onclick="event.stopPropagation();quickStartLeave('${s.id}')" title="标记 ${NOW_SEM} 休学" style="border:none;background:#fef2f2;cursor:pointer;color:#b91c1c;font-size:9px;line-height:1;padding:1px 5px;border-radius:3px;margin-left:2px;font-family:var(--mono);font-weight:600">🌙＋</button>`;
               if(isComplete)return `<span class="bdg" style="background:#854d0e;color:#fff">达标毕业</span>`;
-              if(internDone&&!gpaOk)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">GPA 不足</span>`;
-              return '<span class="bdg" style="background:#f0fdf4;color:#166534">在学</span>';})()}
+              if(internDone&&!gpaOk)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">GPA 不足</span>${_leaveQuickBtn}`;
+              return `<span class="bdg" style="background:#f0fdf4;color:#166534">在学</span>${_leaveQuickBtn}`;})()}
           ${tepBadge}
         </div>
       </div>
@@ -3292,6 +3294,18 @@ async function quickConfirmReturn(sid){
   if(!confirm(`确认 ${s.cname||s.name} 在 ${NOW_SEM} 复学？\n\n（休学历史保留：${(s.statusDetail?.leave||[]).join(', ')}）`)) return;
   const sd = s.statusDetail || {};
   sd.leaveResumedAt = NOW_SEM;
+  s.statusDetail = sd;
+  try{ await apiSaveStudent(s); _refreshLeaveViews(); }catch(e){ alert('同步失败：' + e.message); }
+}
+// 学生卡 active 状态点「🌙＋」→ 标记本学期 (NOW_SEM) 休学
+async function quickStartLeave(sid){
+  const s = DB.students.find(x => x.id === sid);
+  if(!s) return;
+  if(!confirm(`确认 ${s.cname||s.name} 在 ${NOW_SEM} 开始休学？`)) return;
+  const sd = s.statusDetail || {};
+  sd.leave = sd.leave || [];
+  if(!sd.leave.includes(NOW_SEM)) sd.leave.push(NOW_SEM);
+  delete sd.leaveResumedAt;
   s.statusDetail = sd;
   try{ await apiSaveStudent(s); _refreshLeaveViews(); }catch(e){ alert('同步失败：' + e.message); }
 }
@@ -4979,8 +4993,19 @@ function getBuiltinTMCourses(){return[
 function openSemSetting(){
   const val=window.prompt('设定当前学期（例：2568/2）：',NOW_SEM);
   if(!val||!val.trim())return;
+  const oldSem = NOW_SEM;
   NOW_SEM=val.trim();localStorage.setItem('now_sem',NOW_SEM);
   const lbl=document.getElementById('now-sem-label');if(lbl)lbl.textContent=NOW_SEM;
+  // 切学期时：清掉 pending banner 的 dismissed 标记（每个 NOW_SEM 重置一次）
+  // 也强制切到学生进度 tab 让 banner 浮出来
+  if(oldSem !== NOW_SEM){
+    sessionStorage.removeItem('pending_leave_banner_closed');
+    // 检查是否有 pending 学生 → 自动切到学生进度让用户看到
+    const pending = DB.students.filter(s => (s.prog||'TM')===activeProg && typeof getLeaveStatus==='function' && getLeaveStatus(s)==='pending');
+    if(pending.length > 0 && typeof switchTab === 'function'){
+      switchTab('progress');
+    }
+  }
   render();
 }
 // 班级课表的班级 pill 多选辅助
@@ -5226,6 +5251,21 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(e.key!=='Escape') return;
     const open=document.querySelector('.overlay[style*="flex"],.overlay[style*="block"]');
     if(open) closeModal(open.id);
+  });
+  // ⌘+F / Ctrl+F 跳到顶部搜索框（拦截浏览器默认搜索）
+  document.addEventListener('keydown', e=>{
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f'){
+      // 不要拦截输入框内的搜索（让浏览器搜索 modal 文字）
+      const tag = (e.target.tagName||'').toLowerCase();
+      if(tag === 'input' || tag === 'textarea') return;
+      // 切到学生进度 tab + focus 搜索框
+      const search = document.getElementById('bar-search');
+      if(search){
+        e.preventDefault();
+        if(typeof switchTab === 'function') switchTab('progress');
+        setTimeout(() => { search.focus(); search.select(); }, 50);
+      }
+    }
   });
 });
 
@@ -6597,7 +6637,7 @@ function renderWorkbench(){
       if(_kt331 === 'Transferred' && _kt332 === 'Transferred') internSem = 'Transfer';
       else { const sv = v => { const m=(v||'').match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):0; }; internSem = sv(_kt332) >= sv(_kt331) ? _kt332 : _kt331; }
     } else if(_kt331 || _kt332) internSem = _kt331 || _kt332;
-    const internCls = p.internOk ? 'ok' : 'no';
+    const internCls = p.internOk ? 'ok' : (internSem ? 'planned' : 'unplanned');
     const internIcon = p.internOk ? '✓' : '待';
     const internLabel = internSem ? `${internIcon} 实 ${internSem}` : `${internIcon} 实习`;
     h += `<th class="wb-thead-summary-cell" title="已修 ${p.doneC}/${p.totalC} 门 · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}">
