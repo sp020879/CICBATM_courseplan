@@ -6400,7 +6400,7 @@ function resetClassColors(){Object.keys(_classColorCache).forEach(k=>delete _cla
 const _WB = {
   classes: new Set(),       // 选中班级（默认全选）
   selectedCells: new Set(), // 选中 cell：格式 'studentId|courseCode'
-  mode: 'multi',            // 'view' / 'multi' / 'quick'（三选一）
+  mode: 'quick',            // 'view' / 'multi' / 'quick'（默认单次排课）
   hideDone: false,          // 已废弃 · 由 foldedGroups 取代（保留避免破坏外部引用）
   foldedGroups: new Set(),  // 折叠中的群组（点三角型 toggle）
   foldInit: false,          // 首次渲染时自动折叠已修完的组
@@ -6454,11 +6454,12 @@ function renderWorkbench(){
     ...(prog?.preCohorts || [])
   ].filter(Boolean))].sort();
 
-  // 首次进入：默认全选所有班级 + 目标学期 = NOW_SEM
+  // 首次进入：默认全选所有班级 + 目标学期 = NOW_SEM + 自动折叠已修完的组
   if(!_WB.initialized){
     allCodes.forEach(cc => _WB.classes.add(cc));
     _WB.targetSem = NOW_SEM;
     _WB.initialized = true;
+    // foldInit 保持 false → 首次渲染自动折叠已修完的组（见下方 if(!_WB.foldInit && isAllDone)）
   }
   // 目标学期下拉选项：从 NOW_SEM 起 12 学期，按学年分组
   const semOpts = [];
@@ -6540,28 +6541,27 @@ function renderWorkbench(){
         `).join('')}
       </select>
       <span class="wb-divv"></span>
-      <span class="wb-label">操作模式</span>
       <div class="wb-mode-toggle">
-        <button class="wb-mode-btn ${_WB.mode==='view'?'on':''}" onclick="_wbSetMode('view')" title="点 cell 弹 modal · 跟排课总览一样">🔍 查看</button>
-        <button class="wb-mode-btn ${_WB.mode==='multi'?'on':''}" onclick="_wbSetMode('multi')" title="点 cell 选/取消 · 用顶部按钮一次性批量写入">☑ 批次排课</button>
-        <button class="wb-mode-btn ${_WB.mode==='quick'?'on':''}" onclick="_wbSetMode('quick')" title="点空格立刻填目标学期 · 点已填弹 modal 改">⚡ 单次排课</button>
+        <button class="wb-mode-btn ${_WB.mode==='view'?'on':''}"  onclick="_wbSetMode('view')"  title="只读查看，点格子弹详情">🔍 查看</button>
+        <button class="wb-mode-btn ${_WB.mode==='quick'?'on':''}" onclick="_wbSetMode('quick')" title="点空格立刻填目标学期，点已填弹框修改">⚡ 单次排课</button>
+        <button class="wb-mode-btn ${_WB.mode==='multi'?'on':''}" onclick="_wbSetMode('multi')" title="选多格后批量填写/清空">☑ 批次</button>
       </div>
-      <span class="wb-divv"></span>
-      <button class="wb-act-clear-sem" onclick="_wbBatchClearSem('${TARGET}')" title="清空当前所有学生在 ${TARGET} 已排的课（Transferred 不受影响）">🗑 批量清空 ${TARGET}</button>
       <div style="flex:1"></div>
       <label class="wb-toggle"><input type="checkbox" ${window._hideGrads?'checked':''} onchange="toggleHideGrads()"> 🎓 隐藏毕业</label>
       <label class="wb-toggle"><input type="checkbox" ${window._hideLeave?'checked':''} onchange="toggleHideLeave()"> 🌙 隐藏休学</label>
-      <button class="wb-toggle" onclick="_wbExpandAllGroups()" title="展开所有折叠的组" style="padding:3px 8px;border:1px solid var(--line2);border-radius:4px;background:var(--card);color:var(--ink2);font-size:11px;cursor:pointer">▼ 全部展开</button>
+      <span class="wb-divv"></span>
       <button class="wb-toggle" onclick="_wbCollapseDoneGroups()" title="折叠所有已修完的组" style="padding:3px 8px;border:1px solid var(--line2);border-radius:4px;background:var(--card);color:var(--ink2);font-size:11px;cursor:pointer">▶ 折叠已修完</button>
+      <button class="wb-toggle" onclick="_wbExpandAllGroups()" title="展开所有折叠的组" style="padding:3px 8px;border:1px solid var(--line2);border-radius:4px;background:var(--card);color:var(--ink2);font-size:11px;cursor:pointer">▼ 全部展开</button>
+      <button class="wb-act-clear-sem" onclick="_wbBatchClearSem('${TARGET}')" title="清空当前所有学生在 ${TARGET} 已排的课（Transferred 不受影响）">🗑 清空 ${TARGET}</button>
     </div>
     ${_WB.mode==='multi' ? `<div class="wb-actionbar">
-      <span>已选 <b>${_WB.selectedCells.size}</b> 格</span>
+      <span>已选 <b>${_WB.selectedCells.size}</b> 格 →</span>
       <button class="wb-act primary" ${_WB.selectedCells.size?'':'disabled'} onclick="_wbApply('fill')">📝 填 ${TARGET}</button>
       <button class="wb-act" ${_WB.selectedCells.size?'':'disabled'} onclick="_wbApply('transfer')">✈ Transferred</button>
       <button class="wb-act" ${_WB.selectedCells.size?'':'disabled'} onclick="_wbApply('clear')">✕ 清空</button>
-      <button class="wb-act" ${_WB.selectedCells.size?'':'disabled'} onclick="_WB.selectedCells.clear();renderWorkbench()">取消选中</button>
+      <button class="wb-act" ${_WB.selectedCells.size?'':'disabled'} onclick="_WB.selectedCells.clear();renderWorkbench()">✗ 取消选</button>
       <div style="flex:1"></div>
-      <span style="color:var(--ink3);font-size:11px">点 cell 选/取消 · 点 ☐/☑ 选整行/整列</span>
+      <span style="color:var(--ink3);font-size:11px">点行首 ☐ 选整行 · 点列首 ☐ 选整列</span>
     </div>` : ''}
   </div>`;
 

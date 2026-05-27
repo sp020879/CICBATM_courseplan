@@ -455,6 +455,12 @@ input[type=file]{display:none;}
 .wb-matrix-wrap{overflow:auto;max-height:calc(100vh - 320px);border-bottom:1px solid var(--line);}
 .wb-matrix{border-collapse:separate;border-spacing:0;font-family:var(--mono);font-size:11px;width:max-content;min-width:100%;}
 .wb-matrix th, .wb-matrix td{border:0.5px solid var(--line);padding:3px 5px;background:#fff;white-space:nowrap;}
+/* 行悬停高亮 — 整行淡蓝底，让眼睛迅速锁定所在行 */
+.wb-matrix tbody tr:not(.wb-grp-hd):hover td:not(.wb-cell-data[class*="filled"]):not(.wb-cell-data[class*="sel"]){background:#f0f9ff!important;}
+.wb-matrix tbody tr:not(.wb-grp-hd):hover .wb-cell-icon,
+.wb-matrix tbody tr:not(.wb-grp-hd):hover .wb-cell-code,
+.wb-matrix tbody tr:not(.wb-grp-hd):hover .wb-cell-name,
+.wb-matrix tbody tr:not(.wb-grp-hd):hover .wb-cell-cr{background:#e0f2fe!important;}
 
 /* 顶 sticky */
 .wb-th-sticky{position:sticky;top:0;background:var(--paper)!important;z-index:6;font-weight:600;}
