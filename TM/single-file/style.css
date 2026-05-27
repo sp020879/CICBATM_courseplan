@@ -538,6 +538,14 @@ input[type=file]{display:none;}
 .wb-tfoot-rem.mid{background:#fef3c7!important;color:#92400e;}
 .wb-tfoot-rem.hi{background:#fee2e2!important;color:var(--red);}
 .wb-tfoot-rem.grad{background:var(--g1)!important;color:var(--g8);border:1px solid var(--g3);}
+/* ∑ 学期合计行 */
+.wb-tfoot-sum{border-top:2px solid var(--g6);}
+.wb-tfoot-sum-lbl{font-weight:700!important;color:var(--g8)!important;letter-spacing:.3px;}
+.wb-tfoot-sum-cell{text-align:center;font-weight:700;font-size:11px;padding:4px 2px;line-height:1.1;}
+.wb-tfoot-sum-cell .sum-sub{display:block;font-size:7.5px;font-weight:400;opacity:.75;letter-spacing:-.2px;}
+.wb-tfoot-sum-cell.match{background:#d1fae5!important;color:#065f46;}
+.wb-tfoot-sum-cell.near {background:#fef9c3!important;color:#713f12;}
+.wb-tfoot-sum-cell.mism {background:#fee2e2!important;color:var(--red);}
 
 /* 底部学分预览 */
 .wb-footer{position:sticky;bottom:0;background:#fff;border-top:2px solid var(--g7);padding:8px 16px;z-index:20;display:flex;flex-direction:column;gap:6px;}

@@ -6827,15 +6827,16 @@ function renderWorkbench(){
   // ── tfoot: 每学期课数 + Transferred + 剩余课数 ──
   h += '<tfoot class="wb-tfoot">';
 
-  // 每生每学期课数 (按学年 + 学期) · 一律给 4 学年（从班级最早届别起）
-  const baseYears = [];
-  // 取选中班级里最小届别作为起算 (e.g., TM66 → 2566)
+  // 每生每学期课数 (按学年 + 学期)
+  // 各届别各自起算 4 学年再取并集：TM67→2567-2570; TM68→2568-2571; 混显→2567-2571
   const cohorts = [...new Set(studs.map(s => parseInt(s.cohort)).filter(n=>!isNaN(n)))];
-  const minCohort = cohorts.length ? Math.min(...cohorts) : parseInt(NOW_SEM.split('/')[0]) - 2500;
-  const startYear = 2500 + minCohort;
-  // 给 4 学年（normal/transfer 通用，能覆盖大多数情况）
-  for(let i=0; i<4; i++) baseYears.push(String(startYear + i));
-  const years = baseYears;
+  const fallbackCohort = parseInt(NOW_SEM.split('/')[0]) - 2500;
+  const yearSet = new Set();
+  (cohorts.length ? cohorts : [fallbackCohort]).forEach(co => {
+    const sy = 2500 + co;
+    for(let i=0; i<4; i++) yearSet.add(String(sy + i));
+  });
+  const years = [...yearSet].sort();
 
   // 每生在某学期的课数 / 学分（含所有 ext slot / 实习）· 多 slot 兼容
   const _wbExtSlotsForStat = (typeof _wbGetExtSlots === 'function') ? _wbGetExtSlots(getProg(activeProg)) : [{slot:'ext2',cr:3}];
@@ -6870,15 +6871,18 @@ function renderWorkbench(){
   // 每学期课数表头（summary 已搬到 thead）
   h += `<tr class="wb-tfoot-sep"><td colspan="${4+studs.length}">📊 每学期课数 / 学分（按学年）</td></tr>`;
   // 学年折叠状态：默认折叠 "整学年已过" 的学年（年/3 < NOW_SEM）
+  // 用 _wbYearsAutoInited Set 记录已处理过的学年，新出现的学年首次渲染时自动判断折叠
   if(!window._wbCollapsedYears) window._wbCollapsedYears = new Set();
-  if(!window._wbCollapseInit){
+  if(!window._wbYearsAutoInited) window._wbYearsAutoInited = new Set();
+  {
     const _nowYn = parseInt((NOW_SEM||'').split('/')[0]) || 0;
     const _nowSn = parseInt((NOW_SEM||'').split('/')[1]) || 0;
-    years.forEach(yr=>{
+    years.forEach(yr => {
+      if(window._wbYearsAutoInited.has(yr)) return; // 已处理，跳过（用户可能手动切换了）
+      window._wbYearsAutoInited.add(yr);
       const yn = parseInt(yr);
       if(yn < _nowYn || (yn === _nowYn && 3 < _nowSn)) window._wbCollapsedYears.add(yr);
     });
-    window._wbCollapseInit = true;
   }
   years.forEach((yr, yi) => {
     const collapsed = window._wbCollapsedYears.has(yr);
@@ -6901,6 +6905,26 @@ function renderWorkbench(){
       h += '</tr>';
     });
   });
+
+  // ∑ 学期合计行（所有展示学年内各学期课数之和 · 与 thead doneC 对照）
+  h += `<tr class="wb-tfoot-row wb-tfoot-sum">`;
+  h += `<td colspan="4" class="wb-tfoot-l wb-tfoot-sum-lbl">∑ 合计</td>`;
+  studs.forEach(s => {
+    let semTotal = 0;
+    years.forEach(yr => {
+      [1,2,3].forEach(n => { semTotal += _wbSemStat(s, yr + '/' + n).cnt; });
+    });
+    const bp = calcProgress(s, allPC);
+    const doneC  = bp.doneC;
+    const transC = bp.transferC || 0;
+    const grand  = semTotal + transC;
+    const ok     = grand === doneC;
+    const diff   = doneC - grand;
+    const tipTxt = `学期内 ${semTotal}门 + Transferred ${transC}门 = ${grand}（顶部 doneC = ${doneC}${ok?' ✓':' ⚠ 差'+diff+'门'}）`;
+    const cls    = ok ? 'match' : Math.abs(diff)<=1 ? 'near' : 'mism';
+    h += `<td class="wb-tfoot-sum-cell ${cls}" title="${tipTxt}">${semTotal}<span class="sum-sub">+${transC}=${grand}</span></td>`;
+  });
+  h += '</tr>';
 
   // Transferred 统计行
   h += `<tr class="wb-tfoot-sep transfer"><td colspan="${4+studs.length}">✈ Transferred 已抵免</td></tr>`;
