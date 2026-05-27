@@ -6484,6 +6484,26 @@ function renderWorkbench(){
   ).sort((a,b) => a.id.localeCompare(b.id));
   _WB.currentStuds = studs; // 供批量操作函数使用
 
+  // ─ 轻量版学期课数统计（thead TARGET 行用；_wbSemStat 定义较晚，这里提前） ─
+  const _pcCodeSet4Cnt = new Set((allPC||[]).map(c => c.c));
+  const _extSlotRE4Cnt = /^ext_\d+$/;
+  function _quickCntSem(s, sem){
+    if(isOnLeaveAt(s, sem)) return 0;
+    let cnt = 0;
+    Object.entries(s.courses||{}).forEach(([code, val]) => {
+      if(!val || val==='Transferred') return;
+      let semVal;
+      if(_extSlotRE4Cnt.test(code) || code==='ext2'){
+        const parts = val.split('|');
+        semVal = parts.length>1 ? parts[1] : val;
+      } else if(_pcCodeSet4Cnt.has(code) && !code.includes('|') && !/[^\x00-\x7F]/.test(code)){
+        semVal = val;
+      } else { return; }
+      if(semVal===sem) cnt++;
+    });
+    return cnt;
+  }
+
   // 课程按 group 分组
   const groups = {};
   allPC.forEach(c => {
@@ -6639,6 +6659,21 @@ function renderWorkbench(){
         ${gradTag || overTag}
       </div>
     </th>`;
+  });
+  h += '</tr>';
+
+  // ─ TARGET 学期课数行（sticky 在 thead 最下方，随时可见） ─
+  h += `<tr class="wb-thead-sem-cnt">`;
+  h += `<th colspan="4" class="wb-thead-sem-cnt-l">📌 ${TARGET}</th>`;
+  studs.forEach(s => {
+    const cnt = _quickCntSem(s, TARGET);
+    const _onLeaveT = isOnLeaveAt(s, TARGET);
+    let cls, label;
+    if(_onLeaveT)      { cls='leave'; label='🌙'; }
+    else if(cnt===0)   { cls='zero';  label='·';  }
+    else if(cnt>cap)   { cls='over';  label=String(cnt); }
+    else               { cls='ok';    label=String(cnt); }
+    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" title="${s.name} · ${TARGET}: ${cnt}门">${label}</th>`;
   });
   h += '</tr></thead><tbody>';
 
@@ -7027,13 +7062,18 @@ function renderWorkbench(){
     _newWrap.scrollLeft = _WB._scrollLeft || 0;
   }
 
-  // 让 summary 第二排 sticky 紧贴 column header（量第一排实际高度）
+  // 让 summary + TARGET课数行 sticky 紧贴 column header（量实际高度累加）
   requestAnimationFrame(() => {
-    const firstRow = page.querySelector('.wb-matrix thead tr:first-child');
+    const firstRow  = page.querySelector('.wb-matrix thead tr:first-child');
     const summaryRow = page.querySelector('.wb-matrix thead tr.wb-thead-summary');
+    const semCntRow  = page.querySelector('.wb-matrix thead tr.wb-thead-sem-cnt');
     if(firstRow && summaryRow){
-      const h = firstRow.getBoundingClientRect().height;
-      summaryRow.querySelectorAll('th').forEach(th => { th.style.top = h + 'px'; });
+      const h1 = firstRow.getBoundingClientRect().height;
+      summaryRow.querySelectorAll('th').forEach(th => { th.style.top = h1 + 'px'; });
+      if(semCntRow){
+        const h2 = summaryRow.getBoundingClientRect().height;
+        semCntRow.querySelectorAll('th').forEach(th => { th.style.top = (h1 + h2) + 'px'; });
+      }
     }
   });
 }
