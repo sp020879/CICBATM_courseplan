@@ -6481,6 +6481,7 @@ function renderWorkbench(){
   let studs = progStuds.filter(s =>
     _WB.classes.has(s.classCode || autoClassCode(s.cohort, s.type))
   ).sort((a,b) => a.id.localeCompare(b.id));
+  _WB.currentStuds = studs; // 供批量操作函数使用
 
   // 课程按 group 分组
   const groups = {};
@@ -6545,6 +6546,8 @@ function renderWorkbench(){
         <button class="wb-mode-btn ${_WB.mode==='multi'?'on':''}" onclick="_wbSetMode('multi')" title="点 cell 选/取消 · 用顶部按钮一次性批量写入">☑ 批次排课</button>
         <button class="wb-mode-btn ${_WB.mode==='quick'?'on':''}" onclick="_wbSetMode('quick')" title="点空格立刻填目标学期 · 点已填弹 modal 改">⚡ 单次排课</button>
       </div>
+      <span class="wb-divv"></span>
+      <button class="wb-act-clear-sem" onclick="_wbBatchClearSem('${TARGET}')" title="清空当前所有学生在 ${TARGET} 已排的课（Transferred 不受影响）">🗑 批量清空 ${TARGET}</button>
       <div style="flex:1"></div>
       <label class="wb-toggle"><input type="checkbox" ${window._hideGrads?'checked':''} onchange="toggleHideGrads()"> 🎓 隐藏毕业</label>
       <label class="wb-toggle"><input type="checkbox" ${window._hideLeave?'checked':''} onchange="toggleHideLeave()"> 🌙 隐藏休学</label>
@@ -7278,6 +7281,67 @@ async function _wbApply(action){
 }
 
 // 单格快速写（快速排模式下点空格）
+// 批量清空某学期：清除所有当前学生在指定学期下的课程记录
+async function _wbBatchClearSem(sem){
+  const studs = _WB.currentStuds || [];
+  if(!studs.length) return;
+  const extRE = /^ext_\d+$/;
+
+  // 预扫描：哪些学生 / 哪些 key 需要清空
+  const hits = [];
+  studs.forEach(s => {
+    const codes = [];
+    Object.entries(s.courses||{}).forEach(([code, val]) => {
+      if(!val || val === 'Transferred') return; // Transferred 不动
+      let semVal = val;
+      if(extRE.test(code)){
+        const parts = val.split('|');
+        semVal = parts.length > 1 ? parts[1] : val;
+      }
+      if(semVal === sem) codes.push(code);
+    });
+    if(codes.length) hits.push({s, codes});
+  });
+
+  if(!hits.length) return alert(`📭 ${sem} 没有可清空的课程`);
+
+  const totalC = hits.reduce((n, x) => n + x.codes.length, 0);
+  const preview = hits.slice(0, 6).map(x =>
+    `  • ${x.s.cname||x.s.name||x.s.id}（${x.codes.length} 门）`
+  ).join('\n') + (hits.length > 6 ? `\n  …另 ${hits.length - 6} 位学生` : '');
+
+  if(!confirm(
+    `🗑 批量清空 ${sem}\n\n` +
+    `将从 ${hits.length} 位学生中清除共 ${totalC} 门已排在 ${sem} 的课：\n\n${preview}\n\n` +
+    `⚠ 此操作不可撤销，确认清空？`
+  )) return;
+
+  let ok = 0, fail = 0;
+  for(const {s, codes} of hits){
+    const before = {...s.courses};
+    const newCourses = {...s.courses};
+    codes.forEach(code => delete newCourses[code]);
+    s.courses = newCourses;
+    try{
+      await sb(`students?id=eq.${encodeURIComponent(s.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ courses: newCourses, updated_at: new Date().toISOString() }),
+        prefer: 'return=minimal'
+      });
+      apiAudit('batch_clear_sem', 'student', s.id,
+        `批量清空 ${sem}（${codes.length} 门: ${codes.join(', ')}）`,
+        before, newCourses);
+      ok++;
+    }catch(e){
+      s.courses = before; // 内存回滚
+      console.error(s.id, e);
+      fail++;
+    }
+  }
+  renderWorkbench();
+  if(fail) alert(`⚠ ${fail} 位学生保存失败，${ok} 位成功`);
+}
+
 async function _wbWriteOne(sid, code, sem){
   const s = DB.students.find(x => x.id === sid);
   if(!s) return;
