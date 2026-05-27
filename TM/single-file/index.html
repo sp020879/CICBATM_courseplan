@@ -1518,9 +1518,12 @@ function calcProgressTM(s, allPC) {
   const ext2Val=(c['ext2']||'').split('|');
   const ext2Code=ext2Val[0]?.trim().toUpperCase()||'';
   const INTERN_EXTRA=_RULES.INTERN_CODES;
+  // 所有 ext slot key 集合（新 ext_N 格式 + 旧 ext2）—— 这些 slot key 本身不计为自由选修
+  // calcProgress 外层会统一通过 prog.meta.extSlots 补算，不能在这里重复计入
+  const _extSlotKeyRE = /^ext_\d+$/;
   Object.keys(c).forEach(code=>{
     if(pcCodes.has(code)) return;
-    if(code==='ext2') return; // ext2 slot 本身不计（代码才计）
+    if(code==='ext2' || _extSlotKeyRE.test(code)) return; // ext slot 本身不计（新旧格式兼容）
     if(code===ext2Code) return; // ext2 的实际课程代码已经在 ext2 slot 里计了
     if(INTERN_EXTRA.has(code)) return; // 实习不计入 38 课课数
     const val=c[code];
