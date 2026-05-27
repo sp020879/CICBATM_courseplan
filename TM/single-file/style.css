@@ -547,17 +547,14 @@ input[type=file]{display:none;}
 /* 批量清空学期 按钮 */
 .wb-act-clear-sem{padding:3px 10px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap;}
 .wb-act-clear-sem:hover{background:#fee2e2;border-color:#f87171;}
-/* 固定摘要 tfoot（∑合计 + Transferred + 剩余）—— 粘在滚动区底部 */
+/* 固定摘要 tfoot（Transferred + 剩余 · 各 1 行）—— 粘在滚动区底部 */
 .wb-tfoot-pin{position:sticky;bottom:0;z-index:12;}
 .wb-tfoot-pin tr:first-child td{border-top:2px solid var(--g6);box-shadow:0 -3px 8px rgba(0,0,0,.1);}
-/* ∑ 学期合计行 */
-.wb-tfoot-sum{border-top:none;}
-.wb-tfoot-sum-lbl{font-weight:700!important;color:var(--g8)!important;letter-spacing:.3px;}
-.wb-tfoot-sum-cell{text-align:center;font-weight:700;font-size:11px;padding:4px 2px;line-height:1.1;}
-.wb-tfoot-sum-cell .sum-sub{display:block;font-size:7.5px;font-weight:400;opacity:.75;letter-spacing:-.2px;}
-.wb-tfoot-sum-cell.match{background:#d1fae5!important;color:#065f46;}
-.wb-tfoot-sum-cell.near {background:#fef9c3!important;color:#713f12;}
-.wb-tfoot-sum-cell.mism {background:#fee2e2!important;color:var(--red);}
+/* 紧凑行：标签 + 数据同行 */
+.wb-tfoot-compact td{height:24px;text-align:center;padding:2px 4px;}
+.wb-tfoot-compact-lbl{text-align:right!important;padding-right:8px!important;font-size:10px;font-weight:700;font-family:var(--mono);white-space:nowrap;position:sticky;left:0;}
+.wb-tfoot-compact-lbl.transfer-lbl{background:#1e40af!important;color:#dbeafe!important;}
+.wb-tfoot-compact-lbl.rem-lbl{background:var(--amber)!important;color:#fff!important;}
 
 /* 底部学分预览 */
 .wb-footer{position:sticky;bottom:0;background:#fff;border-top:2px solid var(--g7);padding:8px 16px;z-index:20;display:flex;flex-direction:column;gap:6px;}

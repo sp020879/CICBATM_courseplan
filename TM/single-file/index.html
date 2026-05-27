@@ -6915,64 +6915,38 @@ function renderWorkbench(){
   });
 
   h += '</tbody>'; // 关闭学期 tbody
-  h += '<tfoot class="wb-tfoot wb-tfoot-pin">'; // 固定在底部的摘要行（position:sticky;bottom:0）
+  // ── 固定摘要 tfoot（2 行：Transferred + 剩余）──
+  h += '<tfoot class="wb-tfoot wb-tfoot-pin">';
 
-  // ∑ 学期合计行（所有展示学年内各学期课数之和 · 与 thead doneC 对照）
-  h += `<tr class="wb-tfoot-row wb-tfoot-sum">`;
-  h += `<td colspan="4" class="wb-tfoot-l wb-tfoot-sum-lbl">∑ 合计</td>`;
+  // 行 1：✈ Transferred 已抵免（标签 + 数据合并在同一行）
+  h += `<tr class="wb-tfoot-row wb-tfoot-compact">`;
+  h += `<td colspan="4" class="wb-tfoot-compact-lbl transfer-lbl">✈ 已抵免</td>`;
   studs.forEach(s => {
-    let semTotal = 0;
-    years.forEach(yr => {
-      [1,2,3].forEach(n => { semTotal += _wbSemStat(s, yr + '/' + n).cnt; });
-    });
-    const bp = calcProgress(s, allPC);
-    const doneC  = bp.doneC;
-    const transC = bp.transferC || 0;
-    const grand  = semTotal + transC;
-    const ok     = grand === doneC;
-    const diff   = doneC - grand;
-    const tipTxt = `学期内 ${semTotal}门 + Transferred ${transC}门 = ${grand}（顶部 doneC = ${doneC}${ok?' ✓':' ⚠ 差'+diff+'门'}）`;
-    const cls    = ok ? 'match' : Math.abs(diff)<=1 ? 'near' : 'mism';
-    h += `<td class="wb-tfoot-sum-cell ${cls}" title="${tipTxt}">${semTotal}<span class="sum-sub">+${transC}=${grand}</span></td>`;
+    const tp = calcProgress(s, allPC);
+    const tC = tp.transferC, tCr = tp.transferCr;
+    h += tC > 0
+      ? `<td class="wb-tfoot-trans" title="${tC}门 · ${tCr}学分">${tC}<span style="opacity:.65;font-size:8px;margin-left:2px">${tCr}cr</span></td>`
+      : `<td class="wb-tfoot-trans empty">—</td>`;
   });
   h += '</tr>';
 
-  // Transferred 统计行（可折叠）
-  if(!window._wbTransCollapsed) window._wbTransCollapsed = false;
-  const tcIcon = window._wbTransCollapsed ? '▶' : '▼';
-  h += `<tr class="wb-tfoot-sep transfer" onclick="window._wbTransCollapsed=!window._wbTransCollapsed;renderWorkbench()" style="cursor:pointer;user-select:none"><td colspan="${4+studs.length}">${tcIcon} ✈ Transferred 已抵免${window._wbTransCollapsed?'<span style="opacity:.7;font-size:10px;margin-left:6px">（点击展开）</span>':''}</td></tr>`;
-  if(!window._wbTransCollapsed){
-    h += `<tr class="wb-tfoot-row"><td colspan="4" class="wb-tfoot-l"></td>`;
-    studs.forEach(s => {
-      const tp = calcProgress(s, allPC);
-      const tC = tp.transferC, tCr = tp.transferCr;
-      h += tC > 0
-        ? `<td class="wb-tfoot-trans">${tC}<br><span style="opacity:.7;font-size:9px">${tCr}cr</span></td>`
-        : `<td class="wb-tfoot-trans empty">—</td>`;
-    });
-    h += '</tr>';
-  }
-
-  // 剩余课数行（可折叠）
-  if(!window._wbRemCollapsed) window._wbRemCollapsed = false;
-  const remIcon = window._wbRemCollapsed ? '▶' : '▼';
-  h += `<tr class="wb-tfoot-sep rem" onclick="window._wbRemCollapsed=!window._wbRemCollapsed;renderWorkbench()" style="cursor:pointer;user-select:none"><td colspan="${4+studs.length}">${remIcon} ⚠ 剩余课数 · 以当下学期 <b>${NOW_SEM}</b> 为准${window._wbRemCollapsed?'<span style="opacity:.85;font-size:10px;margin-left:6px">（点击展开）</span>':''}</td></tr>`;
-  if(!window._wbRemCollapsed){
-    h += `<tr class="wb-tfoot-row"><td colspan="4" class="wb-tfoot-l"></td>`;
-    studs.forEach(s => {
-      const bp = calcProgress(s, allPC);
-      const internOk = bp.internOk;
-      const remC = bp.remC;
-      const isCom = remC === 0 && internOk;
-      if(isCom){
-        h += `<td class="wb-tfoot-rem grad">🎓<br><span style="opacity:.7;font-size:9px">达标</span></td>`;
-      } else {
-        const cls = remC > 20 ? 'hi' : remC > 10 ? 'mid' : 'ok';
-        h += `<td class="wb-tfoot-rem ${cls}">${remC}${internOk?'':'<span style="color:var(--amber);font-size:9px">+实</span>'}<br><span style="opacity:.7;font-size:9px">${remC>0?'课':''}${internOk?'':'+实习'}</span></td>`;
-      }
-    });
-    h += '</tr>';
-  }
+  // 行 2：⚠ 剩余课数（标签 + 数据合并在同一行）
+  h += `<tr class="wb-tfoot-row wb-tfoot-compact">`;
+  h += `<td colspan="4" class="wb-tfoot-compact-lbl rem-lbl">⚠ 剩余</td>`;
+  studs.forEach(s => {
+    const bp = calcProgress(s, allPC);
+    const internOk = bp.internOk;
+    const remC = bp.remC;
+    const isCom = remC === 0 && internOk;
+    if(isCom){
+      h += `<td class="wb-tfoot-rem grad" title="全部达标 🎓">🎓</td>`;
+    } else {
+      const cls = remC > 20 ? 'hi' : remC > 10 ? 'mid' : 'ok';
+      const internTip = internOk ? '' : ' +实习';
+      h += `<td class="wb-tfoot-rem ${cls}" title="${remC}门待排${internTip}">${remC}${internOk?'':'<span style="color:var(--amber);font-size:8px">+实</span>'}</td>`;
+    }
+  });
+  h += '</tr>';
 
   h += '</tfoot>';
 
