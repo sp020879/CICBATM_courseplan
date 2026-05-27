@@ -528,6 +528,14 @@ input[type=file]{display:none;}
 .wb-thead-summary-cell .ss-intern.unplanned{color:#fff;background:var(--red);}    /* 待 + 无学期 = 紅 */
 .wb-thead-summary-cell .ss-over{font-size:9px;color:var(--red);font-weight:700;}
 .wb-thead-summary-cell .ss-grad{font-size:9px;color:var(--amber);font-weight:700;}
+/* TARGET 学期课数行（thead 第三排，sticky） */
+.wb-thead-sem-cnt th{position:sticky;z-index:4;background:#f0f9ff;border-bottom:2px solid var(--sky);padding:2px 3px;font-family:var(--mono);}
+.wb-thead-sem-cnt-l{text-align:right!important;padding-right:8px!important;font-size:10px;font-weight:600;color:var(--sky);background:#e0f2fe!important;}
+.wb-thead-sem-cnt-cell{text-align:center;font-size:11px;font-weight:700;min-width:38px;}
+.wb-thead-sem-cnt-cell.cnt-ok   {color:var(--g7);background:#f0fdf4;}
+.wb-thead-sem-cnt-cell.cnt-over {color:#fff;background:var(--red);}
+.wb-thead-sem-cnt-cell.cnt-zero {color:#9ca3af;background:#f8fafc;}
+.wb-thead-sem-cnt-cell.cnt-leave{color:#94a3b8;background:#f1f5f9;}
 .wb-tfoot-sep.transfer td{background:#1e40af!important;}
 .wb-tfoot-sep.rem td{background:var(--amber)!important;color:#fff!important;}
 .wb-tfoot-year-h td{background:#e2e8f0!important;color:var(--ink2);font-size:10px;padding:3px 10px;font-weight:600;position:sticky;left:0;font-family:var(--mono);}
