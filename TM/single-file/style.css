@@ -547,10 +547,6 @@ input[type=file]{display:none;}
 .wb-tfoot-row td{text-align:center;padding:4px;line-height:1.2;}
 .wb-tfoot-trans{background:#eff6ff!important;color:#1e40af;font-weight:700;font-size:11px;}
 .wb-tfoot-trans.empty{color:#cbd5e1;font-weight:400;}
-.wb-tfoot-rem{font-weight:700;font-size:12px;}
-.wb-tfoot-rem.grad{background:var(--g1)!important;color:var(--g8);border:1px solid var(--g3);}
-.wb-tfoot-rem.over{background:#fee2e2!important;color:var(--red);font-size:10px;}
-.wb-tfoot-rem.inprog{color:#cbd5e1!important;font-weight:400;background:transparent!important;}
 /* 批量清空学期 按钮 */
 .wb-act-clear-sem{padding:3px 10px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap;}
 .wb-act-clear-sem:hover{background:#fee2e2;border-color:#f87171;}
