@@ -6965,20 +6965,19 @@ function renderWorkbench(){
   });
   h += '</tr>';
 
-  // 行 2：⚠ 剩余课数（标签 + 数据合并在同一行）
+  // 行 2：仅标注 🎓 达标 / 超修，进行中不显示数字（避免与总览重复）
   h += `<tr class="wb-tfoot-row wb-tfoot-compact">`;
-  h += `<td colspan="4" class="wb-tfoot-compact-lbl rem-lbl">⚠ 剩余</td>`;
+  h += `<td colspan="4" class="wb-tfoot-compact-lbl rem-lbl">状态</td>`;
   studs.forEach(s => {
     const bp = calcProgress(s, allPC);
-    const internOk = bp.internOk;
-    const remC = bp.remC;
-    const isCom = remC === 0 && internOk;
+    const isCom = bp.remC === 0 && bp.internOk;
+    const isOver = bp.overC > 0;
     if(isCom){
       h += `<td class="wb-tfoot-rem grad" title="全部达标 🎓">🎓</td>`;
+    } else if(isOver){
+      h += `<td class="wb-tfoot-rem over" title="超修 +${bp.overC} 门">⚠${bp.overC}</td>`;
     } else {
-      const cls = remC > 20 ? 'hi' : remC > 10 ? 'mid' : 'ok';
-      const internTip = internOk ? '' : ' +实习';
-      h += `<td class="wb-tfoot-rem ${cls}" title="${remC}门待排${internTip}">${remC}${internOk?'':'<span style="color:var(--amber);font-size:8px">+实</span>'}</td>`;
+      h += `<td class="wb-tfoot-rem inprog" title="${bp.remC}门待排${bp.internOk?'':' +实习'}">·</td>`;
     }
   });
   h += '</tr>';
