@@ -6827,8 +6827,10 @@ function renderWorkbench(){
     });
   }
 
-  // ── tfoot: 每学期课数 + Transferred + 剩余课数 ──
-  h += '<tfoot class="wb-tfoot">';
+  h += '</tbody>'; // 关闭学生行 tbody
+
+  // ── 学期统计区（可滚动 tbody）+ 固定摘要 tfoot ──
+  h += '<tbody class="wb-tfoot wb-sem-body">'; // 📊 学期行放在 tbody → 可随内容滚动
 
   // 每生每学期课数 (按学年 + 学期)
   // 各届别各自起算 4 学年再取并集：TM67→2567-2570; TM68→2568-2571; 混显→2567-2571
@@ -6908,6 +6910,9 @@ function renderWorkbench(){
       h += '</tr>';
     });
   });
+
+  h += '</tbody>'; // 关闭学期 tbody
+  h += '<tfoot class="wb-tfoot wb-tfoot-pin">'; // 固定在底部的摘要行（position:sticky;bottom:0）
 
   // ∑ 学期合计行（所有展示学年内各学期课数之和 · 与 thead doneC 对照）
   h += `<tr class="wb-tfoot-row wb-tfoot-sum">`;
