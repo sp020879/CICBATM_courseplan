@@ -7125,40 +7125,81 @@ function _ssIsDoneValStub(val){
   return /^25\d\d\/[123]$/.test(val);
 }
 
-// ── 吸底横向滚动条（workbench 专用）──────────────────────────────────────
+// ── 吸底横向滚动条（workbench 专用，自定义 thumb）────────────────────────
 function _wbInitStickyScroll(wrap) {
-  // 清理旧实例
   const old = document.getElementById('wb-sticky-hscroll');
   if(old){ old._wbCleanup?.(); old.remove(); }
-  // 内容没有溢出时不需要
   if(!wrap || wrap.scrollWidth <= wrap.clientWidth + 4) return;
 
-  const rail  = document.createElement('div');
-  rail.id     = 'wb-sticky-hscroll';
-  const inner = document.createElement('div');
-  inner.id    = 'wb-sticky-hscroll-inner';
-  inner.style.cssText = `height:1px;pointer-events:none;`;
-  rail.appendChild(inner);
-  document.body.appendChild(rail);
+  // 轨道
+  const track = document.createElement('div');
+  track.id = 'wb-sticky-hscroll';
+  track.style.cssText = 'position:fixed;bottom:0;z-index:9990;background:#e2e8f0;border-top:2px solid #cbd5e1;box-shadow:0 -2px 10px rgba(0,0,0,.08);cursor:pointer;user-select:none;';
+
+  // 滑块
+  const thumb = document.createElement('div');
+  thumb.style.cssText = 'position:absolute;top:5px;height:calc(100% - 10px);background:#94a3b8;border-radius:5px;cursor:grab;transition:background .12s;min-width:60px;';
+  track.appendChild(thumb);
+  document.body.appendChild(track);
+
+  const THUMB_MIN = 60;
+
+  function _thumbW(){ return Math.max(THUMB_MIN, track.clientWidth * (wrap.clientWidth / wrap.scrollWidth)); }
+  function _thumbL(){ const ms=wrap.scrollWidth-wrap.clientWidth; const mt=track.clientWidth-_thumbW(); return ms>0?(wrap.scrollLeft/ms)*mt:0; }
+  function _updateThumb(){ thumb.style.width=_thumbW()+'px'; thumb.style.left=_thumbL()+'px'; }
 
   function _pos(){
     const r = wrap.getBoundingClientRect();
-    rail.style.cssText  = `position:fixed;bottom:0;left:${r.left}px;width:${r.width}px;height:32px;overflow-x:auto;overflow-y:hidden;z-index:9990;background:#f1f5f9;border-top:1px solid #e2e8f0;box-shadow:0 -2px 8px rgba(0,0,0,.06);`;
-    inner.style.width   = wrap.scrollWidth + 'px';
+    track.style.left   = r.left+'px';
+    track.style.width  = r.width+'px';
+    track.style.height = '32px';
+    _updateThumb();
   }
   _pos();
 
-  let _lock = false;
-  const _r2w = () => { if(_lock) return; _lock=true; wrap.scrollLeft=rail.scrollLeft;  _lock=false; };
-  const _w2r = () => { if(_lock) return; _lock=true; rail.scrollLeft=wrap.scrollLeft;  _lock=false; };
-  rail.addEventListener('scroll', _r2w);
-  wrap.addEventListener('scroll', _w2r);
+  // 点击轨道跳转
+  track.addEventListener('mousedown', e => {
+    if(e.target === thumb) return;
+    const tx = e.clientX - track.getBoundingClientRect().left;
+    const tw = _thumbW();
+    const ratio = Math.max(0, Math.min(1, (tx - tw/2) / (track.clientWidth - tw)));
+    wrap.scrollLeft = ratio * (wrap.scrollWidth - wrap.clientWidth);
+  });
+
+  // 拖拽滑块
+  let _drag=false, _sx=0, _ss=0;
+  thumb.addEventListener('mousedown', e => {
+    e.preventDefault(); e.stopPropagation();
+    _drag=true; _sx=e.clientX; _ss=wrap.scrollLeft;
+    thumb.style.background='#475569'; thumb.style.cursor='grabbing';
+    document.body.style.userSelect='none';
+  });
+  const _onMove = e => {
+    if(!_drag) return;
+    const dx = e.clientX - _sx;
+    const ratio = (track.clientWidth - _thumbW()) > 0 ? dx/(track.clientWidth-_thumbW()) : 0;
+    wrap.scrollLeft = Math.max(0, Math.min(wrap.scrollWidth-wrap.clientWidth, _ss+ratio*(wrap.scrollWidth-wrap.clientWidth)));
+  };
+  const _onUp = () => {
+    if(!_drag) return; _drag=false;
+    thumb.style.background='#94a3b8'; thumb.style.cursor='grab';
+    document.body.style.userSelect='';
+  };
+  thumb.addEventListener('mouseenter', ()=>{ if(!_drag) thumb.style.background='#64748b'; });
+  thumb.addEventListener('mouseleave', ()=>{ if(!_drag) thumb.style.background='#94a3b8'; });
+  document.addEventListener('mousemove', _onMove);
+  document.addEventListener('mouseup', _onUp);
+
+  // 同步：表格滚动 → 滑块位置
+  const _w2t = () => { if(!_drag) _updateThumb(); };
+  wrap.addEventListener('scroll', _w2t);
   window.addEventListener('resize', _pos);
 
-  rail._wbCleanup = () => {
-    rail.removeEventListener('scroll', _r2w);
-    wrap.removeEventListener('scroll', _w2r);
+  track._wbCleanup = () => {
+    wrap.removeEventListener('scroll', _w2t);
     window.removeEventListener('resize', _pos);
+    document.removeEventListener('mousemove', _onMove);
+    document.removeEventListener('mouseup', _onUp);
   };
 }
 
