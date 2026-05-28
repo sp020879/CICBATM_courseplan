@@ -7065,8 +7065,8 @@ function renderWorkbench(){
       const isMin = n === 3;   // /3 = 小学期；/1 /2 = 大学期
       const maxCr = isMin ? 9 : 21;
       h += `<tr class="wb-tfoot-sem">`;
-      h += `<td colspan="2" class="wb-tfoot-l">${isMin?'小':'大'}</td>`;
-      h += `<td class="wb-tfoot-l" colspan="2" style="text-align:right">${sem}</td>`;
+      h += `<td colspan="2" class="wb-tfoot-l" style="position:sticky;left:0;z-index:3">${isMin?'小':'大'}</td>`;
+      h += `<td class="wb-tfoot-l" colspan="2" style="position:sticky;left:92px;z-index:3;text-align:right;border-right:2px solid var(--line2)">${sem}</td>`;
       studs.forEach(s => {
         const { cnt, cr } = _wbSemStat(s, sem);
         const over = cr > maxCr;
