@@ -5061,7 +5061,6 @@ function _ctExportCSV(){
     }
     row.push(noteVal,'');
     csvRows.push(row);
-    }
   });
   // 组装 CSV（自动加 BOM 确保 Excel 正确识别 UTF-8）
   const escape=v=>{const s=String(v??'');return(s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s.replace(/"/g,'""')+'"':s;};
