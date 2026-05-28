@@ -7040,7 +7040,13 @@ function renderWorkbench(){
   }
 
   // 每学期课数表头（summary 已搬到 thead）
-  h += `<tr class="wb-tfoot-sep"><td colspan="${4+studs.length}">📊 每学期课数 / 学分（按学年）</td></tr>`;
+  h += `<tr class="wb-tfoot-sep">`;
+  h += `<td style="position:sticky;left:0;z-index:4;width:28px"></td>`;
+  h += `<td style="position:sticky;left:28px;z-index:4;min-width:64px"></td>`;
+  h += `<td style="position:sticky;left:92px;z-index:4;min-width:240px">📊 每学期课数 / 学分（按学年）</td>`;
+  h += `<td style="position:sticky;left:332px;z-index:4;min-width:32px;border-right:2px solid var(--line2)"></td>`;
+  h += `<td colspan="${studs.length}"></td>`;
+  h += `</tr>`;
   // 学年折叠状态：默认折叠 "整学年已过" 的学年（年/3 < NOW_SEM）
   // 用 _wbYearsAutoInited Set 记录已处理过的学年，新出现的学年首次渲染时自动判断折叠
   if(!window._wbCollapsedYears) window._wbCollapsedYears = new Set();
@@ -7058,15 +7064,23 @@ function renderWorkbench(){
   years.forEach((yr, yi) => {
     const collapsed = window._wbCollapsedYears.has(yr);
     const icon = collapsed ? '▶' : '▼';
-    h += `<tr class="wb-tfoot-year-h" onclick="_wbToggleYear('${yr}')" style="cursor:pointer;user-select:none"><td colspan="${4+studs.length}">${icon} ${yr} 学年 ${collapsed?'<span style="opacity:.6;font-size:10px">（点击展开）</span>':''}</td></tr>`;
+    h += `<tr class="wb-tfoot-year-h" onclick="_wbToggleYear('${yr}')" style="cursor:pointer;user-select:none">`;
+    h += `<td style="position:sticky;left:0;z-index:4;width:28px">${icon}</td>`;
+    h += `<td style="position:sticky;left:28px;z-index:4;min-width:64px">${yr} 学年</td>`;
+    h += `<td style="position:sticky;left:92px;z-index:4;min-width:240px">${collapsed?'<span style="opacity:.6;font-size:10px">（点击展开）</span>':''}</td>`;
+    h += `<td style="position:sticky;left:332px;z-index:4;min-width:32px;border-right:2px solid var(--line2)"></td>`;
+    h += `<td colspan="${studs.length}"></td>`;
+    h += `</tr>`;
     if(collapsed) return;
     [1,2,3].forEach(n => {
       const sem = yr + '/' + n;
       const isMin = n === 3;   // /3 = 小学期；/1 /2 = 大学期
       const maxCr = isMin ? 9 : 21;
       h += `<tr class="wb-tfoot-sem">`;
-      h += `<td colspan="2" class="wb-tfoot-l" style="position:sticky;left:0;z-index:3">${isMin?'小':'大'}</td>`;
-      h += `<td class="wb-tfoot-l" colspan="2" style="position:sticky;left:92px;z-index:3;text-align:right;border-right:2px solid var(--line2)">${sem}</td>`;
+      h += `<td class="wb-tfoot-l" style="position:sticky;left:0;z-index:4;width:28px;text-align:center">${isMin?'小':'大'}</td>`;
+      h += `<td class="wb-tfoot-l" style="position:sticky;left:28px;z-index:4;min-width:64px"></td>`;
+      h += `<td class="wb-tfoot-l" style="position:sticky;left:92px;z-index:4;min-width:240px;text-align:right">${sem}</td>`;
+      h += `<td class="wb-tfoot-l" style="position:sticky;left:332px;z-index:4;min-width:32px;border-right:2px solid var(--line2)"></td>`;
       studs.forEach(s => {
         const { cnt, cr } = _wbSemStat(s, sem);
         const over = cr > maxCr;
