@@ -6737,11 +6737,19 @@ function renderWorkbench(){
 
     const _gMetaExtra = _isGeSelGrp ? ' · <span style="color:#fde68a">选 1 门 (3 学分)</span>' : '';
     const _doneTag = isAllDone ? ' · <span style="color:#86efac">✓ 已修完</span>' : '';
-    h += `<tr class="wb-group-head" onclick="_wbToggleGroup('${g.replace(/'/g,"\\'")}')" style="cursor:pointer;user-select:none"><td colspan="${4 + studs.length}">
+    // 4 独立 sticky 格（z-index:4 > tbody sticky 格的 3，避免被盖住）+ 右侧填色
+    const _ghClick = `onclick="_wbToggleGroup('${g.replace(/'/g,"\\'")}')"`;
+    h += `<tr class="wb-group-head" ${_ghClick} style="cursor:pointer;user-select:none">`;
+    h += `<td style="position:sticky;left:0;z-index:4;background:var(--g8);width:28px"></td>`;
+    h += `<td style="position:sticky;left:28px;z-index:4;background:var(--g8);min-width:64px"></td>`;
+    h += `<td style="position:sticky;left:92px;z-index:4;background:var(--g8);min-width:240px;color:#e4f0e8;font-family:var(--font);font-size:12px;font-weight:600;padding:5px 10px">
       <span class="wb-group-arrow">${folded?'▶':'▼'}</span>
       <span class="wb-group-name">${g}${g==='语言修选'?' <span style="font-size:9px;color:rgba(255,255,255,.55);font-weight:400">· 英文(KE) 或 泰文(KH) 5 门</span>':''}</span>
       <span class="wb-group-meta">${courses.length} 门${_gMetaExtra}${_doneTag}${_langMixCount?` · <span style="color:#fbbf24">⚠ ${_langMixCount} 人混选</span>`:''}</span>
-    </td></tr>`;
+    </td>`;
+    h += `<td style="position:sticky;left:332px;z-index:4;background:var(--g8);min-width:32px;border-right:2px solid var(--line2)"></td>`;
+    h += `<td colspan="${studs.length}" style="background:var(--g8)"></td>`;
+    h += `</tr>`;
 
     if(folded) return;
 
@@ -6836,11 +6844,17 @@ function renderWorkbench(){
     const _overflowBadge = _overflowList.length
       ? ` · <span style="color:#fde68a;font-weight:600" title="${_overflowList.map(x=>shortName(x.s.name)+'('+x.count+')').join(', ')} · 到「🏫 班级届别」 → ⚙ ext slot 配置加 slot">⚠ ${_overflowList.length} 位学生超额</span>`
       : '';
-    h += `<tr class="wb-group-head"><td colspan="${4 + studs.length}">
+    h += `<tr class="wb-group-head">`;
+    h += `<td style="position:sticky;left:0;z-index:4;background:var(--g8);width:28px"></td>`;
+    h += `<td style="position:sticky;left:28px;z-index:4;background:var(--g8);min-width:64px"></td>`;
+    h += `<td style="position:sticky;left:92px;z-index:4;background:var(--g8);min-width:240px;color:#e4f0e8;font-family:var(--font);font-size:12px;font-weight:600;padding:5px 10px">
       <span class="wb-group-arrow">▼</span>
       <span class="wb-group-name">外系选修</span>
       <span class="wb-group-meta">${_extSlots.length} 个 slot · 自定义课程代码${_overflowBadge}</span>
-    </td></tr>`;
+    </td>`;
+    h += `<td style="position:sticky;left:332px;z-index:4;background:var(--g8);min-width:32px;border-right:2px solid var(--line2)"></td>`;
+    h += `<td colspan="${studs.length}" style="background:var(--g8)"></td>`;
+    h += `</tr>`;
 
     _extSlots.forEach((slot) => {
       const slotKey = slot.slot;
