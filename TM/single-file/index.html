@@ -2689,7 +2689,7 @@ function blockHTML(co, _studs, _classCode, _prebuilt) {
   const _semOpts=(()=>{const s=new Set();DB.students.forEach(x=>{Object.values(x.courses||{}).forEach(v=>{if(v&&/^25\d\d\/[123]$/.test(v))s.add(v);});});s.add(NOW_SEM);return[...s].sort((a,b)=>{const[ya,sa]=a.split('/');const[yb,sb]=b.split('/');return ya!==yb?parseInt(ya)-parseInt(yb):parseInt(sa)-parseInt(sb);});})();
   let h=`<div class="cb"><div class="cb-h" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <div style="flex:1;min-width:0;">
-      <span class="cb-title">${co}届</span>
+      <span class="cb-title" style="cursor:pointer" onclick="_jumpToWbCohort('${co}')" title="在排课工作台中查看此届学生">${co}届 <span style="font-size:10px;opacity:.5;font-weight:400;letter-spacing:0">🛠</span></span>
       <span class="cb-info" style="margin-left:6px">${cohortCodes}</span>
       <span class="cb-info">· ${studs.length}位学生 · ${prog.name}</span>
     </div>
@@ -3411,7 +3411,7 @@ function blockHTMLDynamic(co, studs, pid, prog, courses, total) {
   const _semOpts=(()=>{const s=new Set([NOW_SEM]);studsSorted.forEach(s2=>Object.values(s2.courses||{}).forEach(v=>{if(v&&v!=='Transferred'&&/^25\d\d\/\d$/.test(v))s.add(v);}));return[...s].sort((a,b)=>{const[ya,sa]=a.split('/');const[yb,sb]=b.split('/');return ya!==yb?parseInt(ya)-parseInt(yb):parseInt(sa)-parseInt(sb);});})();
 
   let h=`<div class="cb"><div class="cb-h" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <span style="font-size:13px;font-weight:700;color:var(--h-text)">${co}届</span>
+    <span style="font-size:13px;font-weight:700;color:var(--h-text);cursor:pointer" onclick="_jumpToWbCohort('${co}')" title="在排课工作台中查看此届学生">${co}届 <span style="font-size:10px;opacity:.5;font-weight:400">🛠</span></span>
     <span style="font-size:11px;color:var(--g4)">${studsSorted.length}位学生 · ${prog.name}</span>
     <div style="flex:1"></div>
     ${_b.active?`
@@ -7127,6 +7127,15 @@ function _wbSelectAllClasses(codes){
   renderWorkbench();
 }
 function _wbClearClasses(){ _WB.classes.clear(); renderWorkbench(); }
+// 从班级课表跳转：筛选至该届，切换到排课工作台
+function _jumpToWbCohort(co){
+  const _pStuds = DB.students.filter(s => (s.prog||'TM') === activeProg && s.cohort === co);
+  const _codes = [...new Set(_pStuds.map(s => s.classCode || autoClassCode(s.cohort, s.type, s.prog)))].filter(Boolean);
+  _WB.initialized = true;   // 保留已初始化状态，避免重置为全选
+  _WB.classes.clear();
+  _codes.forEach(cc => _WB.classes.add(cc));
+  switchTab('workbench');
+}
 function _wbSetMode(m){
   _WB.mode = m;
   if(m !== 'multi') _WB.selectedCells.clear();
