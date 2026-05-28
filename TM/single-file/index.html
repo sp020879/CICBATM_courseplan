@@ -6557,7 +6557,7 @@ function renderWorkbench(){
         const sel = _WB.classes.has(cc);
         const pal = getClassColor(cc);
         const n = progStuds.filter(s => (s.classCode||autoClassCode(s.cohort,s.type,s.prog))===cc).length;
-        return `<span class="wb-cc-pill ${sel?'on':''}" style="background:${sel?pal.bd:pal.bg};color:${sel?'#fff':pal.fg};border-color:${pal.bd}" onclick="_wbToggleClass('${cc}')">${cc} · ${n}</span>`;
+        return `<span class="wb-cc-pill ${sel?'on':''}" ${sel?`style="background:${pal.bd};color:#fff;border-color:${pal.bd}"`:''}  onclick="_wbToggleClass('${cc}')">${cc} · ${n}</span>`;
       }).join('')}
       <div style="flex:1"></div>
       <span class="wb-stat">${_WB.classes.size}/${allCodes.length} 班 · ${studs.length} 位学生</span>
