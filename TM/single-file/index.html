@@ -4930,6 +4930,73 @@ function _ctToggleClass(cc){
   renderClassTable();
 }
 
+// 班级课表：点击课程行 → 弹出选课学生名单
+function _ctShowCourseStudents(realCode, isExt2) {
+  const selSem = window._ctSem || NOW_SEM;
+  const selClass = window._ctClass || 'all';
+  const allProgStuds = DB.students.filter(s => (s.prog||'TM') === activeProg);
+  let progStuds = allProgStuds;
+  if(window._hideGrads) progStuds = progStuds.filter(s => !isGraduated(s));
+  if(window._hideLeave) progStuds = progStuds.filter(s => !isOnLeave(s));
+  const studs = selClass==='all' ? progStuds : progStuds.filter(s => (s.classCode||autoClassCode(s.cohort,s.type,s.prog))===selClass);
+  const allPC = progCourses(activeProg).length ? progCourses(activeProg) : (getProg(activeProg)?.courses||getBuiltinTMCourses());
+  const _cMap = {}; allPC.forEach(c => _cMap[c.c]=c);
+  const c = _cMap[realCode] || {c:realCode, n:'外系选修', cr:3};
+  const _ctExtSlots = (typeof _wbGetExtSlots==='function') ? _wbGetExtSlots(getProg(activeProg)) : [{slot:'ext2'}];
+  let pickedStuds = isExt2
+    ? studs.filter(s => { for(const sl of _ctExtSlots){ const v=(s.courses||{})[sl.slot]||''; const p=v.split('|'); if(p.length>1&&p[1]===selSem&&p[0]===realCode)return true; } return false; })
+    : studs.filter(s => (s.courses||{})[realCode]===selSem);
+  pickedStuds = pickedStuds.filter(s => !isOnLeaveAt(s, selSem));
+  pickedStuds.sort((a,b) => {
+    const ca=a.classCode||autoClassCode(a.cohort,a.type,a.prog), cb=b.classCode||autoClassCode(b.cohort,b.type,b.prog);
+    return ca.localeCompare(cb) || (a.name||'').localeCompare(b.name||'');
+  });
+  let rows = '';
+  if(!pickedStuds.length) {
+    rows = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--ink3);font-size:12px">暂无学生</td></tr>';
+  } else {
+    pickedStuds.forEach((s,i) => {
+      const cc = s.classCode||autoClassCode(s.cohort,s.type,s.prog);
+      const pal = getClassColor(cc);
+      rows += `<tr style="background:${i%2===0?'#fff':'#fafafa'};border-top:1px solid var(--line)">
+        <td style="padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--ink3);text-align:center">${i+1}</td>
+        <td style="padding:6px 12px;font-size:12px;font-weight:500;color:var(--ink)">${s.name||'—'}</td>
+        <td style="padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--ink3)">${s.sid||'—'}</td>
+        <td style="padding:6px 10px">
+          <span style="font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 8px;border-radius:10px">${cc}</span>
+        </td>
+      </tr>`;
+    });
+  }
+  document.getElementById('ct-stu-overlay')?.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="ct-stu-overlay" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(26,61,42,.45);z-index:800;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:#fff;border-radius:12px;max-height:80vh;width:500px;max-width:92vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+        <div style="padding:14px 18px 10px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:14px;font-weight:600;color:var(--ink)">${c.n}</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:3px">${realCode} &nbsp;·&nbsp; ${selSem} &nbsp;·&nbsp; <b style="color:var(--g7)">${pickedStuds.length}</b> 位学生</div>
+          </div>
+          <button onclick="document.getElementById('ct-stu-overlay').remove()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:20px;line-height:1;padding:0 2px">✕</button>
+        </div>
+        <div style="overflow-y:auto;flex:1">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:var(--g8);position:sticky;top:0">
+              <th style="padding:7px 10px;color:#e4f0e8;font-size:10px;width:32px;text-align:center">#</th>
+              <th style="padding:7px 12px;color:#e4f0e8;font-size:10px">姓名</th>
+              <th style="padding:7px 10px;color:#e4f0e8;font-size:10px">学号</th>
+              <th style="padding:7px 10px;color:#e4f0e8;font-size:10px">班级</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="padding:8px 18px;border-top:1px solid var(--line);text-align:right">
+          <button onclick="document.getElementById('ct-stu-overlay').remove()" style="padding:5px 16px;border:1px solid var(--line2);border-radius:5px;background:#fff;color:var(--ink2);font-size:12px;cursor:pointer;font-family:var(--font)">关闭</button>
+        </div>
+      </div>
+    </div>`);
+}
+
 function renderClassTable(){
   const page=document.getElementById('classtable-page');if(!page)return;
   // 下拉選單用「所有 TM 學生」推算 classCode（不受过滤器影响 → 毕业/休学班级也保留）
@@ -5055,7 +5122,7 @@ function renderClassTable(){
       }).join('');
     })()}
   </div>`;
-  h+=`<div style="border:1px solid var(--line);border-radius:10px;overflow-x:auto"><table style="min-width:100%;border-collapse:collapse;font-size:13px">
+  h+=`<div style="border:1px solid var(--line);border-radius:10px;overflow-x:auto"><table class="ct-course-table" style="min-width:100%;border-collapse:collapse;font-size:13px">
   <thead><tr style="background:var(--g8)">
     <th style="padding:8px 10px;width:36px;text-align:center;color:#e4f0e8;font-size:11px">#</th>
     <th style="padding:8px 10px;width:110px;color:#e4f0e8;font-size:11px;cursor:pointer;user-select:none" onclick="window._ctSort={key:'code',dir:window._ctSort?.key==='code'?-window._ctSort.dir:1};renderClassTable()">
@@ -5105,19 +5172,22 @@ function renderClassTable(){
     const classHtml=classCodes.map(cc=>{
       const pal=getClassColor(cc);
       const n = _classCnt[cc]||0;
-      return `<span onclick="_jumpToWbClass('${cc}')" title="${cc} 班 ${n} 人 · 点击跳转排课工作台" style="display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 4px 1px 7px;border-radius:20px;margin-right:3px;cursor:pointer;transition:opacity .12s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${cc}<span style="background:rgba(0,0,0,.18);color:#fff;padding:0 5px;border-radius:9px;font-size:9px;line-height:1.4;min-width:14px;text-align:center">${n}</span></span>`;
+      return `<span onclick="event.stopPropagation();_jumpToWbClass('${cc}')" title="${cc} 班 ${n} 人 · 点击跳转排课工作台" style="display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 4px 1px 7px;border-radius:20px;margin-right:3px;cursor:pointer;transition:opacity .12s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${cc}<span style="background:rgba(0,0,0,.18);color:#fff;padding:0 5px;border-radius:9px;font-size:9px;line-height:1.4;min-width:14px;text-align:center">${n}</span></span>`;
     }).join('');
     // 备注（储存在 localStorage）
     const noteKey='ctnote_'+activeProg+'_'+selSem+'_'+realCode;
     const noteVal=localStorage.getItem(noteKey)||'';
-    h+=`<tr style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line)">
+    h+=`<tr class="ct-row" style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line);cursor:pointer" title="点击查看选课学生" onclick="_ctShowCourseStudents('${realCode}',${isExt2})"
+      onmouseover="this.querySelectorAll('td').forEach(td=>td.style.background='#f0f9ff')"
+      onmouseout="this.querySelectorAll('td').forEach(td=>td.style.background='')"
+    >
       <td style="padding:7px 10px;text-align:center;color:var(--ink3);font-family:var(--mono);font-size:11px">${rn}</td>
       <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span></td>
       <td style="padding:7px 10px;color:var(--ink);font-size:12px;white-space:normal;word-break:break-word">${c.n}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--mono);font-weight:500;color:var(--g8);font-size:12px">${c.cr}</td>
       <td style="padding:7px 10px;white-space:normal">${classHtml||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;text-align:center"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${picked>0?'var(--g7)':'var(--ink3)'}">${picked}</span></td>
-      <td style="padding:5px 10px;white-space:normal"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
+      <td style="padding:5px 10px;white-space:normal" onclick="event.stopPropagation()"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
         style="width:100%;border:1px solid transparent;border-radius:4px;padding:4px 7px;font-size:11px;font-family:var(--font);background:transparent;color:var(--ink2);"
         onfocus="this.style.border='1px solid var(--line2)';this.style.background='#fff'"
         onblur="localStorage.setItem('ctnote_${activeProg}_${selSem}_${code}',this.value);this.style.border='1px solid transparent';this.style.background='transparent'"
