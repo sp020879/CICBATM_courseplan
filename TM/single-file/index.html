@@ -7143,7 +7143,7 @@ function _wbInitStickyScroll(wrap) {
 
   function _pos(){
     const r = wrap.getBoundingClientRect();
-    rail.style.cssText  = `position:fixed;bottom:0;left:${r.left}px;width:${r.width}px;height:14px;overflow-x:auto;overflow-y:hidden;z-index:9990;background:#f1f5f9;border-top:1px solid #e2e8f0;box-shadow:0 -2px 8px rgba(0,0,0,.06);`;
+    rail.style.cssText  = `position:fixed;bottom:0;left:${r.left}px;width:${r.width}px;height:22px;overflow-x:auto;overflow-y:hidden;z-index:9990;background:#f1f5f9;border-top:1px solid #e2e8f0;box-shadow:0 -2px 8px rgba(0,0,0,.06);`;
     inner.style.width   = wrap.scrollWidth + 'px';
   }
   _pos();
