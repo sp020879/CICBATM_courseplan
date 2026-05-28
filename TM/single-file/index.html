@@ -7140,11 +7140,11 @@ function _wbInitStickyScroll(wrap) {
   // 轨道
   const track = document.createElement('div');
   track.id = 'wb-sticky-hscroll';
-  track.style.cssText = 'position:fixed;bottom:0;z-index:9990;background:#e2e8f0;border-top:2px solid #cbd5e1;box-shadow:0 -2px 10px rgba(0,0,0,.08);cursor:pointer;user-select:none;';
+  track.style.cssText = 'position:fixed;bottom:0;z-index:9990;background:#f1f5f9;border-top:1px solid #e2e8f0;box-shadow:0 -2px 8px rgba(0,0,0,.06);cursor:pointer;user-select:none;';
 
   // 滑块
   const thumb = document.createElement('div');
-  thumb.style.cssText = 'position:absolute;top:5px;height:calc(100% - 10px);background:#94a3b8;border-radius:5px;cursor:grab;transition:background .12s;min-width:60px;';
+  thumb.style.cssText = 'position:absolute;top:2px;height:calc(100% - 4px);background:#94a3b8;border-radius:4px;cursor:grab;transition:background .12s;min-width:60px;';
   track.appendChild(thumb);
   document.body.appendChild(track);
 
@@ -7158,7 +7158,7 @@ function _wbInitStickyScroll(wrap) {
     const r = wrap.getBoundingClientRect();
     track.style.left   = r.left+'px';
     track.style.width  = r.width+'px';
-    track.style.height = '32px';
+    track.style.height = '14px';
     _updateThumb();
   }
   _pos();
