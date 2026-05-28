@@ -6677,6 +6677,9 @@ function renderWorkbench(){
   });
   h += '</tr></thead><tbody>';
 
+  // 预计算 NOW_SEM 的数值（供课程行「未完成人数」badge 使用）
+  const _nowSV = (() => { const m=(NOW_SEM||'').match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):99999; })();
+
   // 每个组
   groupOrder.forEach(g => {
     const courses = groups[g];
@@ -6748,7 +6751,17 @@ function renderWorkbench(){
       h += '<tr class="wb-row">';
       const rowChecked = _wbIsRowFullySelected(co.c, studs);
       h += `<td class="wb-cell-icon">${(_WB.mode==='multi') ? `<span class="wb-row-pick" onclick="_wbPickRow('${co.c}')" title="选这门课所有 cell">${rowChecked?'☑':'☐'}</span>`:''}</td>`;
-      h += `<td class="wb-cell-code">${co.c}</td>`;
+      // 未完成修课人数 badge（Transferred 或 ≤ NOW_SEM 的学期 = 已完成，其余 = 未完成）
+      const _notDoneCnt = studs.filter(s => {
+        const v = (s.courses||{})[co.c];
+        if(!v || v==='-') return true;
+        if(v==='Transferred') return false;
+        const _m = v.match(/^(25\d\d)\/(\d)$/);
+        return !_m || parseInt(_m[1])*10+parseInt(_m[2]) > _nowSV;
+      }).length;
+      const _cntBadge = _notDoneCnt === 0 ? ''
+        : `<span class="wb-undone-cnt ${_notDoneCnt===studs.length?'all':'part'}" title="${_notDoneCnt}/${studs.length} 位尚未修完">${_notDoneCnt}</span>`;
+      h += `<td class="wb-cell-code">${_cntBadge}${co.c}</td>`;
       h += `<td class="wb-cell-name">${co.n||''}</td>`;
       h += `<td class="wb-cell-cr">${co.cr||3}</td>`;
       studs.forEach(s => {
