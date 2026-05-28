@@ -2198,12 +2198,12 @@ function cardHTML(s, idx) {
   const TOTAL_C=38; // 38课（不含实习）
   const _p=calcProgress(s,progCourses(s.prog||'TM')),d=_p.doneCr,rem=_p.remCr,pct=Math.round(d/total*100);
   const internDone=_p.internOk,isComplete=_p.remC===0&&_p.internOk&&(s.gpa==null||parseFloat(s.gpa)>=2.0),pfill=pct<40?'lo':pct<70?'mid':'';
-  const sems=semsByStudent(s),majorSems=sems.filter(x=>!x.endsWith('/3'));
+  const sems=semsByStudent(s),majorSems=sems.filter(x=>!x.endsWith('/2'));
   const exp=Math.min(majorSems.filter(x=>x<=NOW_SEM).length*18,total);
   const behind=exp-d,onTrack=behind<=12;
-  // 到当下学期应修门数（每学期约6门，小学期约1门）
+  // 到当下学期应修门数（大学期约6门，小学期/2约1门）
   const _semsPassed=sems.filter(x=>x<=NOW_SEM);
-  const _expC=Math.min(_semsPassed.filter(x=>!x.endsWith('/3')).length*6+_semsPassed.filter(x=>x.endsWith('/3')).length*1,38);
+  const _expC=Math.min(_semsPassed.filter(x=>!x.endsWith('/2')).length*6+_semsPassed.filter(x=>x.endsWith('/2')).length*1,38);
   const _gapC=_expC-_p.doneC; // 应修 - 实修（差几门）
   const gpa=s.gpa,gpaCls=gpaClass(gpa),gpaLbl=gpaLabel(gpa);
   const hist=s.gpaHistory||[],lastG=hist.length>1?hist[hist.length-2]:null;
@@ -6566,7 +6566,7 @@ function renderWorkbench(){
   });
   if(!semOpts.includes(_WB.targetSem)) _WB.targetSem = NOW_SEM;
   const TARGET = _WB.targetSem;
-  const isBigSem = TARGET.endsWith('/1') || TARGET.endsWith('/2');
+  const isBigSem = TARGET.endsWith('/1') || TARGET.endsWith('/3');
   const cap    = isBigSem ? _WB_CAP.big     : _WB_CAP.small;      // 学分上限（tfoot用）
   const cntCap = isBigSem ? _WB_CNT_CAP.big : _WB_CNT_CAP.small;  // 门数上限（TARGET行用）
 
@@ -6646,7 +6646,7 @@ function renderWorkbench(){
         ${Object.keys(semByYear).sort().map(y => `
           <optgroup label="── ${y} 学年 ──">
             ${semByYear[y].map(({sem, semNum}) => {
-              const tag = semNum==='3'?'小学期':(semNum==='1'?'大1':'大2');
+              const tag = semNum==='2'?'小学期':(semNum==='1'?'大1':'大2');
               const isNow = sem === NOW_SEM ? ' ★当下' : '';
               return `<option value="${sem}" ${sem===TARGET?'selected':''}>${sem} · ${tag}${isNow}</option>`;
             }).join('')}
