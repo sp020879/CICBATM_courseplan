@@ -2423,6 +2423,12 @@ function globalSemStyle(v){
   const c=_GLOBAL_SEM_MAP[v];
   return c?`background:${c.bg};color:${c.tx}`:'';
 }
+// 目标学期反白：深色底 + 白字（用于排课工作台 TARGET 学期高亮）
+function globalSemStyleBold(v){
+  if(!v) return '';
+  const c=_GLOBAL_SEM_MAP[v];
+  return c?`background:${c.tx};color:#fff;font-weight:700`:'';
+}
   // {cohort: {active:bool, sem:'2568/3', selections:{code:bool}}}
 function getBatch(co){if(!batchMode[co])batchMode[co]={active:false,mode:'add',sem:NOW_SEM,selections:{}};return batchMode[co];}
 function toggleBatchMode(co,mode='add'){
@@ -6812,7 +6818,7 @@ function renderWorkbench(){
           cellStyle = 'background:#dbeafe;color:#1e40af;font-size:7.5px;letter-spacing:-.4px;font-weight:600';
           cellTxt = 'Transferred';
         } else if(hasVal){
-          cellStyle = globalSemStyle(val);
+          cellStyle = (val === TARGET) ? globalSemStyleBold(val) : globalSemStyle(val);
           cellTxt = val;
         }
         if(_cellConflict){
@@ -6899,7 +6905,7 @@ function renderWorkbench(){
           cellStyle = 'background:#dbeafe;color:#1e40af;font-size:7.5px;letter-spacing:-.4px;font-weight:600';
           cellTxt = 'Transferred';
         } else if(hasVal){
-          cellStyle = globalSemStyle(sem);
+          cellStyle = (sem === TARGET) ? globalSemStyleBold(sem) : globalSemStyle(sem);
           cellTxt = sem;
           if(extCode){
             cellTxt = `<span style="position:relative">${sem}<span style="position:absolute;top:-3px;right:-6px;width:5px;height:5px;background:#10b981;border-radius:50%;" title="代码: ${extCode}"></span></span>`;
