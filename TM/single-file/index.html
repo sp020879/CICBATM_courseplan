@@ -5055,7 +5055,7 @@ function renderClassTable(){
       }).join('');
     })()}
   </div>`;
-  h+=`<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:13px">
+  h+=`<div style="border:1px solid var(--line);border-radius:10px;overflow-x:auto"><table style="min-width:100%;border-collapse:collapse;font-size:13px">
   <thead><tr style="background:var(--g8)">
     <th style="padding:8px 10px;width:36px;text-align:center;color:#e4f0e8;font-size:11px">#</th>
     <th style="padding:8px 10px;width:110px;color:#e4f0e8;font-size:11px;cursor:pointer;user-select:none" onclick="window._ctSort={key:'code',dir:window._ctSort?.key==='code'?-window._ctSort.dir:1};renderClassTable()">
