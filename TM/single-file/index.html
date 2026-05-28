@@ -5029,8 +5029,8 @@ function _ctExportCSV(){
   });
   const _selClass2Set=window._ctClass2 instanceof Set?window._ctClass2:new Set();
   const semStr=selSem.replace('/','-'); // 2569/1 → 2569-1
-  const headers=['课程代码','学期','上下半','班级','授课老师','届别1','人数1','届别2','人数2','届别3','人数3','届别4','人数4','届别5','人数5','备注','BTEC'];
-  const csvRows=[];
+  // 第一轮：收集所有课程数据，找出最多届别数（动态决定列数）
+  const allCourseData=[];
   [...semCodes].sort((a,b)=>a.replace('ext2:','').localeCompare(b.replace('ext2:',''))).forEach(code=>{
     const isExt2=code.startsWith('ext2:');
     const realCode=isExt2?code.replace('ext2:',''):code;
@@ -5040,23 +5040,27 @@ function _ctExportCSV(){
       :studs.filter(s=>(s.courses||{})[realCode]===selSem)
     ).filter(s=>!isOnLeaveAt(s,selSem));
     if(_selClass2Set.size&&!pickedStuds.some(s=>_selClass2Set.has(s.classCode||autoClassCode(s.cohort,s.type,s.prog)))) return;
-    // 班级号规则
     const rm=c.g==='Capstone'?'Capstone-971':(c.g==='实习课程'||realCode==='KT411')?'331':'601';
-    // 每届别人数
     const classCnt={};
     pickedStuds.forEach(s=>{const cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);classCnt[cc]=(classCnt[cc]||0)+1;});
     const classCodes=Object.keys(classCnt).sort();
     const noteVal=localStorage.getItem('ctnote_'+activeProg+'_'+selSem+'_'+realCode)||'';
-    // 超过 5 届别时拆行；首行带备注
-    const chunkCount=Math.max(1,Math.ceil(classCodes.length/5));
-    for(let ci=0;ci<chunkCount;ci++){
-      const chunk=classCodes.slice(ci*5,ci*5+5);
-      const row=[realCode,semStr,'',rm,''];
-      for(let j=0;j<5;j++){
-        row.push(j<chunk.length?chunk[j]:'', j<chunk.length?(classCnt[chunk[j]]||''):'');
-      }
-      row.push(ci===0?noteVal:'',''); // 备注只在首行，BTEC 留空
-      csvRows.push(row);
+    allCourseData.push({realCode,semStr,rm,classCodes,classCnt,noteVal});
+  });
+  // 动态列数：取本次所有课程届别数的最大值（至少 5）
+  const maxSlots=Math.max(5,...allCourseData.map(d=>d.classCodes.length));
+  const headers=['课程代码','学期','上下半','班级','授课老师'];
+  for(let i=1;i<=maxSlots;i++) headers.push('届别'+i,'人数'+i);
+  headers.push('备注','BTEC');
+  const csvRows=[];
+  allCourseData.forEach(({realCode,semStr,rm,classCodes,classCnt,noteVal})=>{
+    // 每门课一行，不拆行
+    const row=[realCode,semStr,'',rm,''];
+    for(let j=0;j<maxSlots;j++){
+      row.push(j<classCodes.length?classCodes[j]:'', j<classCodes.length?(classCnt[classCodes[j]]||''):'');
+    }
+    row.push(noteVal,'');
+    csvRows.push(row);
     }
   });
   // 组装 CSV（自动加 BOM 确保 Excel 正确识别 UTF-8）
