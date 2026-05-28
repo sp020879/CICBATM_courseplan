@@ -473,6 +473,9 @@ input[type=file]{display:none;}
 /* 横向 sticky: 左 4 列固定 */
 .wb-cell-icon{position:sticky;left:0;z-index:3;width:28px;text-align:center;background:var(--paper)!important;color:var(--ink3);font-size:10px;}
 .wb-cell-code{position:sticky;left:28px;z-index:3;font-weight:600;color:var(--g8);background:var(--paper)!important;min-width:64px;}
+.wb-undone-cnt{display:inline-block;font-size:8px;font-weight:700;font-family:var(--mono);padding:0 3px;border-radius:3px;margin-right:3px;line-height:14px;vertical-align:middle;}
+.wb-undone-cnt.part{background:#fef3c7;color:#92400e;}   /* 部分未完成 = 琥珀 */
+.wb-undone-cnt.all {background:#fee2e2;color:var(--red);} /* 全部未完成 = 红 */
 .wb-cell-name{position:sticky;left:92px;z-index:3;font-family:var(--font);font-size:11px;color:var(--ink2);background:var(--paper)!important;min-width:240px;max-width:300px;overflow:hidden;text-overflow:ellipsis;}
 .wb-cell-cr{position:sticky;left:332px;z-index:3;text-align:center;color:var(--ink3);background:var(--paper)!important;min-width:32px;border-right:2px solid var(--line2)!important;}
 
