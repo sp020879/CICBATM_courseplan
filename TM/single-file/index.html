@@ -6632,7 +6632,11 @@ function renderWorkbench(){
 
   // ─ 学生总览 summary 行（贴在 column header 下方 · sticky 跟着 thead 飘） ─
   h += `<tr class="wb-thead-summary">`;
-  h += `<th colspan="4" class="wb-thead-summary-l"><span class="wb-lbl-pin">📋 总览</span></th>`;
+  // 4 独立 sticky 格，各自 left:Npx，与 tbody sticky 列对齐（colspan 在 Chrome 横向 sticky 有 bug）
+  h += `<th class="wb-thead-summary-bg" style="position:sticky;left:0;z-index:5;width:28px;background:#f1f5f9"></th>`;
+  h += `<th class="wb-thead-summary-bg" style="position:sticky;left:28px;z-index:5;min-width:64px;background:#f1f5f9"></th>`;
+  h += `<th class="wb-thead-summary-l"  style="position:sticky;left:92px;z-index:5;min-width:240px">📋 总览</th>`;
+  h += `<th class="wb-thead-summary-bg" style="position:sticky;left:332px;z-index:5;min-width:32px;background:#f1f5f9;border-right:2px solid var(--line2)!important"></th>`;
   studs.forEach(s => {
     const p = calcProgress(s, allPC);
     const pct = p.totalC > 0 ? Math.round(p.doneC / p.totalC * 100) : 0;
@@ -6665,7 +6669,10 @@ function renderWorkbench(){
 
   // ─ TARGET 学期课数行（sticky 在 thead 最下方，随时可见） ─
   h += `<tr class="wb-thead-sem-cnt">`;
-  h += `<th colspan="4" class="wb-thead-sem-cnt-l"><span class="wb-lbl-pin">📌 ${TARGET}</span></th>`;
+  h += `<th style="position:sticky;left:0;z-index:5;width:28px;background:#e0f2fe;border-bottom:2px solid var(--sky)"></th>`;
+  h += `<th style="position:sticky;left:28px;z-index:5;min-width:64px;background:#e0f2fe;border-bottom:2px solid var(--sky)"></th>`;
+  h += `<th class="wb-thead-sem-cnt-l" style="position:sticky;left:92px;z-index:5;min-width:240px">📌 ${TARGET}</th>`;
+  h += `<th style="position:sticky;left:332px;z-index:5;min-width:32px;background:#e0f2fe;border-bottom:2px solid var(--sky);border-right:2px solid var(--line2)!important"></th>`;
   studs.forEach(s => {
     const cnt = _quickCntSem(s, TARGET);
     const _onLeaveT = isOnLeaveAt(s, TARGET);
@@ -6969,7 +6976,10 @@ function renderWorkbench(){
 
   // 行 1：✈ Transferred 已抵免（标签 + 数据合并在同一行）
   h += `<tr class="wb-tfoot-row wb-tfoot-compact">`;
-  h += `<td colspan="4" class="wb-tfoot-compact-lbl transfer-lbl"><span class="wb-lbl-pin">✈ 已抵免</span></td>`;
+  h += `<td style="position:sticky;left:0;z-index:13;width:28px;background:#1e40af"></td>`;
+  h += `<td style="position:sticky;left:28px;z-index:13;min-width:64px;background:#1e40af"></td>`;
+  h += `<td class="wb-tfoot-compact-lbl transfer-lbl" style="position:sticky;left:92px;z-index:13;min-width:240px">✈ 已抵免</td>`;
+  h += `<td style="position:sticky;left:332px;z-index:13;min-width:32px;background:#1e40af;border-right:2px solid var(--line2)!important"></td>`;
   studs.forEach(s => {
     const tp = calcProgress(s, allPC);
     const tC = tp.transferC, tCr = tp.transferCr;
@@ -7073,20 +7083,6 @@ function renderWorkbench(){
       }
     }
 
-    // ── colspan 横向 sticky bug 修复：JS 补偿滚动偏移 ──
-    // Chrome 对 colspan 格子的 position:sticky;left:0 不可靠，
-    // 改用 translateX 让标签文字反向抵消横滚位移，视觉上钉在最左侧。
-    const _wrap = page.querySelector('.wb-matrix-wrap');
-    if(_wrap){
-      const _syncPinLabels = () => {
-        const x = _wrap.scrollLeft;
-        _wrap.querySelectorAll('.wb-lbl-pin').forEach(el => {
-          el.style.transform = `translateX(${x}px)`;
-        });
-      };
-      _wrap.addEventListener('scroll', _syncPinLabels, {passive:true});
-      _syncPinLabels(); // 初始同步（若恢复了横滚位置）
-    }
   });
 }
 
