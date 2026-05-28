@@ -5061,11 +5061,11 @@ function renderClassTable(){
     <th style="padding:8px 10px;width:110px;color:#e4f0e8;font-size:11px;cursor:pointer;user-select:none" onclick="window._ctSort={key:'code',dir:window._ctSort?.key==='code'?-window._ctSort.dir:1};renderClassTable()">
       课程代码 ${_sort.key==='code'?(_sort.dir>0?'▲':'▼'):'⇅'}
     </th>
-    <th style="padding:8px 10px;color:#e4f0e8;font-size:11px">课程名称</th>
+    <th style="padding:8px 10px;min-width:140px;color:#e4f0e8;font-size:11px;white-space:normal">课程名称</th>
     <th style="padding:8px 10px;width:46px;text-align:center;color:#e4f0e8;font-size:11px">学分</th>
-    <th style="padding:8px 10px;width:130px;color:#e4f0e8;font-size:11px">修课班级</th>
+    <th style="padding:8px 10px;min-width:90px;color:#e4f0e8;font-size:11px;white-space:normal">修课班级</th>
     <th style="padding:8px 10px;width:60px;text-align:center;color:#e4f0e8;font-size:11px">人数</th>
-    <th style="padding:8px 10px;width:22%;color:#e4f0e8;font-size:11px">备注</th>
+    <th style="padding:8px 10px;min-width:100px;color:#e4f0e8;font-size:11px;white-space:normal">备注</th>
   </tr></thead><tbody>`;
 
   // 排序
@@ -5113,11 +5113,11 @@ function renderClassTable(){
     h+=`<tr style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line)">
       <td style="padding:7px 10px;text-align:center;color:var(--ink3);font-family:var(--mono);font-size:11px">${rn}</td>
       <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span></td>
-      <td style="padding:7px 10px;color:var(--ink);font-size:12px">${c.n}</td>
+      <td style="padding:7px 10px;color:var(--ink);font-size:12px;white-space:normal;word-break:break-word">${c.n}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--mono);font-weight:500;color:var(--g8);font-size:12px">${c.cr}</td>
-      <td style="padding:7px 10px">${classHtml||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
+      <td style="padding:7px 10px;white-space:normal">${classHtml||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;text-align:center"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${picked>0?'var(--g7)':'var(--ink3)'}">${picked}</span></td>
-      <td style="padding:5px 10px"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
+      <td style="padding:5px 10px;white-space:normal"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
         style="width:100%;border:1px solid transparent;border-radius:4px;padding:4px 7px;font-size:11px;font-family:var(--font);background:transparent;color:var(--ink2);"
         onfocus="this.style.border='1px solid var(--line2)';this.style.background='#fff'"
         onblur="localStorage.setItem('ctnote_${activeProg}_${selSem}_${code}',this.value);this.style.border='1px solid transparent';this.style.background='transparent'"
