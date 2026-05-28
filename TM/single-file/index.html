@@ -6430,7 +6430,8 @@ function _wbCalcAsOf(s, allPC, asOfSem){
   }
 }
 // 学分上限（标准；TM 专属"实习前放宽"目前不在通用层处理）
-const _WB_CAP = { big: 21, small: 9 };
+const _WB_CAP     = { big: 21, small: 9 };   // 学分上限（tfoot 超学分警示）
+const _WB_CNT_CAP = { big: 7,  small: 3 };   // 门数上限（TARGET 行超课警示）
 
 // 下一学期（25YY/N → 下一个）
 function _wbNextSem(sem){
@@ -6485,7 +6486,8 @@ function renderWorkbench(){
   if(!semOpts.includes(_WB.targetSem)) _WB.targetSem = NOW_SEM;
   const TARGET = _WB.targetSem;
   const isBigSem = TARGET.endsWith('/1') || TARGET.endsWith('/2');
-  const cap = isBigSem ? _WB_CAP.big : _WB_CAP.small;
+  const cap    = isBigSem ? _WB_CAP.big     : _WB_CAP.small;      // 学分上限（tfoot用）
+  const cntCap = isBigSem ? _WB_CNT_CAP.big : _WB_CNT_CAP.small;  // 门数上限（TARGET行用）
 
   // 选中班级里的学生
   let studs = progStuds.filter(s =>
@@ -6680,17 +6682,18 @@ function renderWorkbench(){
   h += `<tr class="wb-thead-sem-cnt">`;
   h += `<th style="position:sticky;left:0;z-index:5;width:28px;background:#e0f2fe;border-bottom:2px solid var(--sky)"></th>`;
   h += `<th style="position:sticky;left:28px;z-index:5;min-width:64px;background:#e0f2fe;border-bottom:2px solid var(--sky)"></th>`;
-  h += `<th class="wb-thead-sem-cnt-l" style="position:sticky;left:92px;z-index:5;min-width:240px">📌 ${TARGET}</th>`;
+  h += `<th class="wb-thead-sem-cnt-l" style="position:sticky;left:92px;z-index:5;min-width:240px" title="上限：大学期 ${_WB_CNT_CAP.big} 门 · 小学期 ${_WB_CNT_CAP.small} 门">📌 ${TARGET}</th>`;
   h += `<th style="position:sticky;left:332px;z-index:5;min-width:32px;background:#e0f2fe;border-bottom:2px solid var(--sky);border-right:2px solid var(--line2)!important"></th>`;
   studs.forEach(s => {
     const cnt = _quickCntSem(s, TARGET);
     const _onLeaveT = isOnLeaveAt(s, TARGET);
     let cls, label;
-    if(_onLeaveT)      { cls='leave'; label='🌙'; }
-    else if(cnt===0)   { cls='zero';  label='·';  }
-    else if(cnt>cap)   { cls='over';  label=String(cnt); }
-    else               { cls='ok';    label=String(cnt); }
-    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" title="${s.name} · ${TARGET}: ${cnt}门">${label}</th>`;
+    if(_onLeaveT)         { cls='leave'; label='🌙'; }
+    else if(cnt===0)      { cls='zero';  label='·';  }
+    else if(cnt>cntCap)   { cls='over';  label=String(cnt); }
+    else                  { cls='ok';    label=String(cnt); }
+    const _capHint = _onLeaveT ? '' : `  上限 ${cntCap} 门`;
+    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" title="${s.name} · ${TARGET}: ${cnt}门${_capHint}">${label}</th>`;
   });
   h += '</tr></thead><tbody>';
 
