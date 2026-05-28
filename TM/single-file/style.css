@@ -453,6 +453,11 @@ input[type=file]{display:none;}
 
 /* 矩阵 */
 .wb-matrix-wrap{overflow:auto;max-height:calc(100vh - 320px);border-bottom:1px solid var(--line);}
+.wb-matrix-wrap::-webkit-scrollbar{height:16px;}
+.wb-matrix-wrap::-webkit-scrollbar-track{background:#f1f5f9;}
+.wb-matrix-wrap::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:8px;border:3px solid #f1f5f9;}
+.wb-matrix-wrap::-webkit-scrollbar-thumb:hover{background:#475569;cursor:grab;}
+.wb-matrix-wrap::-webkit-scrollbar-corner{background:#f1f5f9;}
 .wb-matrix{border-collapse:separate;border-spacing:0;font-family:var(--mono);font-size:11px;width:max-content;min-width:100%;}
 .wb-matrix th, .wb-matrix td{border:0.5px solid var(--line);padding:3px 5px;background:#fff;white-space:nowrap;}
 /* 行悬停高亮 — 整行淡蓝底，让眼睛迅速锁定所在行（绿色组标题行排除在外） */
