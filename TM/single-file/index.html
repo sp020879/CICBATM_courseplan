@@ -1790,6 +1790,11 @@ async function syncFromSheet() {
 
 // ── Tabs ───────────────────────────────────────────────
 function switchTab(tab) {
+  // 离开工作台时移除吸底横向滚动条
+  if(tab !== 'workbench'){
+    const _sr = document.getElementById('wb-sticky-hscroll');
+    if(_sr){ _sr._wbCleanup?.(); _sr.remove(); }
+  }
   document.querySelectorAll('.bar-tabs .tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+tab)?.classList.add('on');
@@ -7108,7 +7113,8 @@ function renderWorkbench(){
         semCntRow.querySelectorAll('th').forEach(th => { th.style.top = (h1 + h2) + 'px'; });
       }
     }
-
+    // 吸底横向滚动条（内容宽度确定后再初始化）
+    _wbInitStickyScroll(page.querySelector('.wb-matrix-wrap'));
   });
 }
 
@@ -7117,6 +7123,43 @@ function _ssIsDoneValStub(val){
   if(!val) return false;
   if(val === 'Transferred') return true;
   return /^25\d\d\/[123]$/.test(val);
+}
+
+// ── 吸底横向滚动条（workbench 专用）──────────────────────────────────────
+function _wbInitStickyScroll(wrap) {
+  // 清理旧实例
+  const old = document.getElementById('wb-sticky-hscroll');
+  if(old){ old._wbCleanup?.(); old.remove(); }
+  // 内容没有溢出时不需要
+  if(!wrap || wrap.scrollWidth <= wrap.clientWidth + 4) return;
+
+  const rail  = document.createElement('div');
+  rail.id     = 'wb-sticky-hscroll';
+  const inner = document.createElement('div');
+  inner.id    = 'wb-sticky-hscroll-inner';
+  inner.style.cssText = `height:1px;pointer-events:none;`;
+  rail.appendChild(inner);
+  document.body.appendChild(rail);
+
+  function _pos(){
+    const r = wrap.getBoundingClientRect();
+    rail.style.cssText  = `position:fixed;bottom:0;left:${r.left}px;width:${r.width}px;height:14px;overflow-x:auto;overflow-y:hidden;z-index:9990;background:#f1f5f9;border-top:1px solid #e2e8f0;box-shadow:0 -2px 8px rgba(0,0,0,.06);`;
+    inner.style.width   = wrap.scrollWidth + 'px';
+  }
+  _pos();
+
+  let _lock = false;
+  const _r2w = () => { if(_lock) return; _lock=true; wrap.scrollLeft=rail.scrollLeft;  _lock=false; };
+  const _w2r = () => { if(_lock) return; _lock=true; rail.scrollLeft=wrap.scrollLeft;  _lock=false; };
+  rail.addEventListener('scroll', _r2w);
+  wrap.addEventListener('scroll', _w2r);
+  window.addEventListener('resize', _pos);
+
+  rail._wbCleanup = () => {
+    rail.removeEventListener('scroll', _r2w);
+    wrap.removeEventListener('scroll', _w2r);
+    window.removeEventListener('resize', _pos);
+  };
 }
 
 // ── 顶部工具栏 toggle 函数 ──
