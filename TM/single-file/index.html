@@ -1521,14 +1521,23 @@ function calcProgressTM(s, allPC) {
   // 所有 ext slot key 集合（新 ext_N 格式 + 旧 ext2）—— 这些 slot key 本身不计为自由选修
   // calcProgress 外层会统一通过 prog.meta.extSlots 补算，不能在这里重复计入
   const _extSlotKeyRE = /^ext_\d+$/;
+  // ext slot 的 name 字段（如 'KH160'）：该课直接存在 courses 里是旧数据遗留，
+  // 已通过 ext slot 计算，自由选修遍历时必须排除，避免重复计数
+  const _tmProgMeta = getProg(s?.prog || activeProg || 'TM');
+  const _extSlotNames = new Set(
+    (_tmProgMeta?.meta?.extSlots || [])
+      .map(sl => (sl.name||'').trim().toUpperCase())
+      .filter(n => /^[A-Z]{2,4}\d{3,4}$/.test(n))
+  );
   Object.keys(c).forEach(code=>{
     if(pcCodes.has(code)) return;
-    if(code==='ext2' || _extSlotKeyRE.test(code)) return; // ext slot 本身不计（新旧格式兼容）
-    if(code===ext2Code) return; // ext2 的实际课程代码已经在 ext2 slot 里计了
-    if(INTERN_EXTRA.has(code)) return; // 实习不计入 38 课课数
+    if(code==='ext2' || _extSlotKeyRE.test(code)) return; // ext slot key 本身不计
+    if(code===ext2Code) return;                            // ext2 实际代码已在 ext2 slot 里计
+    if(_extSlotNames.has(code.toUpperCase())) return;      // ext slot name (如 KH160) 已在 wrapper 补算
+    if(INTERN_EXTRA.has(code)) return;
     const val=c[code];
     if(!val||val==='Transferred') return;
-    if(!_semOk(val)) return; // 只计 <= NOW_SEM 的课
+    if(!_semOk(val)) return;
     doneCr+=3; doneC++;
   });
   // ext2 slot：有实际课程代码+学期 → 计1门；或是 Transferred → 也计1门
