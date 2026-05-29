@@ -5074,6 +5074,24 @@ function _ctExportCSV(){
   URL.revokeObjectURL(url);
 }
 
+// 班级课表搜索：原位 hide/show（不触发重画，保留输入框焦点 + IME）
+function _ctApplySearch(){
+  const q=(window._ctSearch||'').trim().toLowerCase();
+  const rows=document.querySelectorAll('tr.ct-row[data-search]');
+  let visN=0;
+  rows.forEach(r=>{
+    const s=r.getAttribute('data-search')||'';
+    const match=!q||s.includes(q);
+    r.style.display=match?'':'none';
+    if(match){
+      visN++;
+      const td=r.querySelector('td');
+      if(td)td.textContent=visN;
+      r.style.background=(visN%2===0)?'#fafafa':'#fff';
+    }
+  });
+}
+window._ctApplySearch=_ctApplySearch;
 function renderClassTable(){
   const page=document.getElementById('classtable-page');if(!page)return;
   // 下拉選單用「所有 TM 學生」推算 classCode（不受过滤器影响 → 毕业/休学班级也保留）
@@ -5155,7 +5173,7 @@ function renderClassTable(){
     </select>
     <span style="width:1px;height:14px;background:var(--line2);margin:0 2px;flex-shrink:0;"></span>
     <input id="ct-search-input" type="search" placeholder="🔍 搜课程代码 / 名称" value="${(window._ctSearch||'').replace(/"/g,'&quot;')}"
-      oninput="window._ctSearch=this.value;renderClassTable()"
+      oninput="window._ctSearch=this.value;_ctApplySearch()"
       style="padding:2px 9px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;height:24px;width:170px;outline:none;"
       onfocus="this.style.borderColor='var(--sky)'" onblur="this.style.borderColor='var(--line2)'">
     <div style="flex:1;"></div>
@@ -5222,14 +5240,12 @@ function renderClassTable(){
   let sortedCodes=[...semCodes];
   if(_sort.key==='code') sortedCodes.sort((a,b)=>_sort.dir*a.replace('ext2:','').localeCompare(b.replace('ext2:','')));
 
-  const _ctQ=(window._ctSearch||'').trim().toLowerCase();
   let rn=0;sortedCodes.forEach(code=>{
     // 处理 ext2:CODE 格式
     const isExt2=code.startsWith('ext2:');
     const realCode=isExt2?code.replace('ext2:',''):code;
     const c=courseMap[realCode]||{c:realCode,n:'外系选修',cr:3,g:'外系选修'};
-    // 课程搜索过滤
-    if(_ctQ && !realCode.toLowerCase().includes(_ctQ) && !(c.n||'').toLowerCase().includes(_ctQ)) return;
+    // 搜索改为 in-place hide（见 _ctApplySearch），渲染时不再过滤
     const pickedStuds=(isExt2
       ? studs.filter(s=>{
           for(const slot of _ctExtSlots){
@@ -5263,7 +5279,7 @@ function renderClassTable(){
     // 备注（储存在 localStorage）
     const noteKey='ctnote_'+activeProg+'_'+selSem+'_'+realCode;
     const noteVal=localStorage.getItem(noteKey)||'';
-    h+=`<tr class="ct-row" style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line);cursor:pointer" title="点击查看选课学生" onclick="_ctShowCourseStudents('${realCode}',${isExt2})"
+    h+=`<tr class="ct-row" data-search="${(realCode+' '+(c.n||'')).toLowerCase().replace(/"/g,'&quot;')}" style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line);cursor:pointer" title="点击查看选课学生" onclick="_ctShowCourseStudents('${realCode}',${isExt2})"
       onmouseover="this.querySelectorAll('td').forEach(td=>td.style.background='#f0f9ff')"
       onmouseout="this.querySelectorAll('td').forEach(td=>td.style.background='')"
     >
@@ -5283,6 +5299,8 @@ function renderClassTable(){
   });
   h+='</tbody></table></div>';
   page.innerHTML=h;
+  // 重画后重新套用当前搜索状态（class 切换/排序后保留搜索）
+  if(typeof _ctApplySearch==='function')_ctApplySearch();
 }
 document.addEventListener('DOMContentLoaded',()=>{const lbl=document.getElementById('now-sem-label');if(lbl)lbl.textContent=NOW_SEM;});
 
