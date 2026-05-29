@@ -3594,6 +3594,24 @@ function _ctToggleClass(cc){
   renderClassTable();
 }
 
+// 班级课表搜索：原位 hide/show（不触发重画，保留输入框焦点 + IME）
+function _ctApplySearch(){
+  const q=(window._ctSearch||'').trim().toLowerCase();
+  const rows=document.querySelectorAll('tr.ct-row[data-search]');
+  let visN=0;
+  rows.forEach(r=>{
+    const s=r.getAttribute('data-search')||'';
+    const match=!q||s.includes(q);
+    r.style.display=match?'':'none';
+    if(match){
+      visN++;
+      const td=r.querySelector('td');
+      if(td)td.textContent=visN;
+      r.style.background=(visN%2===0)?'#fafafa':'#fff';
+    }
+  });
+}
+window._ctApplySearch=_ctApplySearch;
 function renderClassTable(){
   const page=document.getElementById('classtable-page');if(!page)return;
   let progStuds=DB.students.filter(s=>(s.prog||'TM')===activeProg);
@@ -3670,6 +3688,11 @@ function renderClassTable(){
         }).join('');
       })()}
     </select>
+    <span style="width:1px;height:14px;background:var(--line2);margin:0 2px;flex-shrink:0;"></span>
+    <input id="ct-search-input" type="search" placeholder="🔍 搜课程代码 / 名称" value="${(window._ctSearch||'').replace(/"/g,'&quot;')}"
+      oninput="window._ctSearch=this.value;_ctApplySearch()"
+      style="padding:2px 9px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;height:24px;width:170px;outline:none;"
+      onfocus="this.style.borderColor='var(--sky)'" onblur="this.style.borderColor='var(--line2)'">
     <div style="flex:1;"></div>
   </div>`;
   if(!codes.length){h+='<p style="color:var(--ink3)">尚无班级代码</p>';page.innerHTML=h;return;}
@@ -3735,6 +3758,7 @@ function renderClassTable(){
     const isExt2=code.startsWith('ext2:');
     const realCode=isExt2?code.replace('ext2:',''):code;
     const c=courseMap[realCode]||{c:realCode,n:'外系选修',cr:3,g:'外系选修'};
+    // 搜索改为 in-place hide（见 _ctApplySearch），渲染时不再过滤
     const pickedStuds=isExt2
       ? studs.filter(s=>{
           for(const slot of _ctExtSlots){
@@ -3760,7 +3784,7 @@ function renderClassTable(){
     // 备注（储存在 localStorage）
     const noteKey='ctnote_'+activeProg+'_'+selSem+'_'+realCode;
     const noteVal=localStorage.getItem(noteKey)||'';
-    h+=`<tr style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line)">
+    h+=`<tr class="ct-row" data-search="${(realCode+' '+(c.n||'')).toLowerCase().replace(/"/g,'&quot;')}" style="background:${rn%2===0?'#fafafa':'#fff'};border-top:1px solid var(--line)">
       <td style="padding:7px 10px;text-align:center;color:var(--ink3);font-family:var(--mono);font-size:11px">${rn}</td>
       <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span></td>
       <td style="padding:7px 10px;color:var(--ink);font-size:12px">${c.n}</td>
@@ -3777,6 +3801,8 @@ function renderClassTable(){
   });
   h+='</tbody></table></div>';
   page.innerHTML=h;
+  // 重画后重新套用当前搜索状态（class 切换/排序后保留搜索）
+  if(typeof _ctApplySearch==='function')_ctApplySearch();
 }
 document.addEventListener('DOMContentLoaded',()=>{const lbl=document.getElementById('now-sem-label');if(lbl)lbl.textContent=NOW_SEM;});
 
