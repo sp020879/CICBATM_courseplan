@@ -5153,6 +5153,11 @@ function renderClassTable(){
         }).join('');
       })()}
     </select>
+    <span style="width:1px;height:14px;background:var(--line2);margin:0 2px;flex-shrink:0;"></span>
+    <input id="ct-search-input" type="search" placeholder="🔍 搜课程代码 / 名称" value="${(window._ctSearch||'').replace(/"/g,'&quot;')}"
+      oninput="window._ctSearch=this.value;renderClassTable()"
+      style="padding:2px 9px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;height:24px;width:170px;outline:none;"
+      onfocus="this.style.borderColor='var(--sky)'" onblur="this.style.borderColor='var(--line2)'">
     <div style="flex:1;"></div>
     <button onclick="_ctExportCSV()" title="导出当前学期排课为 CSV（供导入用）" style="padding:2px 10px;border:1px solid var(--g6);border-radius:5px;background:#f0fdf4;color:var(--g8);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">📥 导出排课 CSV</button>
   </div>`;
@@ -5217,11 +5222,14 @@ function renderClassTable(){
   let sortedCodes=[...semCodes];
   if(_sort.key==='code') sortedCodes.sort((a,b)=>_sort.dir*a.replace('ext2:','').localeCompare(b.replace('ext2:','')));
 
+  const _ctQ=(window._ctSearch||'').trim().toLowerCase();
   let rn=0;sortedCodes.forEach(code=>{
     // 处理 ext2:CODE 格式
     const isExt2=code.startsWith('ext2:');
     const realCode=isExt2?code.replace('ext2:',''):code;
     const c=courseMap[realCode]||{c:realCode,n:'外系选修',cr:3,g:'外系选修'};
+    // 课程搜索过滤
+    if(_ctQ && !realCode.toLowerCase().includes(_ctQ) && !(c.n||'').toLowerCase().includes(_ctQ)) return;
     const pickedStuds=(isExt2
       ? studs.filter(s=>{
           for(const slot of _ctExtSlots){
