@@ -1275,6 +1275,12 @@ async function init() {
     }catch(e){ DB.masterCourses = []; }
     render();
     renderAdvisorDropdowns();
+    // 数据载入完，补渲染当前 active tab（render() 不含 classtable/workbench/counsel/dash）
+    const _activeId = document.querySelector('.tab-pane.on')?.id?.replace('tab-','');
+    if(_activeId==='classtable' && typeof renderClassTable==='function') renderClassTable();
+    else if(_activeId==='workbench' && typeof renderWorkbench==='function') renderWorkbench();
+    else if(_activeId==='counsel' && typeof renderCounselPage==='function') renderCounselPage();
+    else if(_activeId==='dash' && typeof renderDashboard==='function') renderDashboard();
   } catch(err) {
     document.getElementById('sync-dot').className = 'sync-dot error';
     document.getElementById('sync-label').textContent = '连接失败';
