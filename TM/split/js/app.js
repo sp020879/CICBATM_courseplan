@@ -2560,8 +2560,7 @@ async function applyGPA(sid,gpa,updatedAt,src){
   if(s.gpa!==gpa) s.gpaHistory.push({gpa,date:updatedAt,src:src||'pdf'});
   s.gpa=gpa; s.gpaUpdated=updatedAt;
   render();
-  try{await apiSaveGpa(sid,gpa,updatedAt);}catch(e){}
-  alert('GPA 已更新');
+  try{await apiSaveGpa(sid,gpa,updatedAt);}catch(e){ console.error('[applyGPA] save failed:', e); }
 }
 
 // ── PDF Import ──────────────────────────────────────────
