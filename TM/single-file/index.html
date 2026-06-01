@@ -2341,11 +2341,11 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
         <div class="gpa-item">
           <div class="gpa-label">GPA${gpa!==undefined&&gpa!==null?' '+trend:''}</div>
           ${gpa!==undefined&&gpa!==null?`
-            <div class="gpa-val ${gpaCls}">${gpa}</div>
+            <div class="gpa-val ${gpaCls}" onclick="event.stopPropagation();_promptEditGpa('${s.id}')" style="cursor:pointer" title="点击手动修改 GPA">${gpa}</div>
             ${s.gpaUpdated?`<div class="gpa-updated">${s.gpaUpdated}</div>`:''}
             <div style="font-size:9px;margin-top:2px;color:${gpa>=2?'var(--g7)':gpa>=1.5?'var(--amber)':'var(--red)'}">${gpaLabel(gpa)}</div>
-          `:`<div class="gpa-val" style="color:var(--ink3);font-weight:400">—</div>
-             <div style="font-size:9px;margin-top:2px;color:var(--ink3)">尚未录入<br/>「更新成绩」上传 PDF</div>`}
+          `:`<div class="gpa-val" onclick="event.stopPropagation();_promptEditGpa('${s.id}')" style="color:var(--ink3);font-weight:400;cursor:pointer" title="点击手动输入 GPA">—</div>
+             <div style="font-size:9px;margin-top:2px;color:var(--ink3)">点击手动输入<br/>或「更新成绩」上传 PDF</div>`}
         </div>
         <div class="gpa-item"><div class="gpa-label">GPA 历史</div>
           ${hist.length?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:3px;line-height:1.7">${hist.map(g=>`<span style="color:${g>=2?'var(--g7)':g>=1.5?'var(--amber)':'var(--red)'}">${g}</span>`).join('<br>')}</div>`:`<div style="font-size:10px;color:var(--ink3);margin-top:3px">—</div>`}
@@ -3700,6 +3700,27 @@ async function saveCounselCard(sid){
 }
 
 // ── GPA ────────────────────────────────────────────────
+// 手动编辑 GPA（点学生卡 GPA 数字时触发）
+function _promptEditGpa(sid){
+  const s=DB.students.find(x=>x.id===sid);
+  if(!s)return;
+  const cur=(s.gpa==null||s.gpa==='')?'':String(s.gpa);
+  const name=s.cname||s.name||sid;
+  const input=prompt(`手动修改 ${name} 的 GPA\n\n当前：${cur||'(尚未录入)'}\n\n输入新 GPA (0.00 - 4.00)，留空取消：`,cur);
+  if(input==null)return;
+  const trimmed=input.trim();
+  if(trimmed==='')return;
+  const n=parseFloat(trimmed);
+  if(!Number.isFinite(n)||n<0||n>4){
+    alert('GPA 必须是 0.00 - 4.00 之间的数字');
+    return;
+  }
+  const rounded=Math.round(n*100)/100;
+  const today=new Date().toISOString().slice(0,10);
+  applyGPA(sid,rounded,today);
+}
+window._promptEditGpa=_promptEditGpa;
+
 async function applyGPA(sid,gpa,updatedAt){
   const s=DB.students.find(x=>x.id===sid); if(!s) return;
   if(!s.gpaHistory) s.gpaHistory=[];
