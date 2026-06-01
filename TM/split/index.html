@@ -75,6 +75,7 @@
     <button class="bar-btn" onclick="openAdvisorsModal()">👨‍🏫 辅导员老师</button>
     <button class="bar-btn" onclick="openMasterModal()">📚 课程库</button>
     <button class="bar-btn" onclick="openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态">🔍 数字检查</button>
+    <button class="bar-btn" onclick="openAuditModal()" title="查看所有操作记录（谁、什么时候、改了什么）">📜 操作记录</button>
     <div class="bsp"></div>
     <button class="bar-btn" onclick="openAddProg()">+ 新增专业</button>
     <span class="bar-divv"></span>
@@ -420,6 +421,40 @@
     <div class="mf">
       <span id="diag-count" style="font-size:11px;color:var(--ink3);flex:1"></span>
       <button class="tbtn" onclick="closeModal('diag-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📜 操作记录 Audit Log Modal -->
+<div class="overlay" id="audit-modal">
+  <div class="modal" style="width:1200px;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="mh">
+      <div><h3>📜 操作记录 · Audit Log</h3><div class="sub">谁在什么时候改了什么 — 完整时间线</div></div>
+      <button class="mx" onclick="closeModal('audit-modal')">✕</button>
+    </div>
+    <div style="padding:10px 18px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--paper);">
+      <input id="audit-search" type="search" placeholder="🔍 搜备注 / 学号 / 名字" oninput="_auditApplyFilter()" style="padding:4px 10px;border:1px solid var(--line2);border-radius:5px;font-size:12px;font-family:var(--mono);width:230px;height:26px;">
+      <select id="audit-action" onchange="_auditApplyFilter()" style="padding:3px 8px;border:1px solid var(--line2);border-radius:5px;font-size:12px;height:26px;">
+        <option value="">全部 action</option>
+      </select>
+      <select id="audit-who" onchange="_auditApplyFilter()" style="padding:3px 8px;border:1px solid var(--line2);border-radius:5px;font-size:12px;height:26px;">
+        <option value="">全部用户</option>
+      </select>
+      <select id="audit-limit" onchange="openAuditModal()" style="padding:3px 8px;border:1px solid var(--line2);border-radius:5px;font-size:12px;height:26px;">
+        <option value="100">最近 100 条</option>
+        <option value="500" selected>最近 500 条</option>
+        <option value="2000">最近 2000 条</option>
+      </select>
+      <button class="tbtn" onclick="openAuditModal()" style="padding:3px 10px;font-size:12px;height:26px;">⟳ 刷新</button>
+      <div style="flex:1"></div>
+      <span id="audit-stat" style="font-size:11px;color:var(--ink3)"></span>
+    </div>
+    <div class="mb" style="flex:1;overflow:auto;padding:0;">
+      <div id="audit-out" style="padding:0"></div>
+    </div>
+    <div class="mf">
+      <span style="font-size:10px;color:var(--ink3);flex:1">点击一行展开 before / after 详情 · 时间为最新在上</span>
+      <button class="tbtn" onclick="closeModal('audit-modal')">关闭</button>
     </div>
   </div>
 </div>

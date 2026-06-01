@@ -77,6 +77,7 @@
     <button class="bar-btn" onclick="openAdvisorsModal()">👨‍🏫 辅导员老师</button>
     <button class="bar-btn" onclick="openMasterModal()">📚 课程库</button>
     <button class="bar-btn" onclick="openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态">🔍 数字检查</button>
+    <button class="bar-btn" onclick="openAuditModal()" title="查看所有操作记录（谁、什么时候、改了什么）">📜 操作记录</button>
     <div class="bsp"></div>
     <button class="bar-btn" onclick="openAddProg()">+ 新增专业</button>
     <span class="bar-divv"></span>
@@ -434,6 +435,40 @@
   </div>
 </div>
 
+<!-- 📜 操作记录 Audit Log Modal -->
+<div class="overlay" id="audit-modal">
+  <div class="modal" style="width:1200px;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="mh">
+      <div><h3>📜 操作记录 · Audit Log</h3><div class="sub">谁在什么时候改了什么 — 完整时间线</div></div>
+      <button class="mx" onclick="closeModal('audit-modal')">✕</button>
+    </div>
+    <div style="padding:10px 18px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--paper);">
+      <input id="audit-search" type="search" placeholder="🔍 搜备注 / 学号 / 名字" oninput="_auditApplyFilter()" style="padding:4px 10px;border:1px solid var(--line2);border-radius:5px;font-size:12px;font-family:var(--mono);width:230px;height:26px;">
+      <select id="audit-action" onchange="_auditApplyFilter()" style="padding:3px 8px;border:1px solid var(--line2);border-radius:5px;font-size:12px;height:26px;">
+        <option value="">全部 action</option>
+      </select>
+      <select id="audit-who" onchange="_auditApplyFilter()" style="padding:3px 8px;border:1px solid var(--line2);border-radius:5px;font-size:12px;height:26px;">
+        <option value="">全部用户</option>
+      </select>
+      <select id="audit-limit" onchange="openAuditModal()" style="padding:3px 8px;border:1px solid var(--line2);border-radius:5px;font-size:12px;height:26px;">
+        <option value="100">最近 100 条</option>
+        <option value="500" selected>最近 500 条</option>
+        <option value="2000">最近 2000 条</option>
+      </select>
+      <button class="tbtn" onclick="openAuditModal()" style="padding:3px 10px;font-size:12px;height:26px;">⟳ 刷新</button>
+      <div style="flex:1"></div>
+      <span id="audit-stat" style="font-size:11px;color:var(--ink3)"></span>
+    </div>
+    <div class="mb" style="flex:1;overflow:auto;padding:0;">
+      <div id="audit-out" style="padding:0"></div>
+    </div>
+    <div class="mf">
+      <span style="font-size:10px;color:var(--ink3);flex:1">点击一行展开 before / after 详情 · 时间为最新在上</span>
+      <button class="tbtn" onclick="closeModal('audit-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 📚 课程库 Master List Modal -->
 <div class="overlay" id="master-modal">
   <div class="modal" style="width:780px;max-height:90vh;display:flex;flex-direction:column;">
@@ -771,7 +806,7 @@ function fromRow(r) {
     courses: r.courses || {},
     tep: r.tep || {},
     gpa: (()=>{ if(r.gpa==null) return null; const n=parseFloat(r.gpa); return Number.isFinite(n)?n:null; })(),
-    gpaHistory: r.gpa_history || [],
+    gpaHistory: (r.gpa_history || []).map(_normGpaEntry).filter(Boolean),
     gpaUpdated: r.gpa_updated || '',
     dpuTepScore: r.dpu_tep_score || null,
     counselorNotes: r.counselor_notes || [],
@@ -919,6 +954,22 @@ async function deleteUser(pin){
     renderUserMgmt();
   }catch(e){ alert('删除失败：'+e.message); }
 }
+
+// 把 gpaHistory 一笔 entry 标准化成 {gpa, date, src} 物件
+// 旧格式（纯数字）会被自动迁移；坏资料返回 null
+function _normGpaEntry(e){
+  if(e==null)return null;
+  if(typeof e==='number'){
+    return Number.isFinite(e)?{gpa:e,date:'',src:'legacy'}:null;
+  }
+  if(typeof e==='object'){
+    const n=parseFloat(e.gpa);
+    if(!Number.isFinite(n))return null;
+    return {gpa:n,date:e.date||'',src:e.src||'legacy'};
+  }
+  return null;
+}
+window._normGpaEntry=_normGpaEntry;
 
 // Fire-and-forget audit log writer (不阻塞主流程，失败也不影响业务)
 function apiAudit(action, target_type, target_id, note, before, after){
@@ -2347,8 +2398,16 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
           `:`<div class="gpa-val" onclick="event.stopPropagation();_promptEditGpa('${s.id}')" style="color:var(--ink3);font-weight:400;cursor:pointer" title="点击手动输入 GPA">—</div>
              <div style="font-size:9px;margin-top:2px;color:var(--ink3)">点击手动输入<br/>或「更新成绩」上传 PDF</div>`}
         </div>
-        <div class="gpa-item"><div class="gpa-label">GPA 历史</div>
-          ${hist.length?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:3px;line-height:1.7">${hist.map(g=>`<span style="color:${g>=2?'var(--g7)':g>=1.5?'var(--amber)':'var(--red)'}">${g}</span>`).join('<br>')}</div>`:`<div style="font-size:10px;color:var(--ink3);margin-top:3px">—</div>`}
+        <div class="gpa-item"><div class="gpa-label">GPA 历史 <span onclick="event.stopPropagation();openAuditForStudent('${s.id}')" style="cursor:pointer;font-size:11px;opacity:.55;margin-left:2px" title="查看这位学生的完整操作记录" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.55'">📜</span></div>
+          ${hist.length?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:3px;line-height:1.5">${hist.map(e=>{
+            const n=(typeof e==='number')?{gpa:e,date:'',src:'legacy'}:e;
+            const v=parseFloat(n.gpa);
+            if(!Number.isFinite(v))return '';
+            const color=v>=2?'var(--g7)':v>=1.5?'var(--amber)':'var(--red)';
+            const srcChip=n.src==='manual'?'<span style="font-size:8px;background:#fef3c7;color:#92400e;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">手</span>':n.src==='pdf'?'<span style="font-size:8px;background:#dbeafe;color:#1e40af;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">PDF</span>':'';
+            const dateStr=n.date?`<span style="color:var(--ink3);font-size:9px">${n.date.slice(5)}</span>`:'';
+            return `<div style="display:flex;align-items:center;gap:2px;white-space:nowrap">${dateStr}${srcChip}<span style="color:${color};font-weight:600">${v}</span></div>`;
+          }).join('')}</div>`:`<div style="font-size:10px;color:var(--ink3);margin-top:3px">—</div>`}
         </div>
       </div>
       <div class="tep-row card-only-tep" style="gap:4px;">
@@ -3717,14 +3776,14 @@ function _promptEditGpa(sid){
   }
   const rounded=Math.round(n*100)/100;
   const today=new Date().toISOString().slice(0,10);
-  applyGPA(sid,rounded,today);
+  applyGPA(sid,rounded,today,'manual');
 }
 window._promptEditGpa=_promptEditGpa;
 
-async function applyGPA(sid,gpa,updatedAt){
+async function applyGPA(sid,gpa,updatedAt,src){
   const s=DB.students.find(x=>x.id===sid); if(!s) return;
   if(!s.gpaHistory) s.gpaHistory=[];
-  if(s.gpa!==gpa) s.gpaHistory.push(gpa);
+  if(s.gpa!==gpa) s.gpaHistory.push({gpa,date:updatedAt,src:src||'pdf'});
   s.gpa=gpa; s.gpaUpdated=updatedAt;
   render();
   try{await apiSaveGpa(sid,gpa,updatedAt);}catch(e){}
@@ -4184,7 +4243,7 @@ async function quickAddStudent(sid,name,idx){
       }
     });
   }
-  if(r.latestGPA){s.gpa=r.latestGPA;if(!s.gpaHistory)s.gpaHistory=[];if(!s.gpaHistory.includes(r.latestGPA))s.gpaHistory.push(r.latestGPA);s.gpaUpdated=now;}
+  if(r.latestGPA){s.gpa=r.latestGPA;if(!s.gpaHistory)s.gpaHistory=[];const _hasG=s.gpaHistory.some(e=>(typeof e==='number'?e:e?.gpa)===r.latestGPA);if(!_hasG)s.gpaHistory.push({gpa:r.latestGPA,date:now,src:'pdf'});s.gpaUpdated=now;}
   if(!existing)DB.students.push(s);render();
   try{await apiSaveBatch([s]);const el=document.getElementById('batch-row-'+idx);if(el){el.style.background='var(--g1)';el.querySelectorAll('button').forEach(b=>b.remove());}}catch(e){console.error(e);}
 }
@@ -4232,7 +4291,7 @@ async function applyBatchAll(){
         });
       }
       // 写入 GPA
-      if(r.latestGPA){ if(!s.gpaHistory)s.gpaHistory=[];if(s.gpa!==r.latestGPA)s.gpaHistory.push(r.latestGPA);s.gpa=r.latestGPA;s.gpaUpdated=now; }
+      if(r.latestGPA){ if(!s.gpaHistory)s.gpaHistory=[];if(s.gpa!==r.latestGPA)s.gpaHistory.push({gpa:r.latestGPA,date:now,src:'pdf'});s.gpa=r.latestGPA;s.gpaUpdated=now; }
       if(!existing) DB.students.push(s);
       toSync.push(s);
       return;
@@ -4257,7 +4316,7 @@ async function applyBatchAll(){
     }
     if(r.latestGPA){
       if(!s.gpaHistory)s.gpaHistory=[];
-      if(s.gpa!==r.latestGPA)s.gpaHistory.push(r.latestGPA);
+      if(s.gpa!==r.latestGPA)s.gpaHistory.push({gpa:r.latestGPA,date:now,src:'pdf'});
       s.gpa=r.latestGPA; s.gpaUpdated=now;
     }
     toSync.push(s);
@@ -5842,6 +5901,118 @@ function openProgressDiag(){
   m.classList.add('show');
   renderProgressDiag();
 }
+
+// ── 📜 Audit Log Modal ──────────────────────────────────
+async function openAuditModal(){
+  openModal('audit-modal');
+  const out = document.getElementById('audit-out');
+  const stat = document.getElementById('audit-stat');
+  if(out) out.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ink3);font-size:12px">⏳ 载入中...</div>';
+  if(stat) stat.textContent = '';
+  const limit = parseInt(document.getElementById('audit-limit')?.value)||500;
+  try{
+    const data = await sb(`audit_log?select=ts,who,action,target_type,target_id,note,before,after&order=ts.desc&limit=${limit}`);
+    window._auditData = data || [];
+    // 填筛选下拉
+    const actSet = new Set(), whoSet = new Set();
+    window._auditData.forEach(r => { if(r.action) actSet.add(r.action); if(r.who) whoSet.add(r.who); });
+    const actSel = document.getElementById('audit-action');
+    if(actSel){
+      const cur = actSel.value;
+      actSel.innerHTML = '<option value="">全部 action</option>' + [...actSet].sort().map(a=>`<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('');
+    }
+    const whoSel = document.getElementById('audit-who');
+    if(whoSel){
+      const cur = whoSel.value;
+      whoSel.innerHTML = '<option value="">全部用户</option>' + [...whoSet].sort().map(w=>`<option value="${w}" ${w===cur?'selected':''}>${w}</option>`).join('');
+    }
+    _auditApplyFilter();
+  }catch(e){
+    if(out) out.innerHTML = `<div style="text-align:center;padding:40px;color:var(--red);font-size:12px">❌ 载入失败：${e.message}<br><br>检查 Supabase 的 audit_log 表是否存在</div>`;
+  }
+}
+function _auditApplyFilter(){
+  const data = window._auditData || [];
+  const q = (document.getElementById('audit-search')?.value||'').trim().toLowerCase();
+  const actFilter = document.getElementById('audit-action')?.value||'';
+  const whoFilter = document.getElementById('audit-who')?.value||'';
+  const filtered = data.filter(r => {
+    if(actFilter && r.action !== actFilter) return false;
+    if(whoFilter && r.who !== whoFilter) return false;
+    if(q){
+      const hay = `${r.note||''} ${r.target_id||''} ${r.action||''} ${r.who||''}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  _renderAuditRows(filtered);
+  const stat = document.getElementById('audit-stat');
+  if(stat) stat.textContent = `显示 ${filtered.length} / ${data.length} 条`;
+}
+function _renderAuditRows(rows){
+  const out = document.getElementById('audit-out');
+  if(!out) return;
+  if(!rows.length){
+    out.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ink3);font-size:12px">没有匹配的记录</div>';
+    return;
+  }
+  // action 颜色映射
+  const actColor = a => {
+    if(a==='save_gpa') return {bg:'#fef3c7',fg:'#92400e'};
+    if(a==='save_student') return {bg:'#dbeafe',fg:'#1e40af'};
+    if(a==='delete_student') return {bg:'#fee2e2',fg:'#991b1b'};
+    if(a==='save_program') return {bg:'#f3e8ff',fg:'#6d28d9'};
+    if(a==='save_courses') return {bg:'#e0f2fe',fg:'#0c4a6e'};
+    if(a==='save_counselor') return {bg:'#dcfce7',fg:'#166534'};
+    return {bg:'#f3f4f6',fg:'#374151'};
+  };
+  let h = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--g8);color:#e4f0e8;font-size:11px;position:sticky;top:0;z-index:5">
+      <th style="padding:7px 10px;text-align:left;width:155px">时间</th>
+      <th style="padding:7px 10px;text-align:left;width:130px">谁</th>
+      <th style="padding:7px 10px;text-align:left;width:140px">操作</th>
+      <th style="padding:7px 10px;text-align:left;width:110px">对象</th>
+      <th style="padding:7px 10px;text-align:left">备注</th>
+      <th style="padding:7px 10px;text-align:center;width:50px">详情</th>
+    </tr></thead><tbody>`;
+  rows.forEach((r,i) => {
+    const ts = r.ts ? new Date(r.ts).toLocaleString('sv-SE').replace('T',' ').slice(0,16) : '';
+    const ac = actColor(r.action||'');
+    const hasDetail = (r.before!=null && Object.keys(r.before||{}).length) || (r.after!=null && Object.keys(r.after||{}).length);
+    h += `<tr style="border-top:1px solid var(--line);background:${i%2===0?'#fff':'#fafafa'};${hasDetail?'cursor:pointer':''}" ${hasDetail?`onclick="_auditToggleDetail(${i})"`:''}>
+      <td style="padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--ink2);white-space:nowrap">${ts}</td>
+      <td style="padding:6px 10px;font-size:11px;color:var(--ink2)">${r.who||'—'}</td>
+      <td style="padding:6px 10px"><span style="display:inline-block;padding:2px 7px;background:${ac.bg};color:${ac.fg};border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:600">${r.action||'—'}</span></td>
+      <td style="padding:6px 10px;font-family:var(--mono);font-size:10px;color:var(--ink3);white-space:nowrap">${r.target_id||r.target_type||'—'}</td>
+      <td style="padding:6px 10px;font-size:11px;color:var(--ink)">${(r.note||'').replace(/</g,'&lt;')}</td>
+      <td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--ink3)">${hasDetail?'▼':''}</td>
+    </tr>`;
+    if(hasDetail){
+      h += `<tr id="audit-detail-${i}" style="display:none;background:#f9fafb"><td colspan="6" style="padding:8px 18px;border-top:1px dashed var(--line)">
+        <div style="display:flex;gap:18px;font-family:var(--mono);font-size:11px">
+          <div style="flex:1"><div style="color:var(--ink3);font-size:10px;margin-bottom:4px">BEFORE</div><pre style="margin:0;background:#fff;border:1px solid var(--line);border-radius:4px;padding:6px 8px;font-size:10px;line-height:1.5;color:var(--ink2);white-space:pre-wrap;word-break:break-all">${JSON.stringify(r.before||{},null,2)}</pre></div>
+          <div style="flex:1"><div style="color:var(--ink3);font-size:10px;margin-bottom:4px">AFTER</div><pre style="margin:0;background:#fff;border:1px solid var(--line);border-radius:4px;padding:6px 8px;font-size:10px;line-height:1.5;color:var(--ink2);white-space:pre-wrap;word-break:break-all">${JSON.stringify(r.after||{},null,2)}</pre></div>
+        </div>
+      </td></tr>`;
+    }
+  });
+  h += '</tbody></table>';
+  out.innerHTML = h;
+}
+function _auditToggleDetail(i){
+  const row = document.getElementById('audit-detail-'+i);
+  if(!row) return;
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+// 学生卡 📜 小 icon 跳：打开 audit modal + 自动用学号筛选
+async function openAuditForStudent(sid){
+  await openAuditModal();
+  const inp = document.getElementById('audit-search');
+  if(inp){ inp.value = sid; _auditApplyFilter(); }
+}
+window._auditApplyFilter = _auditApplyFilter;
+window._auditToggleDetail = _auditToggleDetail;
+window.openAuditForStudent = openAuditForStudent;
 function renderProgressDiag(){
   const out = document.getElementById('diag-out');
   const sub = document.getElementById('diag-sub');
