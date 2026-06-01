@@ -6090,15 +6090,15 @@ function renderGraduates(){
           <button onclick="exportGraduatesBySem('${sem.replace(/'/g,"\\'")}')" title="导出 ${sem} CSV" style="font-size:11px;padding:3px 10px;background:#fff;color:#854d0e;border:1px solid #854d0e;border-radius:4px;cursor:pointer;font-weight:500">📥 导出 ${sem}</button>
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead><tr style="background:#fff;border-bottom:1px solid var(--line)">
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:130px">学号</th>
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600">姓名</th>
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:80px">届别</th>
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:100px">班级</th>
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:70px">GPA</th>
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600">辅导员</th>
-            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:110px">标记日期</th>
-            <th style="padding:7px 12px;text-align:center;font-size:11px;color:var(--ink3);font-weight:600;width:50px">撤销</th>
+          <thead><tr style="background:var(--g8)">
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600;width:130px">学号</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600">姓名</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600;width:80px">届别</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600;width:100px">班级</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600;width:70px">GPA</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600">辅导员</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#e4f0e8;font-weight:600;width:110px">标记日期</th>
+            <th style="padding:8px 12px;text-align:center;font-size:11px;color:#e4f0e8;font-weight:600;width:50px">撤销</th>
           </tr></thead><tbody>`;
       list.forEach((s,i) => {
         const cc = s.classCode || autoClassCode(s.cohort, s.type, s.prog);
