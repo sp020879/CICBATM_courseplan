@@ -808,12 +808,67 @@ function calcProgressTM(s, allPC) {
 function doneCredits(s) { return calcProgress(s, progCourses(s.prog||'TM')).doneCr; }
 function doneCourses(s) { return calcProgress(s, progCourses(s.prog||'TM')).doneC; }
 
-// 判断学生是否达标毕业（统一口径）
-function isGraduated(s){
+// 取得学生毕业资讯（手动 confirm + 自动 derive）
+function gradInfo(s){
+  const g = s?.statusDetail?.graduation || {};
   const p = calcProgress(s, progCourses(s.prog||'TM'));
-  const g = parseFloat(s.gpa);
-  return p.remC === 0 && p.internOk && (s.gpa == null || g >= 2.0);
+  const gpaN = parseFloat(s.gpa);
+  const autoEligible = p.remC === 0 && p.internOk && (s.gpa == null || gpaN >= 2.0);
+  return {
+    confirmed: !!g.confirmed,
+    semester: g.semester || '',
+    date: g.date || '',
+    autoEligible
+  };
 }
+window.gradInfo = gradInfo;
+
+// 判断学生是否达标毕业（统一口径）：手动 confirm 优先
+function isGraduated(s){
+  const gi = gradInfo(s);
+  return gi.confirmed || gi.autoEligible;
+}
+
+// 标记毕业
+async function markGraduation(sid){
+  const s = DB.students.find(x => x.id===sid);
+  if(!s) return;
+  const cur = s?.statusDetail?.graduation?.semester || NOW_SEM || '2569/1';
+  const input = prompt(`标记 ${s.cname||s.name||sid} 为已毕业\n\n输入毕业学期 (格式：25YY/N，例 2569/1)：\n\n取消即不修改`, cur);
+  if(input==null) return;
+  const sem = input.trim();
+  if(!/^25\d\d\/[123]$/.test(sem)){
+    alert('学期格式不正确，应为 25YY/N (例 2569/1 / 2568/3)');
+    return;
+  }
+  if(!s.statusDetail) s.statusDetail = {};
+  const before = s.statusDetail.graduation || null;
+  s.statusDetail.graduation = {
+    confirmed: true,
+    semester: sem,
+    date: new Date().toISOString().slice(0,10)
+  };
+  render();
+  try{
+    await apiSaveStudent(s);
+    if(typeof apiAudit==='function') apiAudit('mark_graduated', 'student', s.id, `${s.cname||''} ${s.name||''} · 毕业学期 ${sem}`.trim(), before, s.statusDetail.graduation);
+  }catch(e){ console.error('[markGraduation] save failed:', e); }
+}
+window.markGraduation = markGraduation;
+
+async function unmarkGraduation(sid){
+  const s = DB.students.find(x => x.id===sid);
+  if(!s) return;
+  if(!confirm(`移除 ${s.cname||s.name||sid} 的毕业标记？\n\n（数据不删除，只是取消「已毕业」状态，学生回到追踪中）`)) return;
+  const before = s?.statusDetail?.graduation || null;
+  if(s.statusDetail?.graduation) delete s.statusDetail.graduation;
+  render();
+  try{
+    await apiSaveStudent(s);
+    if(typeof apiAudit==='function') apiAudit('unmark_graduated', 'student', s.id, `${s.cname||''} 移除毕业标记`.trim(), before, null);
+  }catch(e){ console.error('[unmarkGraduation] save failed:', e); }
+}
+window.unmarkGraduation = unmarkGraduation;
 // 判断学生是否当前休学
 function isOnLeave(s){
   const sd = s.statusDetail || {};
@@ -1227,7 +1282,7 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
         <div class="sc-badges" style="margin-top:1px;display:flex;flex-wrap:wrap;gap:3px;">
           ${bt?`<span class="bdg ${bl}">${bt}</span>`:''}
           <span class="bdg ${s.type==='transfer'?'b-x':'b-n'}">${s.type==='transfer'?'专升本':'全日生'}</span>
-          ${(()=>{const sd=s.statusDetail||{};if(sd.withdrawn){const wi=[sd.withdrawDate,sd.withdrawSem].filter(Boolean).join(' ');return `<span class="bdg" style="background:#f5f3ff;color:#7c3aed">退学${wi?' · '+wi:''}</span>`;}if(sd.leave&&sd.leave.length)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">休学 ${sd.leave.join(', ')}</span>`;if(isComplete)return `<span class="bdg" style="background:#854d0e;color:#fff">达标毕业</span>`;
+          ${(()=>{const sd=s.statusDetail||{};if(sd.withdrawn){const wi=[sd.withdrawDate,sd.withdrawSem].filter(Boolean).join(' ');return `<span class="bdg" style="background:#f5f3ff;color:#7c3aed">退学${wi?' · '+wi:''}</span>`;}if(sd.leave&&sd.leave.length)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">休学 ${sd.leave.join(', ')}</span>`;if(isComplete){const _gi=gradInfo(s);if(_gi.confirmed)return `<span class="bdg" style="background:#854d0e;color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:3px" onclick="event.stopPropagation();markGraduation('${s.id}')" title="点击修改毕业学期">🎓 已毕业 · ${_gi.semester}<button onclick="event.stopPropagation();unmarkGraduation('${s.id}')" title="撤销毕业标记" style="border:none;background:rgba(255,255,255,.25);cursor:pointer;color:#fff;font-size:9px;line-height:1;padding:0 4px;border-radius:3px;margin-left:2px">✕</button></span>`;return `<span class="bdg" style="background:#854d0e;color:#fff;cursor:pointer" onclick="event.stopPropagation();markGraduation('${s.id}')" title="点击标记为已毕业并记录毕业学期">🎓 达标毕业 ✎</span>`;}
               if(internDone&&!gpaOk)return `<span class="bdg" style="background:#fef2f2;color:#b91c1c">GPA 不足</span>`;return '<span class="bdg" style="background:#f0fdf4;color:#166534">在学</span>';})()}
           ${tepBadge}
         </div>
