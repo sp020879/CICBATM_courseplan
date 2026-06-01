@@ -1947,7 +1947,7 @@ async function renderDashboard(){
   const stats = {
     total: allStuds.length,
     active: 0, leaving: 0, pending: 0, past: 0, graduated: 0, withdrawn: 0,
-    gpaWarn: [], pendingLeave: [], internEligible: [], overflow: [], noClassCode: []
+    gpaWarn: [], pendingLeave: [], internEligible: [], gradPending: [], overflow: [], noClassCode: []
   };
 
   const _semVal = v => { const m=(v||'').match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):0; };
@@ -1963,7 +1963,12 @@ async function renderDashboard(){
     if(sd.withdrawn){ stats.withdrawn++; return; }
     const lst = (typeof getLeaveStatus === 'function') ? getLeaveStatus(s) : 'active';
     const isGrad = p.remC === 0 && p.internOk && (s.gpa==null || parseFloat(s.gpa) >= 2.0);
-    if(isGrad){ stats.graduated++; return; }
+    if(isGrad){
+      stats.graduated++;
+      // 达标但还没手动 confirm 毕业学期 → 等待标记
+      if(!s.statusDetail?.graduation?.confirmed) stats.gradPending.push({s});
+      return;
+    }
     if(lst === 'leaving') stats.leaving++;
     else if(lst === 'pending') { stats.pending++; stats.pendingLeave.push({s, leave:sd.leave||[]}); }
     else if(lst === 'past') stats.past++;
@@ -2027,7 +2032,8 @@ async function renderDashboard(){
         <div style="background:var(--g8);color:#fff;padding:8px 14px;font-size:12px;font-weight:600">🎯 我的待办</div>
         ${_todoRow('🌙', '上学期休学待确认本学期复学', stats.pendingLeave.length, `switchTab('progress');setTimeout(()=>document.getElementById('bar-status').focus(),100)`, 'var(--amber)')}
         ${_todoRow('⚠', 'GPA 预警 (<2.0)', stats.gpaWarn.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='gpa_warn';e.dispatchEvent(new Event('change'))}},100)`, 'var(--red)')}
-        ${_todoRow('🎓', '已修完待确认毕业', stats.internEligible.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='intern_eligible';e.dispatchEvent(new Event('change'))}},100)`, 'var(--g7)')}
+        ${_todoRow('🎓', '已达标待标记毕业', stats.gradPending.length, `switchTab('graduates')`, '#854d0e')}
+        ${_todoRow('💼', '课程修完可申请实习', stats.internEligible.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='intern_eligible';e.dispatchEvent(new Event('change'))}},100)`, 'var(--g7)')}
         ${_todoRow('📋', '外系选修 slot 超额', stats.overflow.length, `switchTab('workbench')`, 'var(--red)')}
       </div>
 
