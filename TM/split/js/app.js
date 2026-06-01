@@ -4277,93 +4277,248 @@ function openProgressDiag(){
   renderProgressDiag();
 }
 
-// ── 🎓 毕业生 Tab ──────────────────────────────────────
+// ── 🎓 毕业生清单 Tab ──────────────────────────────────
 function renderGraduates(){
   const page = document.getElementById('graduates-page');
   if(!page) return;
   const progStuds = DB.students.filter(s => (s.prog||'TM')===activeProg);
   const grads = progStuds.filter(s => s?.statusDetail?.graduation?.confirmed);
-  const bySem = {};
+
+  const byYear = {};
   grads.forEach(s => {
-    const sem = s.statusDetail.graduation.semester || '(未填)';
-    if(!bySem[sem]) bySem[sem] = [];
-    bySem[sem].push(s);
+    const sem = s.statusDetail.graduation.semester || '';
+    const year = (sem.split('/')[0]) || '其他';
+    if(!byYear[year]) byYear[year] = {};
+    const term = sem || '其他';
+    if(!byYear[year][term]) byYear[year][term] = [];
+    byYear[year][term].push(s);
   });
-  const sems = Object.keys(bySem).sort((a,b) => {
-    const [ya,sa] = a.split('/'); const [yb,sb] = b.split('/');
-    if(ya!==yb) return parseInt(yb||0)-parseInt(ya||0);
-    return parseInt(sb||0)-parseInt(sa||0);
-  });
-  const totalGrads = grads.length;
+  const allYears = Object.keys(byYear).sort((a,b) => parseInt(b||0)-parseInt(a||0));
+  if(!window._gradSelectedYear || !byYear[window._gradSelectedYear]){
+    window._gradSelectedYear = allYears[0] || '';
+  }
+  const selYear = window._gradSelectedYear;
+
   const autoOnly = progStuds.filter(s => {
     const gi = gradInfo(s);
     return gi.autoEligible && !gi.confirmed;
   });
-  let h = `<div style="padding:14px 18px 8px">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-      <h2 style="margin:0;font-size:16px;color:var(--ink);font-weight:600">🎓 毕业生存档</h2>
-      <span style="font-size:11px;color:var(--ink3)">${getProg(activeProg)?.name||activeProg} · ${totalGrads} 位已标记毕业 · 分 ${sems.length} 个学期</span>
+
+  let h = `<div style="padding:14px 18px 18px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--line2)">
+      <h2 style="margin:0;font-size:20px;color:#1f2937;font-weight:700;letter-spacing:.5px">🎓 毕业生清单</h2>
+      <span style="font-size:12px;color:#6b7280">${getProg(activeProg)?.name||activeProg} · 共 ${grads.length} 位 · 分 ${allYears.length} 个学年</span>
       <div style="flex:1"></div>
-      <button class="tbtn" onclick="exportAllGraduates()" title="导出全部已毕业学生为 CSV" style="font-size:12px;padding:4px 12px;background:#854d0e;color:#fff;border:none;border-radius:5px;cursor:pointer">📥 导出全部 CSV</button>
+      ${allYears.length ? `
+        <label style="font-size:12px;color:#374151;font-weight:600">学年</label>
+        <select onchange="window._gradSelectedYear=this.value;renderGraduates()" style="padding:5px 12px;border:1.5px solid #854d0e;border-radius:6px;font-family:var(--mono);font-size:13px;font-weight:600;color:#854d0e;background:#fffbeb;cursor:pointer;height:30px">
+          ${allYears.map(y => `<option value="${y}" ${y===selYear?'selected':''}>${y}</option>`).join('')}
+        </select>
+        <button onclick="exportGraduatesByYear('${selYear}')" title="导出 ${selYear} 学年为 CSV" style="font-size:12px;padding:5px 12px;background:#fff;color:#854d0e;border:1.5px solid #854d0e;border-radius:6px;cursor:pointer;font-weight:600;height:30px">📥 导出 CSV</button>
+        <button onclick="printGraduatesYear('${selYear}')" title="A4 打印 ${selYear} 学年名单" style="font-size:12px;padding:5px 12px;background:#854d0e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;height:30px">🖨 打印 A4</button>
+      ` : ''}
     </div>`;
+
   if(autoOnly.length){
-    h += `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#854d0e">
-      ⚠ 有 <strong>${autoOnly.length}</strong> 位学生已达标但未标记毕业。到「学生进度」点徽章 <span style="background:#854d0e;color:#fff;padding:0 6px;border-radius:3px;font-size:11px;font-weight:600">🎓 达标毕业 ✎</span> 即可记录学期。
+    h += `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#854d0e">
+      ⚠ 有 <strong>${autoOnly.length}</strong> 位学生已达标但未标记毕业。到「学生进度」点徽章 <span style="background:#854d0e;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:600">🎓 达标毕业 ✎</span> 即可记录学期。
     </div>`;
   }
-  if(!sems.length){
+
+  if(!allYears.length){
     h += `<div style="text-align:center;padding:60px 20px;color:var(--ink3);font-size:13px">
-      <div style="font-size:32px;margin-bottom:10px">📭</div>
+      <div style="font-size:36px;margin-bottom:10px">📭</div>
       尚无已标记的毕业生
-      <div style="font-size:11px;margin-top:8px;color:var(--ink3)">学生达标后到「学生进度」点 🎓 徽章确认毕业学期</div>
+      <div style="font-size:12px;margin-top:8px;color:var(--ink3)">学生达标后到「学生进度」点 🎓 徽章确认毕业学期</div>
     </div>`;
     page.innerHTML = h + '</div>';
     return;
   }
-  sems.forEach(sem => {
-    const list = bySem[sem];
-    h += `<div style="border:1px solid var(--line);border-radius:8px;margin-bottom:12px;overflow:hidden">
-      <div style="background:var(--paper);padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px">
-        <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:#854d0e">📅 ${sem}</span>
-        <span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">${list.length} 人</span>
-        <div style="flex:1"></div>
-        <button class="tbtn" onclick="exportGraduatesBySem('${sem.replace(/'/g,"\\'")}')" title="导出 ${sem} 毕业生为 CSV" style="font-size:11px;padding:3px 10px;background:#fff;color:#854d0e;border:1px solid #854d0e;border-radius:4px;cursor:pointer">📥 导出 ${sem}</button>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="background:#fff;border-bottom:1px solid var(--line)">
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:140px">学号</th>
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600">姓名</th>
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:90px">届别</th>
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:100px">班级</th>
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:80px">GPA</th>
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600">辅导员</th>
-          <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:110px">标记日期</th>
-          <th style="padding:7px 12px;text-align:center;font-size:11px;color:var(--ink3);font-weight:600;width:60px">操作</th>
-        </tr></thead><tbody>`;
-    list.sort((a,b) => (a.id||'').localeCompare(b.id||''));
-    list.forEach((s,i) => {
-      const cc = s.classCode || autoClassCode(s.cohort, s.type, s.prog);
-      const pal = getClassColor(cc);
-      const gn = parseFloat(s.gpa);
-      const gpaColor = isFinite(gn)?(gn>=2?'var(--g7)':gn>=1.5?'var(--amber)':'var(--red)'):'var(--ink3)';
-      const markDate = s.statusDetail?.graduation?.date || '—';
-      h += `<tr style="background:${i%2===0?'#fff':'#fafafa'};border-top:1px solid var(--line);cursor:pointer" onclick="jumpToCard('${s.id}')" title="点击跳到学生卡">
-        <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--sky);font-weight:600">${s.id}</td>
-        <td style="padding:7px 12px;color:var(--ink)">${s.name||''}${s.cname?` <span style="color:var(--ink3);font-size:11px">· ${s.cname}</span>`:''}</td>
-        <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--ink2)">${s.cohort||'—'}</td>
-        <td style="padding:7px 12px"><span style="font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 7px;border-radius:20px">${cc}</span></td>
-        <td style="padding:7px 12px;font-family:var(--mono);font-size:12px;font-weight:600;color:${gpaColor}">${isFinite(gn)?gn.toFixed(2):'—'}</td>
-        <td style="padding:7px 12px;color:var(--ink2);font-size:11px">${s.advisor||'—'}</td>
-        <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--ink3)">${markDate}</td>
-        <td style="padding:7px 12px;text-align:center"><button onclick="event.stopPropagation();unmarkGraduation('${s.id}')" title="撤销毕业标记" style="border:1px solid var(--line2);background:#fff;cursor:pointer;color:var(--ink3);font-size:10px;padding:2px 7px;border-radius:3px">↩</button></td>
-      </tr>`;
+
+  if(byYear[selYear]){
+    const yearData = byYear[selYear];
+    const sems = Object.keys(yearData).sort((a,b) => {
+      const ta = parseInt(a.split('/')[1]||0);
+      const tb = parseInt(b.split('/')[1]||0);
+      return ta - tb;
     });
-    h += `</tbody></table></div>`;
-  });
+    const yearTotal = Object.values(yearData).reduce((sum, list) => sum + list.length, 0);
+
+    h += `<div style="background:linear-gradient(to right, #fef3c7, #fffbeb);border:1.5px solid #fde047;padding:12px 16px;border-radius:8px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <span style="font-family:var(--mono);font-size:15px;font-weight:700;color:#854d0e">📅 ${selYear} 学年</span>
+      <span style="background:#854d0e;color:#fff;font-size:12px;padding:3px 12px;border-radius:12px;font-weight:600">合计 ${yearTotal} 位毕业</span>
+      <div style="flex:1"></div>
+      <span style="font-size:11px;color:#92400e">${sems.length} 个学期</span>
+    </div>`;
+
+    sems.forEach(sem => {
+      const list = yearData[sem];
+      list.sort((a,b) => (a.id||'').localeCompare(b.id||''));
+      h += `<div style="border:1px solid var(--line);border-radius:8px;margin-bottom:14px;overflow:hidden">
+        <div style="background:var(--paper);padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px">
+          <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:#854d0e">📅 ${sem}</span>
+          <span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 9px;border-radius:10px;font-weight:600">${list.length} 人</span>
+          <div style="flex:1"></div>
+          <button onclick="exportGraduatesBySem('${sem.replace(/'/g,"\\'")}')" title="导出 ${sem} CSV" style="font-size:11px;padding:3px 10px;background:#fff;color:#854d0e;border:1px solid #854d0e;border-radius:4px;cursor:pointer;font-weight:500">📥 导出 ${sem}</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#fff;border-bottom:1px solid var(--line)">
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:130px">学号</th>
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600">姓名</th>
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:80px">届别</th>
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:100px">班级</th>
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:70px">GPA</th>
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600">辅导员</th>
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--ink3);font-weight:600;width:110px">标记日期</th>
+            <th style="padding:7px 12px;text-align:center;font-size:11px;color:var(--ink3);font-weight:600;width:50px">撤销</th>
+          </tr></thead><tbody>`;
+      list.forEach((s,i) => {
+        const cc = s.classCode || autoClassCode(s.cohort, s.type, s.prog);
+        const pal = getClassColor(cc);
+        const gn = parseFloat(s.gpa);
+        const gpaColor = isFinite(gn)?(gn>=2?'var(--g7)':gn>=1.5?'var(--amber)':'var(--red)'):'var(--ink3)';
+        const markDate = s.statusDetail?.graduation?.date || '—';
+        h += `<tr style="background:${i%2===0?'#fff':'#fafafa'};border-top:1px solid var(--line)">
+          <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--sky);font-weight:600">${s.id}</td>
+          <td style="padding:7px 12px;color:var(--ink);cursor:pointer" onclick="openStudentCardModal('${s.id}')" title="点击查看学生卡片"><span style="color:var(--sky);text-decoration:underline">${s.name||''}</span>${s.cname?` <span style="color:var(--ink3);font-size:11px">· ${s.cname}</span>`:''}</td>
+          <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--ink2)">${s.cohort||'—'}</td>
+          <td style="padding:7px 12px"><span style="font-family:var(--mono);font-size:10px;font-weight:600;color:${pal.fg};background:${pal.bg};border:0.5px solid ${pal.bd};padding:1px 7px;border-radius:20px">${cc}</span></td>
+          <td style="padding:7px 12px;font-family:var(--mono);font-size:12px;font-weight:600;color:${gpaColor}">${isFinite(gn)?gn.toFixed(2):'—'}</td>
+          <td style="padding:7px 12px;color:var(--ink2);font-size:11px">${s.advisor||'—'}</td>
+          <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--ink3)">${markDate}</td>
+          <td style="padding:7px 12px;text-align:center"><button onclick="event.stopPropagation();unmarkGraduation('${s.id}')" title="撤销毕业标记" style="border:1px solid var(--line2);background:#fff;cursor:pointer;color:var(--ink3);font-size:10px;padding:2px 7px;border-radius:3px">↩</button></td>
+        </tr>`;
+      });
+      h += `</tbody></table></div>`;
+    });
+  }
   h += '</div>';
   page.innerHTML = h;
 }
 window.renderGraduates = renderGraduates;
+
+// 点学生名时弹出学生卡片 Modal
+function openStudentCardModal(sid){
+  const s = DB.students.find(x => x.id===sid);
+  if(!s) return;
+  const body = document.getElementById('scm-body');
+  const title = document.getElementById('scm-title');
+  const sub = document.getElementById('scm-sub');
+  if(title) title.textContent = `${s.name||sid}${s.cname?' · '+s.cname:''}`;
+  if(sub) sub.textContent = `${s.id} · ${s.classCode||autoClassCode(s.cohort,s.type,s.prog)} · ${s.cohort||''} 届`;
+  if(body && typeof cardHTML === 'function'){
+    body.innerHTML = cardHTML(s);
+  }
+  openModal('student-card-modal');
+}
+window.openStudentCardModal = openStudentCardModal;
+
+// 按学年导出 CSV
+function exportGraduatesByYear(year){
+  const list = DB.students.filter(s => (s.prog||'TM')===activeProg && s?.statusDetail?.graduation?.confirmed && (s.statusDetail.graduation.semester||'').startsWith(year+'/'));
+  if(!list.length){ alert(`${year} 学年没有毕业生`); return; }
+  list.sort((a,b) => {
+    const sa = a.statusDetail.graduation.semester||'';
+    const sb = b.statusDetail.graduation.semester||'';
+    if(sa!==sb) return sa.localeCompare(sb);
+    return (a.id||'').localeCompare(b.id||'');
+  });
+  const csv = _gradsToCSV(list);
+  const progName = getProg(activeProg)?.name || activeProg;
+  _downloadCSV(csv, `毕业生_${progName}_${year}_${new Date().toISOString().slice(0,10)}.csv`);
+}
+window.exportGraduatesByYear = exportGraduatesByYear;
+
+// 按学年打印 A4
+function printGraduatesYear(year){
+  const list = DB.students.filter(s =>
+    (s.prog||'TM')===activeProg &&
+    s?.statusDetail?.graduation?.confirmed &&
+    (s.statusDetail.graduation.semester||'').startsWith(year+'/')
+  );
+  if(!list.length){ alert(`${year} 学年没有毕业生`); return; }
+  list.sort((a,b) => {
+    const sa = a.statusDetail.graduation.semester||'';
+    const sb = b.statusDetail.graduation.semester||'';
+    if(sa!==sb) return sa.localeCompare(sb);
+    return (a.id||'').localeCompare(b.id||'');
+  });
+  const progName = getProg(activeProg)?.name || activeProg;
+  const today = new Date().toISOString().slice(0,10);
+  const w = window.open('', '_blank', 'width=900,height=900');
+  if(!w){ alert('请允许弹出窗口才能打印'); return; }
+  const rows = list.map((s, i) => {
+    const cc = s.classCode || autoClassCode(s.cohort, s.type, s.prog);
+    const gn = parseFloat(s.gpa);
+    return `<tr>
+      <td class="c">${i+1}</td>
+      <td class="mono">${s.id||''}</td>
+      <td>${s.name||''}</td>
+      <td>${s.cname||''}</td>
+      <td class="c">${s.cohort||''}</td>
+      <td class="mono c">${cc}</td>
+      <td class="mono c">${isFinite(gn)?gn.toFixed(2):'—'}</td>
+      <td class="mono c">${s.statusDetail.graduation.semester||''}</td>
+      <td>${s.advisor||''}</td>
+    </tr>`;
+  }).join('');
+  w.document.write(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>${year} 学年 ${progName} 毕业生名单</title>
+<style>
+  @page { size: A4 portrait; margin: 1.5cm 1.5cm 2cm 1.5cm; }
+  * { box-sizing:border-box; }
+  body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #000; margin: 0; padding: 0; }
+  .toolbar { background:#fef3c7; padding:10px;text-align:center;border-bottom:1px solid #ddd; }
+  .toolbar button { padding:6px 18px;font-size:13px;cursor:pointer;margin:0 4px;border:1px solid #854d0e;background:#fff;border-radius:4px; }
+  .toolbar button.primary { background:#854d0e;color:#fff; }
+  .page { padding: 0; max-width: 18cm; margin: 20px auto; }
+  .header { text-align: center; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 2.5px solid #000; }
+  h1 { font-size: 18px; margin: 4px 0; font-weight: 600; letter-spacing: 1px; }
+  .meta { font-size: 12px; color: #555; margin-top: 5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th, td { border: 1px solid #555; padding: 5px 7px; text-align: left; vertical-align: middle; }
+  th { background: #f0f0f0; font-weight: 600; text-align: center; }
+  td.c { text-align: center; }
+  td.mono { font-family: 'SF Mono', Consolas, monospace; font-size: 10.5px; }
+  .footer { text-align: center; font-size: 10.5px; color: #444; margin-top: 18px; padding-top: 12px; border-top: 1px solid #ccc; }
+  @media print {
+    .toolbar { display:none !important; }
+    .page { margin: 0; }
+    .footer { position: fixed; bottom: 1cm; left: 0; right: 0; }
+  }
+</style>
+</head><body>
+  <div class="toolbar">
+    <button class="primary" onclick="window.print()">🖨 打印</button>
+    <button onclick="window.close()">关闭</button>
+  </div>
+  <div class="page">
+    <div class="header">
+      <h1>${year} 学年 · ${progName} · 毕业生名单</h1>
+      <div class="meta">共 ${list.length} 位</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:30px">#</th>
+        <th style="width:85px">学号</th>
+        <th>姓名</th>
+        <th>中文名</th>
+        <th style="width:45px">届别</th>
+        <th style="width:65px">班级</th>
+        <th style="width:40px">GPA</th>
+        <th style="width:65px">毕业学期</th>
+        <th>辅导员</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="footer">打印日期：${today}</div>
+  </div>
+</body></html>`);
+  w.document.close();
+}
+window.printGraduatesYear = printGraduatesYear;
 
 function _gradsToCSV(students){
   const rows = [['学号','姓名','中文名','届别','班级','类型','GPA','毕业学期','标记日期','辅导员','TEP 入学','TEP 毕业']];
