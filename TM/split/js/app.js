@@ -4303,24 +4303,26 @@ function renderGraduates(){
     return gi.autoEligible && !gi.confirmed;
   });
 
-  let h = `<div style="padding:14px 18px 18px">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--line2)">
-      <h2 style="margin:0;font-size:20px;color:#1f2937;font-weight:700;letter-spacing:.5px">🎓 毕业生清单</h2>
-      <span style="font-size:12px;color:#6b7280">${getProg(activeProg)?.name||activeProg} · 共 ${grads.length} 位 · 分 ${allYears.length} 个学年</span>
-      <div style="flex:1"></div>
+  let h = `<div style="padding:0 18px 18px">
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);margin-bottom:14px;min-height:36px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">毕业生清单 · 按学年查看</span>
       ${allYears.length ? `
-        <label style="font-size:12px;color:#374151;font-weight:600">学年</label>
-        <select onchange="window._gradSelectedYear=this.value;renderGraduates()" style="padding:5px 12px;border:1.5px solid #854d0e;border-radius:6px;font-family:var(--mono);font-size:13px;font-weight:600;color:#854d0e;background:#fffbeb;cursor:pointer;height:30px">
-          ${allYears.map(y => `<option value="${y}" ${y===selYear?'selected':''}>${y}</option>`).join('')}
+        <span style="width:1px;height:14px;background:var(--line2);margin:0 4px;flex-shrink:0;"></span>
+        <select onchange="window._gradSelectedYear=this.value;renderGraduates()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;">
+          ${allYears.map(y => `<option value="${y}" ${y===selYear?'selected':''}>${y} 学年</option>`).join('')}
         </select>
-        <button onclick="exportGraduatesByYear('${selYear}')" title="导出 ${selYear} 学年为 CSV" style="font-size:12px;padding:5px 12px;background:#fff;color:#854d0e;border:1.5px solid #854d0e;border-radius:6px;cursor:pointer;font-weight:600;height:30px">📥 导出 CSV</button>
-        <button onclick="printGraduatesYear('${selYear}')" title="A4 打印 ${selYear} 学年名单" style="font-size:12px;padding:5px 12px;background:#854d0e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;height:30px">🖨 打印 A4</button>
+      ` : ''}
+      <div style="flex:1"></div>
+      <span style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${getProg(activeProg)?.name||activeProg} · 共 ${grads.length} 位</span>
+      ${allYears.length ? `
+        <button onclick="exportGraduatesByYear('${selYear}')" title="导出 ${selYear} 学年为 CSV" style="padding:2px 10px;border:1px solid var(--g6);border-radius:5px;background:#f0fdf4;color:var(--g8);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">📥 导出 CSV</button>
+        <button onclick="printGraduatesYear('${selYear}')" title="A4 打印 ${selYear} 学年名单" style="padding:2px 10px;border:1px solid #854d0e;border-radius:5px;background:#fffbeb;color:#854d0e;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fffbeb'">🖨 打印 A4</button>
       ` : ''}
     </div>`;
 
   if(autoOnly.length){
-    h += `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#854d0e">
-      ⚠ 有 <strong>${autoOnly.length}</strong> 位学生已达标但未标记毕业。到「学生进度」点徽章 <span style="background:#854d0e;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:600">🎓 达标毕业 ✎</span> 即可记录学期。
+    h += `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:7px 12px;margin-bottom:12px;font-size:12px;color:#854d0e">
+      ⚠ 有 <strong>${autoOnly.length}</strong> 位学生已达标但未标记毕业。到「学生进度」点徽章 <span style="background:#854d0e;color:#fff;padding:0 6px;border-radius:3px;font-size:11px;font-weight:600">🎓 达标毕业 ✎</span> 即可记录学期。
     </div>`;
   }
 
@@ -4343,11 +4345,12 @@ function renderGraduates(){
     });
     const yearTotal = Object.values(yearData).reduce((sum, list) => sum + list.length, 0);
 
-    h += `<div style="background:linear-gradient(to right, #fef3c7, #fffbeb);border:1.5px solid #fde047;padding:12px 16px;border-radius:8px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
-      <span style="font-family:var(--mono);font-size:15px;font-weight:700;color:#854d0e">📅 ${selYear} 学年</span>
-      <span style="background:#854d0e;color:#fff;font-size:12px;padding:3px 12px;border-radius:12px;font-weight:600">合计 ${yearTotal} 位毕业</span>
-      <div style="flex:1"></div>
-      <span style="font-size:11px;color:#92400e">${sems.length} 个学期</span>
+    h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 2px;margin-bottom:10px;font-size:12px;color:var(--ink3);font-family:var(--mono)">
+      <span style="color:#854d0e;font-weight:600">📅 ${selYear} 学年</span>
+      <span style="color:var(--line2)">·</span>
+      <span>合计 <strong style="color:#854d0e;font-weight:700">${yearTotal}</strong> 位毕业</span>
+      <span style="color:var(--line2)">·</span>
+      <span>${sems.length} 个学期</span>
     </div>`;
 
     sems.forEach(sem => {
