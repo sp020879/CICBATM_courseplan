@@ -91,6 +91,7 @@
       <button class="tab" onclick="switchTab('workbench')">🛠 排课工作台</button>
       <button class="tab" onclick="switchTab('classtable')">📋 班级课表</button>
       <button class="tab" onclick="switchTab('counsel')">👥 辅导员老师记录</button>
+      <button class="tab" onclick="switchTab('graduates')">🎓 毕业生</button>
     </div>
     <div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--h-border);flex-shrink:0;gap:4px;">
       <button id="grad-toggle" class="bar-btn-txt" onclick="toggleHideGrads()" title="点击切换：是否隐藏达标毕业的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🎓 <span id="grad-toggle-label">☑ 隐藏毕业生</span></button>
@@ -169,6 +170,9 @@
     </div>
     <div class="tab-pane" id="tab-counsel" style="width:100%">
       <div id="counsel-page" style="width:100%"></div>
+    </div>
+    <div class="tab-pane" id="tab-graduates" style="width:100%">
+      <div id="graduates-page" style="width:100%"></div>
     </div>
   </main>
 </div>
