@@ -86,15 +86,35 @@ async function sb(path, opts = {}) {
   };
   delete opts.headers;
   delete opts.prefer;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers, ...opts });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || err.details || res.statusText);
+  const isWrite = opts.method && opts.method !== 'GET';
+  const maxAttempts = isWrite ? 4 : 1;
+  let lastErr;
+  for(let attempt = 0; attempt < maxAttempts; attempt++){
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers, ...opts });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const errMsg = err.message || err.details || res.statusText;
+        const isLockErr = /หมดเวลา|กระบวนการ|ล็อก|lock timeout|advisory lock|could not obtain lock/i.test(errMsg);
+        if(isLockErr && attempt < maxAttempts - 1){
+          const delay = 800 * Math.pow(2, attempt);
+          console.warn(`[sb retry ${attempt+1}/${maxAttempts-1}] lock timeout, waiting ${delay}ms... path=${path}`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw new Error(errMsg);
+      }
+      if(res.status === 204) return null;
+      const text = await res.text();
+      if(!text || !text.trim()) return null;
+      try{ return JSON.parse(text); }catch(e){ return null; }
+    }catch(e){
+      lastErr = e;
+      if(attempt === maxAttempts - 1) throw e;
+      if(!/หมดเวลา|กระบวนการ|ล็อก|lock timeout|advisory lock|could not obtain lock/i.test(String(e.message||''))) throw e;
+    }
   }
-  if(res.status === 204) return null;
-  const text = await res.text();
-  if(!text || !text.trim()) return null;
-  try{ return JSON.parse(text); }catch(e){ return null; }
+  throw lastErr || new Error('Unknown sync error');
 }
 
 // ── Row converters ─────────────────────────────────────
