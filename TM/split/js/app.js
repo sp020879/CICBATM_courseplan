@@ -5202,10 +5202,19 @@ const _COHORT_PALETTES={
   ],
 };
 const _classColorCache={};
+// 取 hex 色加深 (amount 0~1)
+function _darkenHex(hex, amount){
+  const m=(hex||'').match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+  if(!m) return hex;
+  const r=Math.max(0,Math.floor(parseInt(m[1],16)*(1-amount)));
+  const g=Math.max(0,Math.floor(parseInt(m[2],16)*(1-amount)));
+  const b=Math.max(0,Math.floor(parseInt(m[3],16)*(1-amount)));
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
 function getClassColor(code){
   if(!code) return {bg:'#f1f5f9',fg:'#475569',bd:'#cbd5e1'};
   if(_classColorCache[code]) return _classColorCache[code];
-  // 提取届别数字（取前2位数字）
   const m=code.match(/(\d{2})/);
   const yr=m?m[1]:'00';
   const palettes=_COHORT_PALETTES[yr]||[
@@ -5214,10 +5223,19 @@ function getClassColor(code){
     {bg:'#cbd5e1',fg:'#1e293b',bd:'#64748b'},
     {bg:'#94a3b8',fg:'#0f172a',bd:'#475569'},
   ];
-  // 同届内按字母排序分配不同深浅
   const sameCohort=[...new Set(DB.students.map(s=>s.classCode||autoClassCode(s.cohort,s.type,s.prog)).filter(Boolean))].filter(c=>c.match(/(\d{2})/)?.[1]===yr).sort();
   sameCohort.forEach((c,i)=>{if(!_classColorCache[c])_classColorCache[c]=palettes[i%palettes.length];});
-  return _classColorCache[code]||palettes[0];
+  let result=_classColorCache[code]||palettes[0];
+  // SC 前缀走深色变种（深底白字），跟 FA/CD 同年份的浅色拉开差距
+  if(/^SC/i.test(code)){
+    result={
+      bg:_darkenHex(result.bg,0.55),
+      fg:'#ffffff',
+      bd:_darkenHex(result.bd,0.45)
+    };
+    _classColorCache[code]=result;
+  }
+  return result;
 }
 function resetClassColors(){Object.keys(_classColorCache).forEach(k=>delete _classColorCache[k]);}
 
