@@ -5252,15 +5252,25 @@ function getClassColor(code){
   // SC 前缀走深色变种（深底白字），跟 FA/CD 同年份的浅色拉开差距
   if(isSC){
     result={
-      bg:_darkenHex(result.bg,0.55),
+      bg:_darkenHex(result.bg,0.70),
       fg:'#ffffff',
-      bd:_darkenHex(result.bd,0.45)
+      bd:_darkenHex(result.bd,0.55)
     };
     _classColorCache[code]=result;
   }
   return result;
 }
 function resetClassColors(){Object.keys(_classColorCache).forEach(k=>delete _classColorCache[k]);}
+// 一键清缓存 + 重画所有视图（Console 可直接调用：__refreshColors()）
+window.__refreshColors = function(){
+  resetClassColors();
+  if(typeof render === 'function') render();
+  if(typeof renderClassTable === 'function') renderClassTable();
+  if(typeof renderWorkbench === 'function') renderWorkbench();
+  if(typeof renderGraduates === 'function') renderGraduates();
+  if(typeof renderCounselPage === 'function') renderCounselPage();
+  console.log('✓ 颜色缓存已清空，所有视图重画');
+};
 
 
 // ═══════════════════════════════════════════════════════════════════
