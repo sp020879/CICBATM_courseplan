@@ -7198,7 +7198,10 @@ function _darkenHex(hex, amount){
 
 function getClassColor(code){
   if(!code) return {bg:'#f1f5f9',fg:'#475569',bd:'#cbd5e1'};
-  if(_classColorCache[code]) return _classColorCache[code];
+  const isSC = /^SC/i.test(code);
+  const cached = _classColorCache[code];
+  // SC 应是白字深底；若缓存不是（被 sameCohort 循环灌了浅色）→ 跳过强制重算
+  if(cached && (!isSC || cached.fg === '#ffffff')) return cached;
   // 提取届别数字（取前2位数字）
   const m=code.match(/(\d{2})/);
   const yr=m?m[1]:'00';
@@ -7213,7 +7216,7 @@ function getClassColor(code){
   sameCohort.forEach((c,i)=>{if(!_classColorCache[c])_classColorCache[c]=palettes[i%palettes.length];});
   let result=_classColorCache[code]||palettes[0];
   // SC 前缀走深色变种（深底白字），跟 FA/CD 同年份的浅色拉开差距
-  if(/^SC/i.test(code)){
+  if(isSC){
     result={
       bg:_darkenHex(result.bg,0.55),
       fg:'#ffffff',
