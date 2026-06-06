@@ -1022,7 +1022,9 @@ function getInternshipState(s){
   if(_semCmp(NOW_SEM, 最晚) > 0) status = 'overdue';
   else if(_semCmp(NOW_SEM, 最早) >= 0) status = 'due';
   else status = 'upcoming';
-  return { ...r, status, 最早实习: 最早, 最晚实习: 最晚, isPlanned, plannedSem };
+  // 规划是否晚于「最晚目标」(plannedSem > 最晚) → 计划本身就逾期
+  const isPlanLate = isPlanned && _semCmp(plannedSem, 最晚) > 0;
+  return { ...r, status, 最早实习: 最早, 最晚实习: 最晚, isPlanned, plannedSem, isPlanLate };
 }
 
 function shortName(n) { if(!n||typeof n!=='string') return '—'; return n.replace(/^(Mr\.|Miss|Mrs\.|Ms\.)\s*/i,'').split(' ').slice(0,2).join(' '); }
@@ -1377,17 +1379,20 @@ function cardHTML(s, idx) {
     const courseTxt = _intState.isZSB && _intState.入学学期 === 1
       ? 'KT331+KT332'
       : (_intState.isZSB ? 'KT411 或 KT331+KT332' : 'KT411');
-    if(_intState.isPlanned){
-      // 已规划但未做 → 蓝底白字
+    if(_intState.isPlanLate){
+      // 已规划但计划本身晚于目标 → 红底白字（实质逾期）
+      alerts.push({t:`⛔ 实习计划逾期 · 应 ${semTxt}，已规划 ${_intState.plannedSem}`, c:'over'});
+    } else if(_intState.isPlanned){
+      // 已规划且时间内 → 蓝底白字温和确认
       alerts.push({t:`🛬 已规划 ${_intState.plannedSem}，目标 ${semTxt} ✓`, c:'plan'});
     } else if(_intState.status === 'overdue'){
-      // 逾期 → 红底白字
+      // 没排 + 已过目标 → 红
       alerts.push({t:`⛔ 实习逾期 · 应在 ${semTxt}`, c:'over'});
     } else if(_intState.status === 'due'){
-      // 当下学期 → 红底白字（强提示）
+      // 本学期应排 → 红
       alerts.push({t:`🛬 本学期应实习 · ${semTxt} (${courseTxt})`, c:'over'});
     } else {
-      // 未来需提醒 → 橙
+      // 未来提醒 → 橙
       alerts.push({t:`🛬 应安排实习 · ${semTxt} (${courseTxt})`, c:'warn'});
     }
   }
