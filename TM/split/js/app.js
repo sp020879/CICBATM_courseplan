@@ -1378,13 +1378,16 @@ function cardHTML(s, idx) {
       ? 'KT331+KT332'
       : (_intState.isZSB ? 'KT411 或 KT331+KT332' : 'KT411');
     if(_intState.isPlanned){
-      // 已规划但未做 → 蓝灰温和确认
+      // 已规划但未做 → 蓝底白字
       alerts.push({t:`🛬 已规划 ${_intState.plannedSem}，目标 ${semTxt} ✓`, c:'plan'});
     } else if(_intState.status === 'overdue'){
-      alerts.push({t:`⛔ 实习应在 ${semTxt}，已逾期`, c:'risk'});
+      // 逾期 → 红底白字
+      alerts.push({t:`⛔ 实习逾期 · 应在 ${semTxt}`, c:'over'});
     } else if(_intState.status === 'due'){
-      alerts.push({t:`🛬 现学期应实习 · ${semTxt} (${courseTxt})`, c:'risk'});
+      // 当下学期 → 红底白字（强提示）
+      alerts.push({t:`🛬 本学期应实习 · ${semTxt} (${courseTxt})`, c:'over'});
     } else {
+      // 未来需提醒 → 橙
       alerts.push({t:`🛬 应安排实习 · ${semTxt} (${courseTxt})`, c:'warn'});
     }
   }
