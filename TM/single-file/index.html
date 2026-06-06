@@ -1905,27 +1905,45 @@ function _semCmp(a, b){
 // 返回学生当下实习状态（基于 NOW_SEM）
 // 返回 null = 不提醒（未到窗口 OR 已排过）
 // 返回 { status:'upcoming'|'due'|'overdue', 实习主, 实习替, 最早实习, isZSB, 入学学期 }
+// B+ 方案：区分「真做完」「已规划未做」「完全没排」
+//   - 真做完（Transferred 或 sem < NOW）→ 不提醒
+//   - 已规划未做（有任一未来值）→ 蓝灰「已规划」chip
+//   - 完全没排 → 橙/红「应安排」chip
 function getInternshipState(s){
   const r = internshipReminder(s);
   if(!r) return null;
-  // 已排过实习 → 不提醒
   const c = s.courses || {};
-  const hasVal = v => v && v !== '-';
-  const hasArranged =
-    hasVal(c.KT411) ||
-    (hasVal(c.KT331) && hasVal(c.KT332));
-  if(hasArranged) return null;
-  // 还未到提醒窗口
+  const _sv = v => {
+    if(!v || v === '-' || v === 'Transferred') return null;
+    const m = String(v).match(/^(25\d\d)\/(\d)$/);
+    return m ? parseInt(m[1])*10 + parseInt(m[2]) : null;
+  };
+  const _nowV = _sv(NOW_SEM);
+  // 真做完：Transferred 或 sem < NOW
+  const _doneVal = v => v === 'Transferred' || (_sv(v) !== null && _nowV !== null && _sv(v) < _nowV);
+  const internActuallyDone =
+    _doneVal(c.KT411) ||
+    (_doneVal(c.KT331) && _doneVal(c.KT332));
+  if(internActuallyDone) return null;
+  // 还没到提醒窗口
   if(_semCmp(NOW_SEM, r.提醒) < 0) return null;
-  // 最早可实习学期（用于判定逾期）
+  // 已规划：有任一非空非 Transferred 值
+  const _hasPlan = v => v && v !== '-' && v !== 'Transferred';
+  let plannedSem = null;
+  if(_hasPlan(c.KT411)) plannedSem = c.KT411;
+  else if(_hasPlan(c.KT331) && _hasPlan(c.KT332)){
+    plannedSem = _semCmp(c.KT331, c.KT332) >= 0 ? c.KT331 : c.KT332;
+  } else if(_hasPlan(c.KT331)) plannedSem = c.KT331;
+  else if(_hasPlan(c.KT332)) plannedSem = c.KT332;
+  const isPlanned = !!plannedSem;
+  // status
   const 最早 = r.实习替 ? (_semCmp(r.实习替, r.实习主) < 0 ? r.实习替 : r.实习主) : r.实习主;
-  // 最晚可实习学期
   const 最晚 = r.实习替 ? (_semCmp(r.实习替, r.实习主) > 0 ? r.实习替 : r.实习主) : r.实习主;
   let status;
   if(_semCmp(NOW_SEM, 最晚) > 0) status = 'overdue';
   else if(_semCmp(NOW_SEM, 最早) >= 0) status = 'due';
   else status = 'upcoming';
-  return { ...r, status, 最早实习: 最早, 最晚实习: 最晚 };
+  return { ...r, status, 最早实习: 最早, 最晚实习: 最晚, isPlanned, plannedSem };
 }
 
 function shortName(n) { if(!n||typeof n!=='string') return '—'; return n.replace(/^(Mr\.|Miss|Mrs\.|Ms\.)\s*/i,'').split(' ').slice(0,2).join(' '); }
@@ -2463,7 +2481,7 @@ function cardHTML(s, idx) {
   } else {
     if(!onTrack&&behind>0) alerts.push({t:`落后约${behind}学分`,c:'warn'}); else alerts.push({t:'进度正常',c:'ok'});
   }
-  // 🛬 实习提醒 chip：在提醒窗口 + 未排实习 → 显示目标学期
+  // 🛬 实习提醒 chip（B+ 三档：已规划/未规划/逾期）
   if(_intState){
     const semTxt = _intState.实习替
       ? `${_intState.实习主} 或 ${_intState.实习替}`
@@ -2471,7 +2489,10 @@ function cardHTML(s, idx) {
     const courseTxt = _intState.isZSB && _intState.入学学期 === 1
       ? 'KT331+KT332'
       : (_intState.isZSB ? 'KT411 或 KT331+KT332' : 'KT411');
-    if(_intState.status === 'overdue'){
+    if(_intState.isPlanned){
+      // 已规划但未做 → 蓝灰温和确认
+      alerts.push({t:`🛬 已规划 ${_intState.plannedSem}，目标 ${semTxt} ✓`, c:'plan'});
+    } else if(_intState.status === 'overdue'){
       alerts.push({t:`⛔ 实习应在 ${semTxt}，已逾期`, c:'risk'});
     } else if(_intState.status === 'due'){
       alerts.push({t:`🛬 现学期应实习 · ${semTxt} (${courseTxt})`, c:'risk'});
