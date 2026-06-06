@@ -133,7 +133,7 @@ body{font-family:var(--font);background:var(--paper);color:var(--ink);font-size:
 .counsel-body.open{display:block;}
 .achips{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px;}
 .ac{font-size:10px;padding:2px 6px;border-radius:4px;}
-.ac.ok{background:var(--g1);color:var(--g7);}.ac.warn{background:var(--amber-l);color:var(--amber);}.ac.risk{background:var(--red-l);color:var(--red);font-weight:600;}.ac.plan{background:#e0e7ff;color:#3730a3;}
+.ac.ok{background:var(--g1);color:var(--g7);}.ac.warn{background:var(--amber-l);color:var(--amber);}.ac.risk{background:var(--red-l);color:var(--red);font-weight:600;}.ac.plan{background:#2563eb;color:#fff;font-weight:500;}.ac.over{background:#dc2626;color:#fff;font-weight:600;}
 .list-view{grid-template-columns:1fr!important;gap:3px!important;}
 .list-view .sc{display:flex;flex-direction:row;align-items:stretch;border-radius:6px;min-height:0;}
 
