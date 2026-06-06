@@ -942,6 +942,71 @@ function semsByStudent(s) {
   for(let y=0;y<years;y++) sems.push(`${base+y}/1`,`${base+y}/2`,`${base+y}/3`);
   return sems;
 }
+
+// ── 实习提醒：算「提醒学期」「实习学期」(主+替) ──
+// 规则（用户确认）：
+//   全日生 normal：大1~大6 学习，大6 KT411 实习，大4 起提醒
+//   ZSB 学期1 入学：大1~大4 学习，小2 KT331+KT332 替代（大4 后暑期），大3 起提醒
+//   ZSB 学期2 入学：大1~大4 学习，大4 KT411 或 小2 KT331+KT332，大3 起提醒
+function internshipReminder(s){
+  const cls = s.classCode || autoClassCode(s.cohort, s.type, s.prog);
+  const cohortNum = parseInt(s.cohort);
+  if(!cohortNum) return null;
+  const _yr = 2500 + cohortNum;
+  const _enterSem = cls.includes('-2') ? 2 : 1;
+  const isZSB = s.type === 'transfer';
+  // 大学期 n → 'YYYY/M' (跳过小学期)
+  const D = n => {
+    const idx = (n - 1) + (_enterSem - 1);
+    return (_yr + Math.floor(idx / 2)) + '/' + ((idx % 2) + 1);
+  };
+  // 小学期 n → 'YYYY/3'（第 n 个 小学期 = 入学学年+n-1 那年的 /3）
+  const X = n => (_yr + n - 1) + '/3';
+  let 提醒, 实习主, 实习替 = null;
+  if(!isZSB){           // 全日生
+    提醒 = D(4); 实习主 = D(6);
+  } else if(_enterSem === 1){ // ZSB 学期1
+    提醒 = D(3); 实习主 = X(2);
+  } else {              // ZSB 学期2
+    提醒 = D(3); 实习主 = D(4); 实习替 = X(2);
+  }
+  return { 提醒, 实习主, 实习替, isZSB, 入学学期: _enterSem };
+}
+
+// 比较 sem 字串 'YYYY/M' 大小：a<b → 负, a===b → 0, a>b → 正
+function _semCmp(a, b){
+  if(!a||!b) return 0;
+  const ap = a.split('/').map(Number), bp = b.split('/').map(Number);
+  if(ap[0] !== bp[0]) return ap[0] - bp[0];
+  return ap[1] - bp[1];
+}
+
+// 返回学生当下实习状态（基于 NOW_SEM）
+// 返回 null = 不提醒（未到窗口 OR 已排过）
+// 返回 { status:'upcoming'|'due'|'overdue', 实习主, 实习替, 最早实习, isZSB, 入学学期 }
+function getInternshipState(s){
+  const r = internshipReminder(s);
+  if(!r) return null;
+  // 已排过实习 → 不提醒
+  const c = s.courses || {};
+  const hasVal = v => v && v !== '-';
+  const hasArranged =
+    hasVal(c.KT411) ||
+    (hasVal(c.KT331) && hasVal(c.KT332));
+  if(hasArranged) return null;
+  // 还未到提醒窗口
+  if(_semCmp(NOW_SEM, r.提醒) < 0) return null;
+  // 最早可实习学期（用于判定逾期）
+  const 最早 = r.实习替 ? (_semCmp(r.实习替, r.实习主) < 0 ? r.实习替 : r.实习主) : r.实习主;
+  // 最晚可实习学期（用于判定逾期 — 任一个选项过了就算 overdue 否则 due）
+  const 最晚 = r.实习替 ? (_semCmp(r.实习替, r.实习主) > 0 ? r.实习替 : r.实习主) : r.实习主;
+  let status;
+  if(_semCmp(NOW_SEM, 最晚) > 0) status = 'overdue';
+  else if(_semCmp(NOW_SEM, 最早) >= 0) status = 'due';
+  else status = 'upcoming';
+  return { ...r, status, 最早实习: 最早, 最晚实习: 最晚 };
+}
+
 function shortName(n) { if(!n||typeof n!=='string') return '—'; return n.replace(/^(Mr\.|Miss|Mrs\.|Ms\.)\s*/i,'').split(' ').slice(0,2).join(' '); }
 function gpaClass(g) { if(!g) return 'none'; return g>=2?'ok':g>=1.5?'warn':'risk'; }
 function gpaLabel(g) {
@@ -1271,18 +1336,36 @@ function cardHTML(s, idx) {
   const internEligible=coursesAllDone&&gpaOk; // 可申请实习
   const nearIntern=!internDone&&_gapC<=10&&_gapC>=0; // 到当下学期差 ≤ 10 门
   const alerts=[];
+  // 实习提醒（独立判断，与下方 alerts 共存）
+  const _intState = getInternshipState(s);
   if(isComplete){
     // 达标：不显示任何提示
   } else if(internDone){
     // 实习完成但 GPA 不足
     if(!gpaOk) alerts.push({t:'实习完成，但 GPA 未达 2.0',c:'risk'});
   } else if(internEligible){
-    alerts.push({t:'✅ 可申请实习',c:'ok'});
+    alerts.push({t:'GPA 达标 ✅ 可申请实习',c:'ok'});
   } else if(nearIntern&&gpaNum!=null&&!gpaOk){
     // 到当下学期差 ≤ 10 门且 GPA < 2.0 → 提醒
     alerts.push({t:`⚠ GPA ${gpaNum.toFixed(2)} 不足 2.0，请有效提升 GPA 以便申请实习课程`,c:'risk'});
   } else {
     if(!onTrack&&behind>0) alerts.push({t:`落后约${behind}学分`,c:'warn'}); else alerts.push({t:'进度正常',c:'ok'});
+  }
+  // 🛬 实习提醒 chip：在提醒窗口 + 未排实习 → 显示目标学期
+  if(_intState){
+    const semTxt = _intState.实习替
+      ? `${_intState.实习主} 或 ${_intState.实习替}`
+      : _intState.实习主;
+    const courseTxt = _intState.isZSB && _intState.入学学期 === 1
+      ? 'KT331+KT332'
+      : (_intState.isZSB ? 'KT411 或 KT331+KT332' : 'KT411');
+    if(_intState.status === 'overdue'){
+      alerts.push({t:`⛔ 实习应在 ${semTxt}，已逾期`, c:'risk'});
+    } else if(_intState.status === 'due'){
+      alerts.push({t:`🛬 现学期应实习 · ${semTxt} (${courseTxt})`, c:'risk'});
+    } else {
+      alerts.push({t:`🛬 应安排实习 · ${semTxt} (${courseTxt})`, c:'warn'});
+    }
   }
   if(xFail) alerts.push({t:'TEP毕业未过',c:'warn'});
   // DPU-TEP score badge
