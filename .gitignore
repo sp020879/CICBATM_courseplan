@@ -18,3 +18,6 @@ _backups/
 # 只保留 TM
 BA/
 AppsScript/
+
+# 另一个独立 repo（ali-che 的 Google Sheets 版）
+CICBAcourseplan/
