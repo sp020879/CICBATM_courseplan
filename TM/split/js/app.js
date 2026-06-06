@@ -1355,48 +1355,65 @@ function cardHTML(s, idx) {
   const coursesAllDone=_p.remC===0;
   const internEligible=coursesAllDone&&gpaOk; // 可申请实习
   const nearIntern=!internDone&&_gapC<=10&&_gapC>=0; // 到当下学期差 ≤ 10 门
+  // ═══════════════════════════════════════════════════════════════
+  // 整合后的 chip 规则（4 维度，每维度最多 1 个 chip）
+  //   1. 实习状态：✓做完+GPA<2 / 计划逾期 / 已规划 / 逾期 / 本学期应做 / 应安排
+  //   2. GPA 风险：<1.5 / 1.5-2.0 (临近实习强提示 vs 一般风险)
+  //   3. 进度：仅落后 >12 学分时显示
+  //   4. TEP 毕业未过
+  // 「临近实习」新定义 = 已进入 internshipReminder 提醒窗口（_intState 非空）
+  // ═══════════════════════════════════════════════════════════════
   const alerts=[];
-  // 实习提醒（独立判断，与下方 alerts 共存）
-  const _intState = getInternshipState(s);
-  if(isComplete){
-    // 达标：不显示任何提示
-  } else if(internDone){
-    // 实习完成但 GPA 不足
-    if(!gpaOk) alerts.push({t:'实习完成，但 GPA 未达 2.0',c:'risk'});
-  } else if(internEligible){
-    alerts.push({t:'GPA 达标 ✅ 可申请实习',c:'ok'});
-  } else if(nearIntern&&gpaNum!=null&&!gpaOk){
-    // 到当下学期差 ≤ 10 门且 GPA < 2.0 → 提醒
-    alerts.push({t:`⚠ GPA ${gpaNum.toFixed(2)} 不足 2.0，请有效提升 GPA 以便申请实习课程`,c:'risk'});
-  } else {
-    if(!onTrack&&behind>0) alerts.push({t:`落后约${behind}学分`,c:'warn'}); else alerts.push({t:'进度正常',c:'ok'});
-  }
-  // 🛬 实习提醒 chip（B+ 三档：已规划/未规划/逾期）
-  if(_intState){
-    const semTxt = _intState.实习替
-      ? `${_intState.实习主} 或 ${_intState.实习替}`
-      : _intState.实习主;
+  const _intState = getInternshipState(s);  // null = 不在窗口或已真做完
+  const inReminderWindow = !!_intState;
+
+  // ─── 1. 实习状态 chip ───
+  if(internDone){
+    // 实习已真做完
+    if(!gpaOk) alerts.push({t:'⚠ 实习完成，GPA 未达标', c:'risk'});
+    // GPA OK 时：没 chip（顶部 🎓 badge 已表达）
+  } else if(_intState){
+    const semTxt = _intState.实习替 ? `${_intState.实习主} 或 ${_intState.实习替}` : _intState.实习主;
     const courseTxt = _intState.isZSB && _intState.入学学期 === 1
       ? 'KT331+KT332'
       : (_intState.isZSB ? 'KT411 或 KT331+KT332' : 'KT411');
     if(_intState.isPlanLate){
-      // 已规划但计划本身晚于目标 → 红底白字（实质逾期）
       alerts.push({t:`⛔ 实习计划逾期 · 应 ${semTxt}，已规划 ${_intState.plannedSem}`, c:'over'});
     } else if(_intState.isPlanned){
-      // 已规划且时间内 → 蓝底白字温和确认
       alerts.push({t:`🛬 已规划 ${_intState.plannedSem}，目标 ${semTxt} ✓`, c:'plan'});
     } else if(_intState.status === 'overdue'){
-      // 没排 + 已过目标 → 红
       alerts.push({t:`⛔ 实习逾期 · 应在 ${semTxt}`, c:'over'});
     } else if(_intState.status === 'due'){
-      // 本学期应排 → 红
       alerts.push({t:`🛬 本学期应实习 · ${semTxt} (${courseTxt})`, c:'over'});
     } else {
-      // 未来提醒 → 橙
       alerts.push({t:`🛬 应安排实习 · ${semTxt} (${courseTxt})`, c:'warn'});
     }
   }
-  if(xFail) alerts.push({t:'TEP毕业未过',c:'warn'});
+  // 未到窗口 + 未做 → 无 chip
+
+  // ─── 2. GPA 风险 chip ───
+  if(gpaNum != null && gpaNum < 2.0){
+    const gpaTxt = gpaNum.toFixed(2);
+    if(gpaNum >= 1.5){
+      if(inReminderWindow){
+        alerts.push({t:`⚠ GPA ${gpaTxt} 不足 2.0，请提升以申请实习`, c:'risk'});
+      } else {
+        alerts.push({t:`⚠ GPA ${gpaTxt} 一般风险`, c:'warn'});
+      }
+    } else if(gpaNum >= 1.0){
+      alerts.push({t:`🚫 GPA ${gpaTxt} 重点预警`, c:'over'});
+    } else {
+      alerts.push({t:`🔴 GPA ${gpaTxt} 极高风险`, c:'over'});
+    }
+  }
+
+  // ─── 3. 进度 chip（仅落后时）───
+  if(!isComplete && !onTrack && behind > 12){
+    alerts.push({t:`⚠ 落后约 ${behind} 学分`, c:'warn'});
+  }
+
+  // ─── 4. TEP chip ───
+  if(xFail) alerts.push({t:'⚠ TEP 毕业未过', c:'warn'});
   // DPU-TEP score badge
   const tepBadge=s.dpuTepScore!=null?`<span class="bdg" style="background:#eff6ff;color:#1e40af">TEP ${s.dpuTepScore}</span>`:'';
   const _onclick=selectMode?`onclick="toggleSelect('${s.id}')"`:'';
