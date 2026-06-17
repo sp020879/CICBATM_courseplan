@@ -338,6 +338,7 @@
       <div style="text-align:center;font-size:12px;color:var(--ink3);margin:-4px 0 6px">— 或 —</div>
       <button id="tm-builtin-btn" onclick="useTMBuiltin()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--g6);background:var(--g1);color:var(--g7);font-family:var(--font);font-size:12px;cursor:pointer;margin-bottom:6px;">✓ 直接使用内建 TM 课程架构（38门课 + 实习 · 123学分）</button>
       <button id="pm-pick-master-btn" onclick="pickFromMaster()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--sky);background:var(--sky-l);color:var(--sky);font-family:var(--font);font-size:12px;cursor:pointer;margin-bottom:8px;">📚 从课程库挑选（<span id="pm-master-count">0</span> 门可选）</button>
+      <button id="pm-sheet-btn" onclick="importFromSheet()" style="width:100%;padding:8px;border-radius:6px;border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;font-family:var(--font);font-size:12px;cursor:pointer;margin-bottom:8px;">📊 从 Google Sheet 导入（课纲主表 · 自动带版块/必修选修/学分）</button>
       <input type="file" id="f-pm-pdf" accept=".pdf" onchange="handleProgPdfFile(this)">
       <div id="pm-preview"></div>
     </div>
@@ -4686,6 +4687,63 @@ function pickFromMaster(){
     hint.innerHTML = `📚 从课程库挑选 · 已默认全部勾选 ${converted.length} 门 · 取消不要的即可`;
     prev.insertBefore(hint, prev.firstChild);
   }
+}
+// ── 📊 从 Google Sheet（课纲主表）导入新专业 ──────────────
+const _SHEET_CSV_URL='https://docs.google.com/spreadsheets/d/1qwIQenOb9dv0WGDSr_LpeDlIbgWjeXS1nn5EBUwD7TQ/gviz/tq?tqx=out:csv&gid=1523208630';
+const _SHEET_PROG_MAP={IB:['InternationalBusiness','International Business 国际商务',123],FA:['FinanceAccounting','Finance & Accounting 金融与会计',123],CA:['CommunicationArts','Communication Arts 传媒艺术',126],IT:['InformationTechnology','Information Technology 信息技术',133],SC:['SportsScience','Sports & Exercise Science 体育与运动科学',123],EV:['AutomotiveEngineering','Automotive Engineering 现代汽车工程',134],CD:['CreativeDesign','Creative Design 创意设计',126],TM:['TourismManagement','Tourism Management 旅游管理',123]};
+function _sheetCSVParse(text){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch=='"'){if(text[i+1]=='"'){f+='"';i++;}else q=false;}else f+=ch;}
+    else{if(ch=='"')q=true;else if(ch==','){row.push(f);f='';}else if(ch=='\n'){row.push(f);rows.push(row);row=[];f='';}else if(ch=='\r'){}else f+=ch;}
+  }
+  if(f.length||row.length){row.push(f);rows.push(row);}
+  return rows;
+}
+function _sheetIsSkip(g,zh,en){en=(en||'').toLowerCase();return g.indexOf('实习')>=0||zh==='合作教育'||zh==='实习'||['co-operative','cooperative','internship','practicum'].some(k=>en.indexOf(k)>=0);}
+async function importFromSheet(){
+  const prev=document.getElementById('pm-preview');
+  prev.innerHTML='<div style="font-size:12px;color:var(--ink3);padding:8px">📊 从 Google Sheet 载入中…</div>';
+  try{
+    const txt=await fetch(_SHEET_CSV_URL+'&_='+Date.now()).then(r=>r.text());
+    const rows=_sheetCSVParse(txt);const hdr=rows[0].map(h=>h.trim());const idx={};hdr.forEach((h,i)=>idx[h]=i);
+    const get=(r,n)=>{const i=idx[n];return i==null?'':(r[i]||'').trim();};
+    const data=rows.slice(1).filter(r=>get(r,'专业')&&get(r,'课程代码'));
+    window._sheetData={data,get};
+    const keys=[],seen={};
+    data.forEach(r=>{const k=get(r,'专业')+'|'+get(r,'版本');if(!seen[k]){seen[k]=1;keys.push(k);}});
+    let h='<div style="font-size:12px;color:#374151;margin-bottom:8px;padding:6px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px">📊 点选要导入的专业（来自课纲主表 · TM 已在系统中，勿重复导入）：</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    keys.forEach(k=>{const p=k.split('|')[0],v=k.split('|')[1];h+=`<button onclick="_sheetPickProg('${k}')" style="padding:6px 12px;border:1px solid var(--sky);background:#fff;color:var(--sky);border-radius:6px;font-family:var(--font);font-size:12px;cursor:pointer">${p} · ${v}</button>`;});
+    h+='</div>';
+    prev.innerHTML=h;
+  }catch(e){prev.innerHTML='<div class="notice n-warn">读取 Google Sheet 失败：'+e.message+'<br>请确认该表已设为「知道链接者可查看」。</div>';}
+}
+function _sheetPickProg(key){
+  const SD=window._sheetData;if(!SD)return;const get=SD.get;
+  const prog=key.split('|')[0],ver=key.split('|')[1];
+  const rows=SD.data.filter(r=>get(r,'专业')===prog&&get(r,'版本')===ver);
+  const courses=[],master=[],seenM={};
+  rows.forEach(r=>{
+    const code=get(r,'课程代码');if(!code)return;
+    const g=get(r,'版块中文'),lvl=get(r,'必修/选修'),zh=get(r,'中文名'),en=get(r,'英文名');
+    const cr=parseInt(get(r,'学分'))||3,need=parseInt(get(r,'区块学分'))||0;
+    const gt=_sheetIsSkip(g,zh,en)?'skip':(lvl==='选修'?'elective':'required');
+    const gp=gt==='skip'?'实习/合作教育':g;
+    const gcr=gt==='required'?0:need;
+    const cu=code.toUpperCase();
+    courses.push({c:cu,g:gp,n:en||code,cr:cr,_gcr:gcr,_gtype:gt});
+    if(!seenM[cu]){seenM[cu]=1;master.push({code:cu,name_en:en||code,name_cn:zh,default_cr:cr,category:g});}
+  });
+  const map=_SHEET_PROG_MAP[prog]||[prog,prog,123];
+  const multiVer=SD.data.some(r=>get(r,'专业')===prog&&get(r,'版本')!==ver);
+  const idEl=document.getElementById('pm-id');if(idEl)idEl.value=(map[0]+(multiVer?ver:'')).replace(/[^A-Za-z0-9]/g,'');
+  document.getElementById('pm-name').value=map[1]+(multiVer?(' '+ver):'');
+  document.getElementById('pm-cr').value=map[2];
+  renderProgSelector(courses);
+  if(typeof checkAllProg==='function')checkAllProg(true);
+  if(typeof apiSaveMasterBatch==='function'){apiSaveMasterBatch(master).then(()=>{if(typeof apiGetMaster==='function')return apiGetMaster();}).then(m=>{if(m){DB.masterCourses=m;if(typeof _rebuildMasterIndex==='function')_rebuildMasterIndex();}}).catch(()=>{});}
+  const prev=document.getElementById('pm-preview');
+  if(prev){const hint=document.createElement('div');hint.style.cssText='font-size:11px;color:#16a34a;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;margin-bottom:8px';hint.innerHTML=`📊 已从课纲主表导入 <b>${prog}·${ver}</b>：${courses.length} 门（已全选）· 课程库中文名/版块同步补齐 · 按下方「新增专业」存档`;prev.insertBefore(hint,prev.firstChild);}
 }
 async function handleProgPdfFile(inp){
   if(!inp.files[0])return;
