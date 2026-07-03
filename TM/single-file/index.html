@@ -5440,6 +5440,68 @@ function _ctShowCourseStudents(realCode, isExt2) {
 }
 
 // 班级课表 → 导出排课 CSV（格式同 排课导入模板）
+// ── 🔗 D0 对账:TM 排的 ⇄ BA schedule(纯只读,绝不写库)──
+function _tmSemAgg(sem){
+  let studs=DB.students.filter(s=>(s.prog||'TM')===activeProg);
+  if(window._hideGrads) studs=studs.filter(s=>!isGraduated(s));
+  if(window._hideLeave) studs=studs.filter(s=>!isOnLeave(s));
+  const agg={};
+  studs.forEach(s=>{
+    if(isOnLeaveAt(s,sem)) return;
+    const cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);
+    Object.entries(s.courses||{}).forEach(([code,v])=>{
+      if(v!==sem) return;
+      if(/[^\x00-\x7F]/.test(code)) return;              // 跳过中文孤儿 key(外系选修等)
+      const C=code.toUpperCase();
+      (agg[C]=agg[C]||{})[cc]=(agg[C][cc]||0)+1;
+    });
+  });
+  return agg;
+}
+async function _ctReconcileBA(){
+  const sem=window._ctSem||NOW_SEM, semBA=sem.replace('/','-');
+  const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
+  let ov=document.getElementById('recon-ov'); if(ov) ov.remove();
+  ov=document.createElement('div'); ov.id='recon-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:5vh 16px;overflow:auto';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:920px;width:100%;padding:18px 20px;font-family:var(--font)"><div id="recon-body" style="font-size:13px;color:#374151">⏳ 读取 BA 排课中…</div></div>';
+  document.body.appendChild(ov);
+  const body=ov.querySelector('#recon-body');
+  const tm=_tmSemAgg(sem);
+  let baRows;
+  try{ baRows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,half,cohorts,teacher&sem=eq.${encodeURIComponent(semBA)}`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json()); }
+  catch(e){ body.innerHTML='❌ 读取 BA 失败:'+e.message; return; }
+  const ba={};
+  (Array.isArray(baRows)?baRows:[]).forEach(r=>{
+    const c=String(r.course_code||'').toUpperCase(); if(!c) return;
+    const o=ba[c]=ba[c]||{cohorts:{},halves:new Set()};
+    (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{ if(x&&x.cohort) o.cohorts[x.cohort]=(o.cohorts[x.cohort]||0)+(x.count||0); });
+    if(r.half) o.halves.add(String(r.half).replace('学期',''));
+  });
+  let issues=0, rows='';
+  Object.keys(tm).sort().forEach(code=>{
+    const t=tm[code], b=ba[code], det=[]; let stat='ok';
+    if(!b){ stat='missing'; }
+    else{
+      Object.keys(t).forEach(ch=>{ const tc=t[ch], bc=b.cohorts[ch];
+        if(bc===undefined){ if(stat==='ok')stat='lack'; det.push(`缺 ${ch}(TM ${tc})`); }
+        else if(bc!==tc){ if(stat==='ok')stat='diff'; det.push(`${ch}:TM ${tc}/BA ${bc}`); }
+      });
+      Object.keys(b.cohorts).forEach(ch=>{ if(ch.startsWith(short)&&!(ch in t)){ if(stat==='ok')stat='extra'; det.push(`BA多出 ${ch}(${b.cohorts[ch]})`); } });
+    }
+    if(stat==='ok') return;
+    issues++;
+    const badge={missing:'🔴 BA未排此课',lack:'🟠 BA缺届别',diff:'🟡 人数不符',extra:'🟣 BA多出届别'}[stat];
+    const half=b?([...b.halves].join('/')||'—'):'—';
+    rows+=`<tr style="border-top:1px solid #eee"><td style="padding:5px 8px;font-family:var(--mono);font-weight:600">${code}</td><td style="padding:5px 8px;white-space:nowrap">${badge}</td><td style="padding:5px 8px;font-size:11px;color:#4b5563">${det.join('；')||'—'}</td><td style="padding:5px 8px;text-align:center">${half}</td></tr>`;
+  });
+  body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:14px">🔗 对账 BA 排课 · ${sem} · ${short}</b><button onclick="document.getElementById('recon-ov').remove()" style="border:none;background:#f3f4f6;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px">✕</button></div>`
+    +(issues
+      ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px">发现 <b>${issues}</b> 处不一致 · 纯只读,未改任何数据</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;text-align:left"><th style="padding:6px 8px">课程</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">明细(TM/BA)</th><th style="padding:6px 8px;text-align:center">BA上下半</th></tr></thead><tbody>${rows}</tbody></table>`
+      : `<div style="color:#16a34a;padding:10px 0">✅ ${sem} · TM 与 BA 完全一致,没有需要处理的差异。</div>`)
+    +`<div style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.6">口径:只对账 ${short} 学生修的课、只比 ${short} 届别;外系选修/中文 slot 不含。BA 数据实时来自 Supabase。<br>🔴 BA完全没排 · 🟠 BA有课但缺某届别 · 🟡 某届别人数对不上 · 🟣 BA有此届别但TM无(可能TM已删/漂移)。</div>`;
+}
 function _ctExportCSV(){
   const selSem=window._ctSem||NOW_SEM;
   const selClass=window._ctClass||'all';
@@ -5620,6 +5682,7 @@ function renderClassTable(){
       style="padding:2px 9px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;height:24px;width:170px;outline:none;"
       onfocus="this.style.borderColor='var(--sky)'" onblur="this.style.borderColor='var(--line2)'">
     <div style="flex:1;"></div>
+    <button onclick="_ctReconcileBA()" title="对账 BA 排课(只读，不改任何数据)" style="padding:2px 10px;border:1px solid var(--sky);border-radius:5px;background:#eff6ff;color:var(--sky);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">🔗 对账 BA</button>
     <button onclick="_ctExportCSV()" title="导出当前学期排课为 CSV（供导入用）" style="padding:2px 10px;border:1px solid var(--g6);border-radius:5px;background:#f0fdf4;color:var(--g8);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">📥 导出排课 CSV</button>
   </div>`;
   if(!codes.length){h+='<p style="color:var(--ink3)">尚无班级代码</p>';page.innerHTML=h;return;}
