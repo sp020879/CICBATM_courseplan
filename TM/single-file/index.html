@@ -4693,21 +4693,24 @@ function pickFromMaster(){
 const _SHEET_CSV_URL='https://docs.google.com/spreadsheets/d/1qwIQenOb9dv0WGDSr_LpeDlIbgWjeXS1nn5EBUwD7TQ/gviz/tq?tqx=out:csv&gid=1523208630';
 
 // ── 📊 从 BA 排课 Supabase（schedule 表）带「上/下半学期」到 TM（纯显示，不写库）──
-//    BA 排课已迁 Supabase：字段 course_code / sem(2569-1) / half(上半学期|下半学期|全学期)
+//    BA 排课已迁 Supabase：course_code / sem(2569-1) / half / cohorts[{cohort,count}]
+//    半学期按【学生届别】精确匹配：同一门课同学期若上/下半都排了，不同届别各显示各的。
 const _BA_SUPA_URL='https://ahygebtmavcmzqdwwhbs.supabase.co';
 const _BA_SUPA_KEY='sb_publishable_hWK78P_LTzHgKcuFMI2FVg_44Yw_tsZ'; // anon/publishable，可公开
-let _SCHED_HALF=null;      // { 'KB217|2569/1':'下', ... } 值 ∈ 上/下/全/上下；null=还没载
+let _SCHED_HALF=null;      // 课程级(退回/班级课表)：{ 'KB217|2569/1':'上/下/全/上下' }；null=还没载
+let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|2569/1|TM67':'下' }
 let _schedLoading=false;
 function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
+function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='全') ? '上下' : cur; }
 async function loadSchedHalves(force){
   if(_schedLoading) return;
   if(_SCHED_HALF && !force) return;
   _schedLoading=true;
   try{
-    const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half`, {
+    const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half,cohorts`, {
       headers:{ apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY }
     }).then(r=>r.json());
-    const map={};
+    const map={}, mapCo={};
     if(Array.isArray(rows)){
       rows.forEach(r=>{
         const code=String(r.course_code||'').trim().toUpperCase(); if(!code) return;
@@ -4715,18 +4718,23 @@ async function loadSchedHalves(force){
         const mark=raw.includes('上半')?'上':raw.includes('下半')?'下':raw.includes('全')?'全':'';
         if(!mark) return;
         const k=code+'|'+sem;
-        if(!map[k]) map[k]=mark;
-        else if(map[k]!==mark && map[k]!=='全' && mark!=='全') map[k]='上下'; // 同学期上+下都排了
+        map[k]=_mergeMark(map[k], mark);                       // 课程级
+        (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{   // 届别级
+          const co=String(x&&x.cohort||'').trim(); if(!co) return;
+          mapCo[k+'|'+co]=_mergeMark(mapCo[k+'|'+co], mark);
+        });
       });
     }
-    _SCHED_HALF=map;
-  }catch(e){ _SCHED_HALF={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
+    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo;
+  }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
 }
-// 小标记：查不到返回空串。size='sm'（工作台紧凑）| 'md'（班级课表）
-function _halfMark(code, sem, size){
+// 小标记：先按【课+学期+届别】精确查，查不到退回课程级；再查不到返回空。size='sm'|'md'
+function _halfMark(code, sem, cohort, size){
   if(!_SCHED_HALF) return '';
-  const m=_SCHED_HALF[String(code||'').toUpperCase()+'|'+_normSem(sem)];
+  const key=String(code||'').toUpperCase()+'|'+_normSem(sem);
+  let m = (cohort && _SCHED_HALF_CO) ? _SCHED_HALF_CO[key+'|'+String(cohort).trim()] : null;
+  if(!m) m = _SCHED_HALF[key];
   if(!m) return '';
   const col = (m.includes('上')&&m.includes('下')) ? ['#6b21a8','#f3e8ff']
     : m[0]==='上' ? ['#1d4ed8','#dbeafe']
@@ -5723,7 +5731,7 @@ function renderClassTable(){
       <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span></td>
       <td style="padding:7px 10px;color:var(--ink);font-size:12px;white-space:normal;word-break:break-word">${c.n}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--mono);font-weight:500;color:var(--g8);font-size:12px">${c.cr}</td>
-      <td style="padding:7px 10px;text-align:center">${_halfMark(realCode, selSem, 'md')||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
+      <td style="padding:7px 10px;text-align:center">${_halfMark(realCode, selSem, null, 'md')||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;white-space:normal">${classHtml||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;text-align:center"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${picked>0?'var(--g7)':'var(--ink3)'}">${picked}</span></td>
       <td style="padding:5px 10px;white-space:normal" onclick="event.stopPropagation()"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
@@ -7881,7 +7889,7 @@ function renderWorkbench(){
           cellTxt = 'Transferred';
         } else if(hasVal){
           cellStyle = (val === TARGET) ? globalSemStyleBold(val) : globalSemStyle(val);
-          cellTxt = val + _halfMark(co.c, val, 'sm');
+          cellTxt = val + _halfMark(co.c, val, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm');
         }
         if(_cellConflict){
           cellStyle += ';border:1.5px solid #dc2626;background:#fef2f2;color:#991b1b';
