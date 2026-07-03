@@ -2006,6 +2006,7 @@ function cohortStudents(co) {
 
 // ── Sync ───────────────────────────────────────────────
 async function syncFromSheet() {
+  _SCHED_HALF=null;   // ⟳ 同步时一并刷新 BA 排课记录的上下半标记
   gpShow("连接数据库...");
   const btn = document.getElementById('sync-btn');
   if(btn) { btn.textContent='⟳ 同步中...'; btn.disabled=true; }
@@ -4690,6 +4691,51 @@ function pickFromMaster(){
 }
 // ── 📊 从 Google Sheet（课纲主表）导入新专业 ──────────────
 const _SHEET_CSV_URL='https://docs.google.com/spreadsheets/d/1qwIQenOb9dv0WGDSr_LpeDlIbgWjeXS1nn5EBUwD7TQ/gviz/tq?tqx=out:csv&gid=1523208630';
+
+// ── 📊 从 BA 排课 Supabase（schedule 表）带「上/下半学期」到 TM（纯显示，不写库）──
+//    BA 排课已迁 Supabase：字段 course_code / sem(2569-1) / half(上半学期|下半学期|全学期)
+const _BA_SUPA_URL='https://ahygebtmavcmzqdwwhbs.supabase.co';
+const _BA_SUPA_KEY='sb_publishable_hWK78P_LTzHgKcuFMI2FVg_44Yw_tsZ'; // anon/publishable，可公开
+let _SCHED_HALF=null;      // { 'KB217|2569/1':'下', ... } 值 ∈ 上/下/全/上下；null=还没载
+let _schedLoading=false;
+function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
+async function loadSchedHalves(force){
+  if(_schedLoading) return;
+  if(_SCHED_HALF && !force) return;
+  _schedLoading=true;
+  try{
+    const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half`, {
+      headers:{ apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY }
+    }).then(r=>r.json());
+    const map={};
+    if(Array.isArray(rows)){
+      rows.forEach(r=>{
+        const code=String(r.course_code||'').trim().toUpperCase(); if(!code) return;
+        const sem=_normSem(r.sem); const raw=String(r.half||'').trim();
+        const mark=raw.includes('上半')?'上':raw.includes('下半')?'下':raw.includes('全')?'全':'';
+        if(!mark) return;
+        const k=code+'|'+sem;
+        if(!map[k]) map[k]=mark;
+        else if(map[k]!==mark && map[k]!=='全' && mark!=='全') map[k]='上下'; // 同学期上+下都排了
+      });
+    }
+    _SCHED_HALF=map;
+  }catch(e){ _SCHED_HALF={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
+  finally{ _schedLoading=false; }
+}
+// 小标记：查不到返回空串。size='sm'（工作台紧凑）| 'md'（班级课表）
+function _halfMark(code, sem, size){
+  if(!_SCHED_HALF) return '';
+  const m=_SCHED_HALF[String(code||'').toUpperCase()+'|'+_normSem(sem)];
+  if(!m) return '';
+  const col = (m.includes('上')&&m.includes('下')) ? ['#6b21a8','#f3e8ff']
+    : m[0]==='上' ? ['#1d4ed8','#dbeafe']
+    : m[0]==='下' ? ['#c2410c','#ffedd5']
+    : ['#64748b','#f1f5f9'];
+  const pad=size==='md'?'1px 6px':'0 3px';
+  const fs=size==='md'?'10px':'8px';
+  return `<span style="display:inline-block;margin-left:3px;font-size:${fs};font-weight:600;color:${col[0]};background:${col[1]};border-radius:4px;padding:${pad};vertical-align:middle;letter-spacing:-.3px" title="BA 排课：${m}半学期">${m}</span>`;
+}
 const _SHEET_PROG_MAP={IB:['InternationalBusiness','International Business 国际商务',123],FA:['FinanceAccounting','Finance & Accounting 金融与会计',123],CA:['CommunicationArts','Communication Arts 传媒艺术',126],IT:['InformationTechnology','Information Technology 信息技术',133],SC:['SportsScience','Sports & Exercise Science 体育与运动科学',123],EV:['AutomotiveEngineering','Automotive Engineering 现代汽车工程',134],CD:['CreativeDesign','Creative Design 创意设计',126],TM:['TourismManagement','Tourism Management 旅游管理',123]};
 function _sheetCSVParse(text){
   const rows=[];let row=[],f='',q=false;
@@ -5482,6 +5528,7 @@ function _ctApplySearch(){
 window._ctApplySearch=_ctApplySearch;
 function renderClassTable(){
   const page=document.getElementById('classtable-page');if(!page)return;
+  if(_SCHED_HALF===null && !_schedLoading){ loadSchedHalves().then(()=>{ if(document.getElementById('tab-classtable')?.classList.contains('on')) renderClassTable(); }); }
   // 下拉選單用「所有 TM 學生」推算 classCode（不受过滤器影响 → 毕业/休学班级也保留）
   const _allProgStuds = DB.students.filter(s=>(s.prog||'TM')===activeProg);
   let progStuds = _allProgStuds;
@@ -5619,6 +5666,7 @@ function renderClassTable(){
     </th>
     <th style="padding:8px 10px;min-width:140px;color:#e4f0e8;font-size:11px;white-space:normal">课程名称</th>
     <th style="padding:8px 10px;width:46px;text-align:center;color:#e4f0e8;font-size:11px">学分</th>
+    <th style="padding:8px 10px;width:54px;text-align:center;color:#e4f0e8;font-size:11px">上下半</th>
     <th style="padding:8px 10px;min-width:90px;color:#e4f0e8;font-size:11px;white-space:normal">修课班级</th>
     <th style="padding:8px 10px;width:60px;text-align:center;color:#e4f0e8;font-size:11px">人数</th>
     <th style="padding:8px 10px;min-width:100px;color:#e4f0e8;font-size:11px;white-space:normal">备注</th>
@@ -5675,6 +5723,7 @@ function renderClassTable(){
       <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span></td>
       <td style="padding:7px 10px;color:var(--ink);font-size:12px;white-space:normal;word-break:break-word">${c.n}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--mono);font-weight:500;color:var(--g8);font-size:12px">${c.cr}</td>
+      <td style="padding:7px 10px;text-align:center">${_halfMark(realCode, selSem, 'md')||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;white-space:normal">${classHtml||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;text-align:center"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${picked>0?'var(--g7)':'var(--ink3)'}">${picked}</span></td>
       <td style="padding:5px 10px;white-space:normal" onclick="event.stopPropagation()"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
@@ -7467,6 +7516,7 @@ function _wbNextSem(sem){
 
 // ── 主渲染入口 ──────────────────────────────────────────
 function renderWorkbench(){
+  if(_SCHED_HALF===null && !_schedLoading){ loadSchedHalves().then(()=>{ if(document.getElementById('tab-workbench')?.classList.contains('on')) renderWorkbench(); }); }
   const page = document.getElementById('workbench-page');
   if(!page) return;
   // 保留矩阵的滚动位置
@@ -7831,7 +7881,7 @@ function renderWorkbench(){
           cellTxt = 'Transferred';
         } else if(hasVal){
           cellStyle = (val === TARGET) ? globalSemStyleBold(val) : globalSemStyle(val);
-          cellTxt = val;
+          cellTxt = val + _halfMark(co.c, val, 'sm');
         }
         if(_cellConflict){
           cellStyle += ';border:1.5px solid #dc2626;background:#fef2f2;color:#991b1b';
