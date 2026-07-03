@@ -690,8 +690,8 @@ async function doLogin(){
   if(errEl) errEl.textContent='验证中...';
 
   try{
-    // 查 Supabase passcodes 表（必须 enabled = true）
-    const rows = await sb(`passcodes?pin=eq.${encodeURIComponent(val)}&enabled=is.true&select=pin,name,is_admin`);
+    // 登录改走 verify_pin RPC（passcodes 表将锁死 anon 直读,防止公开拖库）
+    const rows = await sb('rpc/verify_pin', { method:'POST', body: JSON.stringify({ p_pin: val }) });
     if(rows && rows.length){
       const match = rows[0];
       sessionStorage.setItem('cic_auth','1');
@@ -703,12 +703,7 @@ async function doLogin(){
       // 显示/隐藏用户管理按钮
       const _adminBtn = document.getElementById('user-mgmt-btn');
       if(_adminBtn) _adminBtn.style.display = match.is_admin ? '' : 'none';
-      // 更新 last_used (fire-and-forget)
-      sb(`passcodes?pin=eq.${encodeURIComponent(val)}`, {
-        method:'PATCH',
-        body: JSON.stringify({ last_used: new Date().toISOString() }),
-        prefer:'return=minimal'
-      }).catch(()=>{});
+      // last_used 已由 verify_pin RPC 内部更新，无需再单独 PATCH
       // 关闭登入框
       const ov=document.getElementById('login-overlay');
       if(ov) ov.style.display='none';
