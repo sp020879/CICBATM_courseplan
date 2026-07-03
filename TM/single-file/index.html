@@ -4700,8 +4700,10 @@ const _BA_SUPA_KEY='sb_publishable_hWK78P_LTzHgKcuFMI2FVg_44Yw_tsZ'; // anon/pub
 let _SCHED_HALF=null;      // 课程级(退回/班级课表)：{ 'KB217|2569/1':'上/下/全/上下' }；null=还没载
 let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|2569/1|TM67':'下' }
 let _schedLoading=false;
+let _CODE_ALIAS=null;     // 代码桥:{官方码 → schedule 实际码}(catalog 当前专业的 1:1 mapping)
 function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
 function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='全') ? '上下' : cur; }
+function _bridge(code){ const c=String(code||'').toUpperCase(); return (_CODE_ALIAS&&_CODE_ALIAS[c])||c; }  // 官方码→实际码,查不到原样返回
 async function loadSchedHalves(force){
   if(_schedLoading) return;
   if(_SCHED_HALF && !force) return;
@@ -4710,10 +4712,11 @@ async function loadSchedHalves(force){
     const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half,cohorts`, {
       headers:{ apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY }
     }).then(r=>r.json());
-    const map={}, mapCo={};
+    const map={}, mapCo={}, schedCodes=new Set();
     if(Array.isArray(rows)){
       rows.forEach(r=>{
         const code=String(r.course_code||'').trim().toUpperCase(); if(!code) return;
+        schedCodes.add(code);   // 记录 BA 实际排课用到的码(用于代码桥安全闸)
         const sem=_normSem(r.sem); const raw=String(r.half||'').trim();
         const mark=raw.includes('上半')?'上':raw.includes('下半')?'下':raw.includes('全')?'全':'';
         if(!mark) return;
@@ -4726,13 +4729,22 @@ async function loadSchedHalves(force){
       });
     }
     _SCHED_HALF=map; _SCHED_HALF_CO=mapCo;
+    // 代码桥:catalog 当前专业的 1:1 mapping(官方码→实际码),让 TM 用官方码的课也对得上 schedule
+    try{
+      const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
+      const crows=await fetch(`${_BA_SUPA_URL}/rest/v1/catalog?dept=eq.${encodeURIComponent(short)}&select=code,mapping`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
+      const al={};
+      (Array.isArray(crows)?crows:[]).forEach(r=>{ const c=String(r.code||'').trim().toUpperCase(), m=String(r.mapping||'').trim().toUpperCase();
+        if(c&&m&&!m.includes('待定')&&!/[+/,、]/.test(m)&&!schedCodes.has(m)) al[m]=c; });   // 只收 1:1 纯替身码(m 本身不是实际排课码)→ 实际码 c
+      _CODE_ALIAS=al;
+    }catch(e){ _CODE_ALIAS=_CODE_ALIAS||{}; }
   }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
 }
 // 小标记：先按【课+学期+届别】精确查，查不到退回课程级；再查不到返回空。size='sm'|'md'
 function _halfMark(code, sem, cohort, size){
   if(!_SCHED_HALF) return '';
-  const key=String(code||'').toUpperCase()+'|'+_normSem(sem);
+  const key=_bridge(code)+'|'+_normSem(sem);   // 先过代码桥,再拼键
   let m = (cohort && _SCHED_HALF_CO) ? _SCHED_HALF_CO[key+'|'+String(cohort).trim()] : null;
   if(!m) m = _SCHED_HALF[key];
   if(!m) return '';
@@ -5452,7 +5464,7 @@ function _tmSemAgg(sem){
     Object.entries(s.courses||{}).forEach(([code,v])=>{
       if(v!==sem) return;
       if(/[^\x00-\x7F]/.test(code)) return;              // 跳过中文孤儿 key(外系选修等)
-      const C=code.toUpperCase();
+      const C=_bridge(code);                             // 过代码桥,对齐到 BA schedule 码
       (agg[C]=agg[C]||{})[cc]=(agg[C][cc]||0)+1;
     });
   });
@@ -5468,6 +5480,7 @@ async function _ctReconcileBA(){
   ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:920px;width:100%;padding:18px 20px;font-family:var(--font)"><div id="recon-body" style="font-size:13px;color:#374151">⏳ 读取 BA 排课中…</div></div>';
   document.body.appendChild(ov);
   const body=ov.querySelector('#recon-body');
+  await loadSchedHalves();          // 确保代码桥(_CODE_ALIAS)已载入,对账才对齐
   const tm=_tmSemAgg(sem);
   let baRows;
   try{ baRows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,half,cohorts,teacher&sem=eq.${encodeURIComponent(semBA)}`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json()); }
