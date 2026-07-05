@@ -7847,6 +7847,7 @@ function renderWorkbench(){
   studs.forEach(s => {
     const p = calcProgress(s, allPC);
     const pct = p.totalC > 0 ? Math.round(p.doneC / p.totalC * 100) : 0;
+    const _nowReading = (typeof _quickCntSem==='function') ? _quickCntSem(s, NOW_SEM) : 0;  // 本学期(当下)在读门数
     const isGrad = p.remC === 0 && p.internOk;
     const overTag = p.overC > 0 ? `<span class="ss-over" title="实际多修 ${p.overC} 门">⚠ 超修 +${p.overC}</span>` : '';
     const gradTag = isGrad ? `<span class="ss-grad">🎓 达标</span>` : '';
@@ -7862,11 +7863,12 @@ function renderWorkbench(){
     const internCls = p.internOk ? 'ok' : (internSem ? 'planned' : 'unplanned');
     const internIcon = p.internOk ? '✓' : '待';
     const internLabel = internSem ? `${internIcon} 实 ${internSem}` : `${internIcon} 实习`;
-    h += `<th class="wb-thead-summary-cell" title="已修 ${p.doneC}/${p.totalC} 门${p.transferC>0?`（含转学分 ${p.transferC} 门 · 实修 ${p.doneC-p.transferC} 门）`:''} · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}">
+    h += `<th class="wb-thead-summary-cell" title="已修 ${p.doneC}/${p.totalC} 门${p.transferC>0?`（含转学分 ${p.transferC} 门 · 实修 ${p.doneC-p.transferC} 门）`:''} · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}${_nowReading>0?` · 本学期(${NOW_SEM})在读 ${_nowReading} 门`:''}">
       <div class="ss">
         <div class="ss-prog">${pct}%</div>
         <div class="ss-bar"><i style="width:${Math.min(100,pct)}%;background:${isGrad?'var(--amber)':pct>=90?'var(--g6)':pct>=60?'var(--sky)':'var(--g5)'}"></i></div>
         <div class="ss-c">${p.doneC}/${p.totalC}门${p.transferC>0?` <span style="color:#7c3aed;font-weight:700">转${p.transferC}</span>`:''} · ${p.doneCr}cr</div>
+        ${_nowReading>0?`<div style="font-size:8px;color:#0369a1;line-height:1.1;margin-top:1px;font-weight:600">📖 本学期在读 ${_nowReading} 门</div>`:''}
         <div class="ss-intern ${internCls}">${internLabel}</div>
         ${gradTag || overTag}
       </div>
