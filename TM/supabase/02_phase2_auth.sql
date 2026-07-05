@@ -9,6 +9,13 @@
 --   3) 全部前端迁完并部署、验证 OK 后，再对每张表跑【D】开 RLS 锁 anon
 --   （可以一张表一张表来：某表的 RPC+前端就绪了，才锁那张表）
 -- ============================================================
+-- ⚠️ 本文件是 Phase 2【设计模板】。线上实际部署与此有出入，以线上为准（2026-07-05 复核）：
+--   · verify_pin 的 token：线上用内建 gen_random_uuid 拼接（本库没装 pgcrypto，gen_random_bytes 会报错、曾搞挂登录）
+--   · 写入函数：线上叫 upsert_student(p_token, p_row jsonb) —— to_jsonb(s)||p_row 合并后 delete+insert（jsonb_populate_record）；
+--     另有 upsert_students（批量）、delete_student；不是这里示范的 save_student
+--   · 另有 Phase 1 管理 RPC：admin_list/add/update/delete_passcode（均带管理员校验）
+--   · students 与 passcodes 都已执行【D】开 RLS（anon 直连已锁死）
+-- ============================================================
 
 -- ── 【A】会话表：只有 definer 函数能碰它 ──
 create table if not exists public.sessions (
@@ -33,7 +40,9 @@ begin
   if v_name is null then return; end if;          -- PIN 错 → 回空
 
   update public.passcodes set last_used = now() where pin = p_pin;
-  v_token := encode(gen_random_bytes(32), 'hex'); -- 256-bit 随机 token
+  -- ⚠️ 勿用 encode(gen_random_bytes(32),'hex')：需 pgcrypto 扩展，本库未装 → 报错、登录挂。
+  -- 线上实际用内建 gen_random_uuid 拼接（256-bit 级随机、无需扩展）：
+  v_token := replace(gen_random_uuid()::text,'-','') || replace(gen_random_uuid()::text,'-','');
   insert into public.sessions(token, name, is_admin) values (v_token, v_name, v_admin);
   return query select v_token, v_name, v_admin;
 end; $$;
