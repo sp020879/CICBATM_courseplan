@@ -513,6 +513,7 @@
         </select>
         <button onclick="openMasterAdd()" class="tbtn acc" style="padding:5px 12px;font-size:11px;">+ 新增课程</button>
         <button onclick="openMasterBulkImport()" class="tbtn" style="padding:5px 12px;font-size:11px;border-color:var(--sky);color:var(--sky)">📋 批量导入</button>
+        <button onclick="_syncMasterFromCatalog()" class="tbtn" title="从 BA Supabase catalog 拉取本专业课程,写进 TM 课程库(预览+确认)" style="padding:5px 12px;font-size:11px;border-color:#7c3aed;color:#7c3aed">🔄 从 BA catalog 同步</button>
         <button onclick="seedMasterFromTM()" class="tbtn" style="padding:5px 12px;font-size:11px;">🌱 灌入 TM 52 门</button>
       </div>
       <div id="master-list"></div>
@@ -1214,6 +1215,38 @@ async function apiSaveMasterBatch(courses) {
     setSyncing(false);
     apiAudit('save_master_batch', 'master_course', null, `批次保存 ${rows.length} 门课程`, null, {count:rows.length, codes:rows.map(r=>r.code).slice(0,20)});
   } catch(e) { setSyncError(); throw e; }
+}
+// 🔄 从 BA catalog 同步课程库(读 BA、写 TM 自己的 course_master;预览+确认)
+async function _syncMasterFromCatalog(){
+  const short = (DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode) || _PROG_SHORT[activeProg] || activeProg;
+  let cat;
+  try {
+    cat = await fetch(`${_BA_SUPA_URL}/rest/v1/catalog?dept=eq.${encodeURIComponent(short)}&select=code,en,zh,credit,block`,
+      { headers:{ apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY } }).then(r=>r.json());
+  } catch(e){ alert('读 BA catalog 失败：'+e.message); return; }
+  if(!Array.isArray(cat) || !cat.length){ alert(`BA catalog 里没有「${short}」专业的课程`); return; }
+  const seen={}, rows=[];
+  cat.forEach(r=>{
+    const code=String(r.code||'').trim().toUpperCase(); if(!code || seen[code]) return; seen[code]=1;
+    rows.push({ code, name_en:String(r.en||'').trim(), name_cn:String(r.zh||'').trim(),
+      default_cr:parseInt(r.credit)||3, category:String(r.block||'').trim(), department:short, source:'BA-catalog' });
+  });
+  const existing={}; (DB.masterCourses||[]).forEach(c=>existing[String(c.code||'').toUpperCase()]=c);
+  let add=0, upd=0, same=0;
+  rows.forEach(r=>{
+    const e=existing[r.code];
+    if(!e) add++;
+    else if((e.name_en||'')!==r.name_en || (e.name_cn||'')!==r.name_cn || (parseInt(e.default_cr)||0)!==r.default_cr || (e.category||'')!==r.category) upd++;
+    else same++;
+  });
+  if(!confirm(`从 BA catalog 同步「${short}」课程库：\n\n＋ 新增 ${add} 门\n↻ 更新 ${upd} 门（名称/学分/版块对齐 catalog）\n＝ 已一致 ${same} 门\n\n只动 catalog 里有的课，你手动加的（catalog 没有的）不会被碰、也不会删。\n确定写入 TM 课程库？`)) return;
+  try {
+    await apiSaveMasterBatch(rows);
+    DB.masterCourses = await apiGetMaster();
+    if(typeof _rebuildMasterIndex==='function') _rebuildMasterIndex();
+    if(typeof openMasterModal==='function') openMasterModal();
+    alert(`✓ 已从 BA catalog 同步：新增 ${add} · 更新 ${upd}（共 ${rows.length} 门）`);
+  } catch(e){ alert('写入 course_master 失败：'+e.message); }
 }
 async function apiDeleteMasterCourse(code) {
   setSyncing(true);
