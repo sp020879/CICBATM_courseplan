@@ -73,14 +73,19 @@
     <button class="bar-btn bar-btn-primary" onclick="openAddStudent()">+ 新增学生</button>
     <button class="bar-btn" onclick="openBuildModal()">批次建档</button>
     <button class="bar-btn" onclick="openGradeModal()">更新成绩</button>
-    <button class="bar-btn" onclick="openPreCohortsModal()">🏫 班级届别</button>
-    <button class="bar-btn" onclick="openAdvisorsModal()">👨‍🏫 辅导员老师</button>
-    <button class="bar-btn" onclick="openMasterModal()">📚 课程库</button>
-    <button class="bar-btn" onclick="openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态">🔍 数字检查</button>
-    <button class="bar-btn" onclick="openAuditModal()" title="查看所有操作记录（谁、什么时候、改了什么）">📜 操作记录</button>
+    <div style="position:relative;display:inline-block" id="manage-wrap">
+      <button class="bar-btn" onclick="_toggleManageMenu(event)" title="维护:班级届别 / 辅导员名单 / 课程库 / 新增专业 / 数字检查 / 操作记录">⚙️ 管理 ▾</button>
+      <div id="manage-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid var(--line2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);z-index:200;min-width:172px;overflow:hidden;padding:4px">
+        <button onclick="_closeManageMenu();openPreCohortsModal()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">🏫 班级届别</button>
+        <button onclick="_closeManageMenu();openAdvisorsModal()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">👨‍🏫 辅导员名单</button>
+        <button onclick="_closeManageMenu();openMasterModal()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">📚 课程库</button>
+        <button onclick="_closeManageMenu();openAddProg()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">➕ 新增专业</button>
+        <div style="height:1px;background:var(--line);margin:4px 6px"></div>
+        <button onclick="_closeManageMenu();openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">🔍 数字检查</button>
+        <button onclick="_closeManageMenu();openAuditModal()" title="查看所有操作记录（谁、什么时候、改了什么）" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">📜 操作记录</button>
+      </div>
+    </div>
     <div class="bsp"></div>
-    <button class="bar-btn" onclick="openAddProg()">+ 新增专业</button>
-    <span class="bar-divv"></span>
     <select class="fsel" id="bar-prog" onchange="switchProg(this.value)" style="height:26px;max-width:200px;"></select>
     <button class="bar-btn" onclick="editProgName()" title="修改专业名称" style="padding:3px 8px;font-size:12px;">✏️</button>
   </div>
@@ -7271,6 +7276,10 @@ async function seedMasterFromTM(){
 }
 
 // ── 辅导员老师名单 ────────────────────────────────────────────
+// ⚙️ 管理菜单(收纳低频操作)开关 + 点外部关闭
+function _toggleManageMenu(e){ if(e)e.stopPropagation(); const m=document.getElementById('manage-menu'); if(!m)return; m.style.display = (m.style.display==='none'||!m.style.display)?'block':'none'; }
+function _closeManageMenu(){ const m=document.getElementById('manage-menu'); if(m) m.style.display='none'; }
+document.addEventListener('click', e=>{ const w=document.getElementById('manage-wrap'); if(w && !w.contains(e.target)) _closeManageMenu(); });
 function getAdvisors(){
   let saved=[];
   try{ saved=JSON.parse(localStorage.getItem('cic_advisors')||'[]'); }catch(e){ saved=[]; }
