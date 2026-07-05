@@ -7711,7 +7711,14 @@ function renderWorkbench(){
         return `<span class="wb-cc-pill ${sel?'on':''}" ${sel?`style="background:${pal.bd};color:#fff;border-color:${pal.bd}"`:''}  onclick="_wbToggleClass('${cc}')">${cc} · ${n}</span>`;
       }).join('')}
       <div style="flex:1"></div>
-      <span class="wb-stat">${_WB.classes.size}/${allCodes.length} 班 · ${studs.length} 位学生</span>
+      <span class="wb-stat">${_WB.classes.size}/${allCodes.length} 班 · ${studs.length} 位学生</span>${(() => {
+        if(!_SCHED_HALF) return '';
+        const t={上:0,下:0,全:0,上下:0};
+        (allPC||[]).forEach(c=>{ const m=_SCHED_HALF[_bridge(c.c)+'|'+TARGET]; if(m&&t[m]!==undefined) t[m]++; });
+        const tot=t.上+t.下+t.全+t.上下; if(!tot) return '';
+        const chip=(l,n,fg,bg)=> n?`<span style="font-size:10px;color:${fg};background:${bg};border-radius:4px;padding:1px 6px;font-weight:600;margin-left:4px">${l}${n}</span>`:'';
+        return `<span class="wb-stat" style="margin-left:10px">${TARGET} BA排课</span>`+chip('上',t.上,'#1d4ed8','#dbeafe')+chip('下',t.下,'#c2410c','#ffedd5')+chip('全',t.全,'#64748b','#f1f5f9')+chip('上下',t.上下,'#6b21a8','#f3e8ff');
+      })()}
     </div>
     <div class="wb-modebar">
       <span class="wb-now-sem">当下 <b>${NOW_SEM}</b></span>
