@@ -4698,7 +4698,11 @@ let _schedLoading=false;
 let _CODE_ALIAS=null;     // 代码桥:{官方码 → schedule 实际码}(catalog 当前专业的 1:1 mapping)
 function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
 function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='全') ? '上下' : cur; }
-function _bridge(code){ const c=String(code||'').toUpperCase(); return (_CODE_ALIAS&&_CODE_ALIAS[c])||c; }  // 官方码→实际码,查不到原样返回
+// 手动课程对接(catalog 没覆盖、或两个都是真实码而自动闸挡掉的同课不同码)。往里加一行即可。
+const _MANUAL_ALIAS = { 'KG155':'GE172' };   // TM 码 → BA schedule 码
+function _bridge(code){ const c=String(code||'').toUpperCase(); return _MANUAL_ALIAS[c] || (_CODE_ALIAS&&_CODE_ALIAS[c]) || c; }
+// 备注小标:某课手动对接了 BA 另一个码时,在代码旁显示 ↔BA码
+function _aliasNote(code){ const c=String(code||'').toUpperCase(); const a=_MANUAL_ALIAS[c]; return a?`<span style="margin-left:4px;font-size:8px;font-weight:600;color:#7c3aed;background:#f3e8ff;border-radius:3px;padding:0 3px;vertical-align:middle" title="TM ${c} 与 BA ${a} 是同一门课;上下半取自 ${a}">↔${a}</span>`:''; }
 async function loadSchedHalves(force){
   if(_schedLoading) return;
   if(_SCHED_HALF && !force) return;
@@ -5799,7 +5803,7 @@ function renderClassTable(){
       onmouseout="this.querySelectorAll('td').forEach(td=>td.style.background='')"
     >
       <td style="padding:7px 10px;text-align:center;color:var(--ink3);font-family:var(--mono);font-size:11px">${rn}</td>
-      <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span></td>
+      <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span>${_aliasNote(realCode)}</td>
       <td style="padding:7px 10px;color:var(--ink);font-size:12px;white-space:normal;word-break:break-word">${c.n}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--mono);font-weight:500;color:var(--g8);font-size:12px">${c.cr}</td>
       <td style="padding:7px 10px;text-align:center">${_halfMark(realCode, selSem, null, 'md')||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
@@ -7941,7 +7945,7 @@ function renderWorkbench(){
       }).length;
       const _cntBadge = _notDoneCnt === 0 ? ''
         : `<span class="wb-undone-cnt ${_notDoneCnt===studs.length?'all':'part'}" title="${_notDoneCnt}/${studs.length} 位尚未修完">${_notDoneCnt}</span>`;
-      h += `<td class="wb-cell-code">${_cntBadge}${co.c}</td>`;
+      h += `<td class="wb-cell-code">${_cntBadge}${co.c}${_aliasNote(co.c)}</td>`;
       h += `<td class="wb-cell-name">${co.n||''}</td>`;
       h += `<td class="wb-cell-cr">${co.cr||3}</td>`;
       studs.forEach(s => {
