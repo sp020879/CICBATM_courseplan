@@ -8128,7 +8128,9 @@ function renderWorkbench(){
           cellStyle = (sem === TARGET) ? globalSemStyleBold(sem) : globalSemStyle(sem);
           cellTxt = sem;
           if(extCode){
-            cellTxt = `<span style="position:relative">${sem}<span style="position:absolute;top:-3px;right:-6px;width:5px;height:5px;background:#10b981;border-radius:50%;" title="代码: ${extCode}"></span></span>`;
+            // 外系选修也显示 BA 排课的上下半(用拆出的真实码 extCode + 学期查 schedule)
+            const _hm = _halfMark(extCode, sem, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm');
+            cellTxt = `<span style="position:relative">${sem}${_hm}<span style="position:absolute;top:-3px;right:-6px;width:5px;height:5px;background:#10b981;border-radius:50%;" title="代码: ${extCode}"></span></span>`;
             tip = ` title="${extCode}"`;
           }
         }
