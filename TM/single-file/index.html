@@ -1041,8 +1041,10 @@ function apiAudit(action, target_type, target_id, note, before, after){
 async function apiGetAll() {
   setSyncing(true);
   try {
+    const _tok = sessionStorage.getItem('cic_token') || '';
     const [students, programs] = await Promise.all([
-      sb('students?select=*&order=id'),
+      sb('rpc/list_students', { method:'POST', body: JSON.stringify({ p_token: _tok }) })
+        .catch(() => sb('students?select=*&order=id')),   // Stage2 过渡:RPC 失败暂退回直读(students 尚未锁)
       sb('programs?select=*')
     ]);
     setSyncing(false);
