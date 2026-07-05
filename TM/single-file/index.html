@@ -105,9 +105,14 @@
     <div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--h-border);flex-shrink:0;gap:4px;">
       <button id="grad-toggle" class="bar-btn-txt" onclick="toggleHideGrads()" title="点击切换：是否隐藏达标毕业的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🎓 <span id="grad-toggle-label">☑ 隐藏毕业生</span></button>
       <button id="leave-toggle" class="bar-btn-txt" onclick="toggleHideLeave()" title="点击切换：是否隐藏休学的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🌙 <span id="leave-toggle-label">☐ 隐藏休学</span></button>
-      <button class="bar-btn-txt" onclick="printBlock()" title="打印当前页面">🖨 打印</button>
-      <button class="bar-btn-txt" onclick="exportCSV()">导出</button>
-      <button class="bar-btn-txt" onclick="exportJSON()">JSON</button>
+      <div style="position:relative;display:inline-block" id="export-wrap">
+        <button class="bar-btn-txt" onclick="_toggleExportMenu(event)" title="打印 / 导出 CSV / 导出 JSON" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">⬇ 导出 ▾</button>
+        <div id="export-menu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:#fff;border:1px solid var(--line2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);z-index:200;min-width:150px;overflow:hidden;padding:4px">
+          <button onclick="_closeExportMenu();printBlock()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">🖨 打印当前页</button>
+          <button onclick="_closeExportMenu();exportCSV()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">📊 导出 CSV</button>
+          <button onclick="_closeExportMenu();exportJSON()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">{ } 导出 JSON</button>
+        </div>
+      </div>
     </div>
   </div>
 </header>
@@ -7278,9 +7283,14 @@ async function seedMasterFromTM(){
 
 // ── 辅导员老师名单 ────────────────────────────────────────────
 // ⚙️ 管理菜单(收纳低频操作)开关 + 点外部关闭
-function _toggleManageMenu(e){ if(e)e.stopPropagation(); const m=document.getElementById('manage-menu'); if(!m)return; m.style.display = (m.style.display==='none'||!m.style.display)?'block':'none'; }
+function _toggleManageMenu(e){ if(e)e.stopPropagation(); _closeExportMenu(); const m=document.getElementById('manage-menu'); if(!m)return; m.style.display = (m.style.display==='none'||!m.style.display)?'block':'none'; }
 function _closeManageMenu(){ const m=document.getElementById('manage-menu'); if(m) m.style.display='none'; }
-document.addEventListener('click', e=>{ const w=document.getElementById('manage-wrap'); if(w && !w.contains(e.target)) _closeManageMenu(); });
+function _toggleExportMenu(e){ if(e)e.stopPropagation(); _closeManageMenu(); const m=document.getElementById('export-menu'); if(!m)return; m.style.display = (m.style.display==='none'||!m.style.display)?'block':'none'; }
+function _closeExportMenu(){ const m=document.getElementById('export-menu'); if(m) m.style.display='none'; }
+document.addEventListener('click', e=>{
+  const mw=document.getElementById('manage-wrap'); if(mw && !mw.contains(e.target)) _closeManageMenu();
+  const ew=document.getElementById('export-wrap'); if(ew && !ew.contains(e.target)) _closeExportMenu();
+});
 function getAdvisors(){
   let saved=[];
   try{ saved=JSON.parse(localStorage.getItem('cic_advisors')||'[]'); }catch(e){ saved=[]; }
@@ -7828,9 +7838,6 @@ function renderWorkbench(){
         <button class="wb-mode-btn ${_WB.mode==='multi'?'on':''}" onclick="_wbSetMode('multi')" title="选多格后批量填写/清空">☑ 批次</button>
       </div>
       <div style="flex:1"></div>
-      <label class="wb-toggle"><input type="checkbox" ${window._hideGrads?'checked':''} onchange="toggleHideGrads()"> 🎓 隐藏毕业</label>
-      <label class="wb-toggle"><input type="checkbox" ${window._hideLeave?'checked':''} onchange="toggleHideLeave()"> 🌙 隐藏休学</label>
-      <span class="wb-divv"></span>
       <button class="wb-toggle" onclick="_wbCollapseDoneGroups()" title="折叠所有已修完的组" style="padding:3px 8px;border:1px solid var(--line2);border-radius:4px;background:var(--card);color:var(--ink2);font-size:11px;cursor:pointer">▶ 折叠已修完</button>
       <button class="wb-toggle" onclick="_wbExpandAllGroups()" title="展开所有折叠的组" style="padding:3px 8px;border:1px solid var(--line2);border-radius:4px;background:var(--card);color:var(--ink2);font-size:11px;cursor:pointer">▼ 全部展开</button>
       <button class="wb-act-clear-sem" onclick="_wbBatchClearSem('${TARGET}')" title="清空当前所有学生在 ${TARGET} 已排的课（Transferred 不受影响）">🗑 清空 ${TARGET}</button>
