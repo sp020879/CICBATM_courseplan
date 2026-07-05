@@ -8724,13 +8724,14 @@ async function _wbWriteOne(sid, code, sem){
   if(!s) return;
   if(!s.courses) s.courses = {};
   s.courses[code] = sem;
+  renderWorkbench();            // 乐观更新:本地一改立刻重画,即时看到结果(不用再"按出来")
   try{
-    await apiSaveCourse(sid, code, sem);
+    await apiSaveCourse(sid, code, sem);   // 后台写 Supabase
   }catch(e){
     alert('同步失败：' + e.message);
-    delete s.courses[code];
+    delete s.courses[code];      // 失败 → 回滚本地
+    renderWorkbench();           // 再重画,恢复原状
   }
-  renderWorkbench();
 }
 
 // 底部色块改成只读，删了 _wbFocusClass
