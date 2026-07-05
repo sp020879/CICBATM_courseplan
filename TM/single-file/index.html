@@ -7902,11 +7902,19 @@ function renderWorkbench(){
   // 4 独立 sticky 格，各自 left:Npx，与 tbody sticky 列对齐（colspan 在 Chrome 横向 sticky 有 bug）
   h += `<th class="wb-thead-summary-bg" style="position:sticky;left:0;z-index:5;width:28px;background:#f1f5f9"></th>`;
   h += `<th class="wb-thead-summary-bg" style="position:sticky;left:28px;z-index:5;min-width:64px;background:#f1f5f9"></th>`;
-  h += `<th class="wb-thead-summary-l"  style="position:sticky;left:92px;z-index:5;min-width:240px">📋 总览</th>`;
+  h += `<th class="wb-thead-summary-l"  style="position:sticky;left:92px;z-index:5;min-width:240px">📋 总览 <span style="font-size:8px;font-weight:400;color:var(--ink3);white-space:nowrap;margin-left:2px"><span style="display:inline-block;width:7px;height:7px;background:#16a34a;border-radius:1px;vertical-align:middle"></span>已修 <span style="display:inline-block;width:7px;height:7px;background:#86efac;border-radius:1px;vertical-align:middle"></span>已排 <span style="display:inline-block;width:7px;height:7px;background:#fca5a5;border-radius:1px;vertical-align:middle"></span>缺口</span></th>`;
   h += `<th class="wb-thead-summary-bg" style="position:sticky;left:332px;z-index:5;min-width:32px;background:#f1f5f9;border-right:2px solid var(--line2)!important"></th>`;
   studs.forEach(s => {
     const p = calcProgress(s, allPC);
-    const pct = p.totalC > 0 ? Math.round(p.doneC / p.totalC * 100) : 0;
+    const total = p.totalC || 38;
+    const done = p.doneC;                                 // 已修:截止当前学期(含抵免)
+    const pAll = _wbCalcAsOf(s, allPC, '2599/3');         // 含未来已排的总完成
+    const plannedTotal = Math.min(pAll.doneC, total);
+    const plannedFuture = Math.max(0, plannedTotal - done); // 已排但未到(排在未来学期)
+    const gap = Math.max(0, total - plannedTotal);          // 缺口:没排进任何学期
+    const doneW = total ? done/total*100 : 0;
+    const plannedW = total ? plannedFuture/total*100 : 0;
+    const gapW = total ? gap/total*100 : 0;
     // 满额学期 = 该生所有课(不含实习)里最晚的那个学期 → "何时读满 totalC"
     const _INTERN = (typeof _RULES!=='undefined' && _RULES.INTERN_CODES) ? _RULES.INTERN_CODES : new Set(['KT411','KT331','KT332']);
     let _maxSV=0, _lastSem='';
@@ -7926,11 +7934,19 @@ function renderWorkbench(){
     const internCls = p.internOk ? 'ok' : (internSem ? 'planned' : 'unplanned');
     const internIcon = p.internOk ? '✓' : '待';
     const internLabel = internSem ? `${internIcon} 实 ${internSem}` : `${internIcon} 实习`;
-    h += `<th class="wb-thead-summary-cell" title="已修 ${p.doneC}/${p.totalC} 门${p.transferC>0?`（含转学分 ${p.transferC} 门 · 实修 ${p.doneC-p.transferC} 门）`:''} · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}${(p.remC===0&&_lastSem)?` · 满 ${p.totalC} 门 @ ${_lastSem}（最后一门课学期，实习另计）`:''}">
+    // 结果标签:有缺口→红色警示;否则→满额学期(达标者另有 🎓 标)
+    const outcome = gap>0
+      ? `<div style="font-size:8px;color:#b91c1c;font-weight:700;line-height:1.1;margin-top:1px" title="还有 ${gap} 门没排进任何学期,需排课">⚠ 缺${gap}门</div>`
+      : (!isGrad && _lastSem ? `<div style="font-size:8px;color:#166534;font-weight:600;line-height:1.1;margin-top:1px" title="按现有排课,读满 ${total} 门的学期(实习另计)">满${total} @ ${_lastSem}</div>` : '');
+    h += `<th class="wb-thead-summary-cell" title="已修 ${done}/${total} 门(截止 ${NOW_SEM})${p.transferC>0?` · 含抵免 ${p.transferC} 门`:''} · 已排未到 ${plannedFuture} 门 · 缺口 ${gap} 门 · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'}${(gap===0&&_lastSem)?` · 满 ${total} 门 @ ${_lastSem}`:''}">
       <div class="ss">
-        <div class="ss-bar"><i style="width:${Math.min(100,pct)}%;background:${isGrad?'var(--amber)':pct>=90?'var(--g6)':pct>=60?'var(--sky)':'var(--g5)'}"></i></div>
-        <div class="ss-c">${p.doneC}/${p.totalC}门${p.transferC>0?` <span style="color:#7c3aed;font-weight:700" title="转学分 ${p.transferC} 门">转${p.transferC}</span>`:''}</div>
-        ${(p.remC===0&&_lastSem)?`<div style="font-size:8px;color:#166534;line-height:1.1;margin-top:1px;font-weight:600" title="最后一门课学期(实习另计)">满${p.totalC} @ ${_lastSem}</div>`:''}
+        <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:#e5e7eb;margin-bottom:2px" title="已修 ${done} · 已排未到 ${plannedFuture} · 缺口 ${gap}(共 ${total})">
+          <div style="width:${doneW}%;background:${isGrad?'#d97706':'#16a34a'}"></div>
+          <div style="width:${plannedW}%;background:#86efac"></div>
+          <div style="width:${gapW}%;background:#fca5a5"></div>
+        </div>
+        <div class="ss-c">${done}/${total}门${p.transferC>0?` <span style="color:#7c3aed;font-weight:700" title="抵免 ${p.transferC} 门">转${p.transferC}</span>`:''}</div>
+        ${outcome}
         <div class="ss-intern ${internCls}">${internLabel}</div>
         ${gradTag || overTag}
       </div>
