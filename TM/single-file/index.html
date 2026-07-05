@@ -7847,6 +7847,18 @@ function renderWorkbench(){
   h += `<th style="position:sticky;left:28px;z-index:5;min-width:64px;background:#e0f2fe;border-bottom:2px solid var(--sky)"></th>`;
   h += `<th class="wb-thead-sem-cnt-l" style="position:sticky;left:92px;z-index:5;min-width:240px" title="上限：大学期 ${_WB_CNT_CAP.big} 门 · 小学期 ${_WB_CNT_CAP.small} 门">📌 ${TARGET}</th>`;
   h += `<th style="position:sticky;left:332px;z-index:5;min-width:32px;background:#e0f2fe;border-bottom:2px solid var(--sky);border-right:2px solid var(--line2)!important"></th>`;
+  // 每生该学期上/下/全 门数(按该生届别精确匹配 BA schedule)
+  const _studHalf = (s, sem) => {
+    const cohort = s.classCode||autoClassCode(s.cohort,s.type,s.prog);
+    const t = {'上':0,'下':0,'全':0};
+    if(_SCHED_HALF) Object.entries(s.courses||{}).forEach(([code,val]) => {
+      if(val!==sem || /[^\x00-\x7F]/.test(code)) return;
+      const key = _bridge(code)+'|'+sem;
+      const m = (_SCHED_HALF_CO && _SCHED_HALF_CO[key+'|'+cohort]) || (_SCHED_HALF && _SCHED_HALF[key]);
+      if(m==='上'||m==='下'||m==='全') t[m]++;
+    });
+    return t;
+  };
   studs.forEach(s => {
     const cnt = _quickCntSem(s, TARGET);
     const _onLeaveT = isOnLeaveAt(s, TARGET);
@@ -7856,7 +7868,11 @@ function renderWorkbench(){
     else if(cnt>cntCap)   { cls='over';  label=String(cnt); }
     else                  { cls='ok';    label=String(cnt); }
     const _capHint = _onLeaveT ? '' : `  上限 ${cntCap} 门`;
-    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" title="${s.name} · ${TARGET}: ${cnt}门${_capHint}">${label}</th>`;
+    const _sh = _onLeaveT ? {'上':0,'下':0,'全':0} : _studHalf(s, TARGET);
+    const _shTxt = (_sh['上']||_sh['下']||_sh['全'])
+      ? `<div style="font-size:8px;line-height:1.1;margin-top:1px;white-space:nowrap;font-weight:600">${_sh['上']?`<span style="color:#1d4ed8">上${_sh['上']}</span>`:''}${_sh['下']?`<span style="color:#c2410c">下${_sh['下']}</span>`:''}${_sh['全']?`<span style="color:#64748b">全${_sh['全']}</span>`:''}</div>`
+      : '';
+    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" title="${s.name} · ${TARGET}: ${cnt}门 (上${_sh['上']} 下${_sh['下']} 全${_sh['全']})${_capHint}">${label}${_shTxt}</th>`;
   });
   h += '</tr></thead><tbody>';
 
