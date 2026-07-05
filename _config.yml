@@ -1,0 +1,7 @@
+# GitHub Pages (Jekyll) 设置
+# 不让备份资料夹被发布到公开网址（即使是加密档也不放到 Pages 上）
+exclude:
+  - backups
+  - _backups
+  - AppsScript
+  - BA
