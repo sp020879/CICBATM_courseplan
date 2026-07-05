@@ -7263,7 +7263,11 @@ async function seedMasterFromTM(){
 
 // ── 辅导员老师名单 ────────────────────────────────────────────
 function getAdvisors(){
-  try{return JSON.parse(localStorage.getItem('cic_advisors')||'[]');}catch(e){return[];}
+  let saved=[];
+  try{ saved=JSON.parse(localStorage.getItem('cic_advisors')||'[]'); }catch(e){ saved=[]; }
+  // 名单自愈:并入学生身上真实的 advisor 值,即便 localStorage 空了(清缓存/换设备)也不会"丢名单"
+  const fromStu=(DB.students||[]).map(s=>(s.advisor||'').trim()).filter(Boolean);
+  return [...new Set([...saved, ...fromStu])].sort();
 }
 function saveAdvisors(list){
   localStorage.setItem('cic_advisors',JSON.stringify(list));
