@@ -5872,6 +5872,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
   adjustShellMargin();
   window.addEventListener('resize', adjustShellMargin);
+  // 修「tab 下方内容有时不显示」的时序 bug:顶栏高度一变(数据载入/换行/内容变)就自动重算 shell
+  try{
+    const _bar=document.querySelector('.bar');
+    if(_bar && window.ResizeObserver){ new ResizeObserver(()=>adjustShellMargin()).observe(_bar); }
+  }catch(e){}
+  requestAnimationFrame(adjustShellMargin);   // 首帧后补一次
+  setTimeout(adjustShellMargin, 300);          // 数据/字体载入后再补
+  setTimeout(adjustShellMargin, 1200);
   // 预热 Supabase（避免冷启动延迟）
   setTimeout(()=>{
     fetch(`${SUPABASE_URL}/rest/v1/programs?select=id&limit=1`,{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).catch(()=>{});
