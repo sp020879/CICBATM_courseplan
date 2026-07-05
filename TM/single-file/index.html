@@ -8025,8 +8025,9 @@ function renderWorkbench(){
       }).length;
       const _cntBadge = _notDoneCnt === 0 ? ''
         : `<span class="wb-undone-cnt ${_notDoneCnt===studs.length?'all':'part'}" title="${_notDoneCnt}/${studs.length} 位尚未修完">${_notDoneCnt}</span>`;
+      const _semTakers = studs.filter(s => (s.courses||{})[co.c] === TARGET).length;   // 本学期(目标学期)修此课人数
       h += `<td class="wb-cell-code">${_cntBadge}${co.c}${_aliasNote(co.c)}</td>`;
-      h += `<td class="wb-cell-name">${co.n||''}</td>`;
+      h += `<td class="wb-cell-name">${co.n||''}${_semTakers>0?` <span style="font-size:9px;font-weight:600;color:#0369a1;background:#e0f2fe;border-radius:3px;padding:0 5px;white-space:nowrap" title="本学期(${TARGET})有 ${_semTakers} 位学生修此课">本学期 ${_semTakers} 人</span>`:''}</td>`;
       h += `<td class="wb-cell-cr">${co.cr||3}</td>`;
       studs.forEach(s => {
         const val = (s.courses||{})[co.c];
