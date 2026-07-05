@@ -7324,15 +7324,39 @@ function addAdvisor(){
   // 更新编辑学生的辅导员老师下拉
   renderAdvisorDropdowns();
 }
-function delAdvisor(idx){
+async function delAdvisor(idx){
   const list=getAdvisors();
   const name=list[idx];
-  const count=DB.students.filter(s=>s.advisor===name).length;
-  if(!confirm(`确认删除辅导员老师「${name}」？${count>0?`\n\n⚠ 有 ${count} 位学生指定此辅导员老师，删除后学生记录不受影响。`:''}`)){ return; }
-  list.splice(idx,1);
-  saveAdvisors(list);
-  renderAdvisorList();
-  renderAdvisorDropdowns();
+  const affected=DB.students.filter(s=>s.advisor===name);
+  const count=affected.length;
+  const _removeLocal=()=>{ let saved=[]; try{ saved=JSON.parse(localStorage.getItem('cic_advisors')||'[]'); }catch(e){} saveAdvisors(saved.filter(n=>n!==name)); };
+  if(count===0){
+    // 无学生挂靠 → 纯本地名单项,直接删得掉
+    if(!confirm(`确认从名单移除「${name}」？`)) return;
+    _removeLocal(); renderAdvisorList(); renderAdvisorDropdowns();
+    return;
+  }
+  // 有学生 → 名单会从学生资料自愈,必须先把学生改派,删除才生效
+  const others=list.filter(n=>n!==name);
+  const _toks=x=>String(x).toLowerCase().replace(/[^a-z一-龥]+/g,' ').split(/\s+/).filter(w=>w&&!['aj','mr','ms','mrs','dr'].includes(w));
+  const _my=new Set(_toks(name)); let _guess='',_best=0;
+  others.forEach(o=>{ const sc=_toks(o).filter(w=>_my.has(w)).length; if(sc>_best){_best=sc;_guess=o;} });
+  const target=prompt(`「${name}」还挂着 ${count} 位学生。\n名单会从学生资料自动补齐,所以要删掉它,得先把这 ${count} 位学生改派给另一位辅导员。\n\n输入要改派到的辅导员姓名(留空=取消):\n现有:${others.join(' / ')||'(无其他辅导员)'}`, _guess);
+  if(target===null) return;
+  const tgt=(target||'').trim();
+  if(!tgt){ alert('未输入改派对象,已取消。'); return; }
+  if(tgt===name){ alert('改派对象不能是它自己。'); return; }
+  if(!confirm(`把 ${count} 位学生从「${name}」改派到「${tgt}」,再从名单移除「${name}」?`)) return;
+  let ok=0, fail=0;
+  for(const s of affected){
+    s.advisor=tgt;
+    try{ await apiSaveCounselor(s.id,{advisor:tgt,consent:s.counselor?.consent||'',consentNote:s.counselor?.consentNote||'',notes:JSON.stringify(s.counselorNotes||[])}); ok++; }
+    catch(e){ fail++; s.advisor=name; console.error(e); }   // 失败回滚本地值
+  }
+  _removeLocal();
+  renderAdvisorList(); renderAdvisorDropdowns();
+  if(typeof renderCards==='function') renderCards();
+  alert(`已改派 ${ok} 位${fail?` · ${fail} 位失败(未改动)`:''},并从名单移除「${name}」。`);
 }
 function renderAdvisorDropdowns(){
   // 更新新增/编辑学生 modal 里的辅导员老师输入框 → 改成 datalist
