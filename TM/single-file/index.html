@@ -329,6 +329,7 @@
           <input type="text" id="pm-id" placeholder="例：TM" style="text-transform:uppercase" oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').toUpperCase()"></div>
         <div class="fr"><label>专业名称</label><input type="text" id="pm-name" placeholder="例：Tourism Management"></div>
         <div class="fr"><label>总学分</label><input type="number" id="pm-cr" value="123"></div>
+        <div class="fr"><label title="毕业应修课程总数,不含实习——进度分母就用它">📚 总课数（不含实习）</label><input type="number" id="pm-total-c" value="38" min="1"></div>
       </div>
       <div class="pdf-drop" id="pm-drop" onclick="document.getElementById('f-pm-pdf').click()"
         ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')">
@@ -5286,6 +5287,7 @@ async function peConfirm(){
 function editProgName(){openProgEdit();}
 async function confirmAddProg(){
   const name=document.getElementById('pm-name').value.trim(),cr=parseInt(document.getElementById('pm-cr').value)||123;
+  const _totalC=parseInt(document.getElementById('pm-total-c')?.value)||0;   // 总课数(进度分母)
   const preCohorts=(document.getElementById('pm-precohorts')?.value||'').split(/[,\n]/).map(s=>s.trim().toUpperCase()).filter(Boolean);
   if(!name){alert('请填写专业名称');return;}
   if(window._allProgCourses)updateProgCount();
@@ -5308,7 +5310,7 @@ async function confirmAddProg(){
       { c:'INTERN_ALT2', n:'实习替代课 2', cr:3, g:'实习课程', _gtype:'skip', _gcr:0 }
     );
   }
-  const prog={id,name,totalCr:cr,courses:coursesWithIntern,preCohorts,meta:{ext2Enabled,internEnabled,extSlots}};
+  const prog={id,name,totalCr:cr,courses:coursesWithIntern,preCohorts,meta:{ext2Enabled,internEnabled,extSlots,...(_totalC>0?{totalC:_totalC}:{})}};
   if(DB.programs.find(p=>p.id===id)){
     if(!confirm(`专业 ID「${id}」已存在（${DB.programs.find(p=>p.id===id).name}），是否覆盖？`)) return;
     const i=DB.programs.findIndex(p=>p.id===id);DB.programs[i]=prog;
@@ -7857,7 +7859,10 @@ function renderWorkbench(){
   studs.forEach(s => {
     const p = calcProgress(s, allPC);
     const pct = p.totalC > 0 ? Math.round(p.doneC / p.totalC * 100) : 0;
-    const _nowReading = (typeof _quickCntSem==='function') ? _quickCntSem(s, NOW_SEM) : 0;  // 本学期(当下)在读门数
+    // 满额学期 = 该生所有课(不含实习)里最晚的那个学期 → "何时读满 totalC"
+    const _INTERN = (typeof _RULES!=='undefined' && _RULES.INTERN_CODES) ? _RULES.INTERN_CODES : new Set(['KT411','KT331','KT332']);
+    let _maxSV=0, _lastSem='';
+    Object.entries(s.courses||{}).forEach(([code,v])=>{ if(_INTERN.has(code)) return; const m=String(v||'').match(/^(25\d\d)\/([123])$/); if(m){ const sv=parseInt(m[1])*10+parseInt(m[2]); if(sv>_maxSV){_maxSV=sv; _lastSem=v;} } });
     const isGrad = p.remC === 0 && p.internOk;
     const overTag = p.overC > 0 ? `<span class="ss-over" title="实际多修 ${p.overC} 门">⚠ 超修 +${p.overC}</span>` : '';
     const gradTag = isGrad ? `<span class="ss-grad">🎓 达标</span>` : '';
@@ -7873,12 +7878,11 @@ function renderWorkbench(){
     const internCls = p.internOk ? 'ok' : (internSem ? 'planned' : 'unplanned');
     const internIcon = p.internOk ? '✓' : '待';
     const internLabel = internSem ? `${internIcon} 实 ${internSem}` : `${internIcon} 实习`;
-    h += `<th class="wb-thead-summary-cell" title="已修 ${p.doneC}/${p.totalC} 门${p.transferC>0?`（含转学分 ${p.transferC} 门 · 实修 ${p.doneC-p.transferC} 门）`:''} · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}${_nowReading>0?` · 本学期(${NOW_SEM})在读 ${_nowReading} 门`:''}">
+    h += `<th class="wb-thead-summary-cell" title="已修 ${p.doneC}/${p.totalC} 门${p.transferC>0?`（含转学分 ${p.transferC} 门 · 实修 ${p.doneC-p.transferC} 门）`:''} · 学分 ${p.doneCr}/${p.totalCr} · 实习${p.internOk?'已完成':'待完成'} · 剩 ${p.remC} 门${p.overC>0?' · 超修 '+p.overC+' 门':''}${(p.remC===0&&_lastSem)?` · 满 ${p.totalC} 门 @ ${_lastSem}（最后一门课学期，实习另计）`:''}">
       <div class="ss">
-        <div class="ss-prog">${pct}%</div>
         <div class="ss-bar"><i style="width:${Math.min(100,pct)}%;background:${isGrad?'var(--amber)':pct>=90?'var(--g6)':pct>=60?'var(--sky)':'var(--g5)'}"></i></div>
-        <div class="ss-c">${p.doneC}/${p.totalC}门${p.transferC>0?` <span style="color:#7c3aed;font-weight:700">转${p.transferC}</span>`:''} · ${p.doneCr}cr</div>
-        ${_nowReading>0?`<div style="font-size:8px;color:#0369a1;line-height:1.1;margin-top:1px;font-weight:600">📖 本学期在读 ${_nowReading} 门</div>`:''}
+        <div class="ss-c">${p.doneC}/${p.totalC}门${p.transferC>0?` <span style="color:#7c3aed;font-weight:700" title="转学分 ${p.transferC} 门">转${p.transferC}</span>`:''}</div>
+        ${(p.remC===0&&_lastSem)?`<div style="font-size:8px;color:#166534;line-height:1.1;margin-top:1px;font-weight:600" title="最后一门课学期(实习另计)">满${p.totalC} @ ${_lastSem}</div>`:''}
         <div class="ss-intern ${internCls}">${internLabel}</div>
         ${gradTag || overTag}
       </div>
