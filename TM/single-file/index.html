@@ -1860,6 +1860,7 @@ function toggleHideGrads(){
   // 重新渲染当前 tab
   const active = sessionStorage.getItem('activeTab')||'progress';
   if(active==='classtable') renderClassTable();
+  if(active==='workbench') renderWorkbench();   // ← 之前漏了,导致在工作台切换"无效"
   if(active==='overview') renderOverview();
 }
 function updateGradToggleLabel(){
