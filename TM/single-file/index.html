@@ -897,10 +897,19 @@ function setAuditWho(){
     alert(`✓ 已设定为「${v.trim()}」`);
   }
 }
-// ── 用户管理（仅主帐号） ─────────────────────────────
+// ── 用户管理（仅主帐号 · passcodes 已锁,全走带校验的 admin_* RPC） ──
+let _ADMIN_PIN = '';
+async function _adminRPC(fn, extra={}, minimal=true){
+  return sb('rpc/'+fn, { method:'POST', body: JSON.stringify({ p_pin: _ADMIN_PIN, ...extra }), ...(minimal?{prefer:'return=minimal'}:{}) });
+}
 async function openUserMgmt(){
   if(sessionStorage.getItem('cic_is_admin') !== '1'){
     alert('仅主帐号可使用此功能'); return;
+  }
+  if(!_ADMIN_PIN){
+    const pin = window.prompt('请输入你的管理员 PIN（用于校验用户管理操作）：');
+    if(!pin || !pin.trim()) return;
+    _ADMIN_PIN = pin.trim();
   }
   openModal('user-mgmt-modal');
   renderUserMgmt();
@@ -910,7 +919,7 @@ async function renderUserMgmt(){
   if(!el) return;
   el.innerHTML = '<div style="text-align:center;color:var(--ink3);font-size:11px;padding:10px">载入中...</div>';
   try{
-    const rows = await sb('passcodes?select=*&order=is_admin.desc,pin');
+    const rows = await sb('rpc/admin_list_passcodes', { method:'POST', body: JSON.stringify({ p_pin: _ADMIN_PIN }) });
     if(!rows.length){ el.innerHTML = '<div style="text-align:center;color:var(--ink3);font-size:11px;padding:10px">尚无任何用户</div>'; return; }
     el.innerHTML = rows.map(r => {
       const badge = r.is_admin
@@ -941,7 +950,8 @@ async function renderUserMgmt(){
       `;
     }).join('');
   }catch(e){
-    el.innerHTML = `<div style="color:var(--red);font-size:11px;padding:10px">载入失败：${e.message}</div>`;
+    _ADMIN_PIN = '';   // PIN 不对/校验失败 → 清掉,下次重新问
+    el.innerHTML = `<div style="color:var(--red);font-size:11px;padding:10px">载入失败：${e.message}<br>（管理员 PIN 可能不对,关掉重开再试）</div>`;
   }
 }
 async function addUserRow(){
@@ -950,14 +960,14 @@ async function addUserRow(){
   const name = window.prompt('名字（用于 audit log）：');
   if(!name || !name.trim()) return;
   try{
-    await sb('passcodes', { method:'POST', body: JSON.stringify({ pin: pin.trim(), name: name.trim(), enabled: true, is_admin: false }), prefer:'return=minimal' });
+    await _adminRPC('admin_add_passcode', { p_new_pin: pin.trim(), p_name: name.trim() });
     apiAudit('admin_add_user', 'passcode', pin.trim(), `新增「${name.trim()}」`);
     renderUserMgmt();
   }catch(e){ alert('新增失败：'+e.message+'\n\n（PIN 可能已存在）'); }
 }
 async function updateUser(pin, field, value){
   try{
-    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'PATCH', body: JSON.stringify({[field]: value}), prefer:'return=minimal' });
+    await _adminRPC('admin_update_passcode', { p_target: pin, p_field: field, p_value: String(value) });
     apiAudit('admin_update_user', 'passcode', pin, `改 ${field} = ${value}`);
   }catch(e){ alert('保存失败：'+e.message); }
 }
@@ -967,14 +977,14 @@ async function changeUserPin(oldPin){
   if(newPin.trim() === oldPin) return;
   if(!confirm(`确认把 PIN 从 ${oldPin} 改成 ${newPin.trim()}？`)) return;
   try{
-    await sb(`passcodes?pin=eq.${encodeURIComponent(oldPin)}`, { method:'PATCH', body: JSON.stringify({pin: newPin.trim()}), prefer:'return=minimal' });
+    await _adminRPC('admin_update_passcode', { p_target: oldPin, p_field: 'pin', p_value: newPin.trim() });
     apiAudit('admin_change_pin', 'passcode', newPin.trim(), `${oldPin} → ${newPin.trim()}`);
     renderUserMgmt();
   }catch(e){ alert('改 PIN 失败：'+e.message+'\n\n（新 PIN 可能已存在）'); }
 }
 async function toggleUserEnabled(pin, newVal){
   try{
-    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'PATCH', body: JSON.stringify({enabled: newVal}), prefer:'return=minimal' });
+    await _adminRPC('admin_update_passcode', { p_target: pin, p_field: 'enabled', p_value: String(newVal) });
     apiAudit('admin_toggle_enabled', 'passcode', pin, newVal ? '启用' : '停用');
     renderUserMgmt();
   }catch(e){ alert('切换失败：'+e.message); }
@@ -982,7 +992,7 @@ async function toggleUserEnabled(pin, newVal){
 async function toggleUserAdmin(pin, newVal){
   if(!confirm(newVal ? `把 ${pin} 设为主帐号？将能管理所有 PIN` : `撤销 ${pin} 的主帐号权限？`)) return;
   try{
-    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'PATCH', body: JSON.stringify({is_admin: newVal}), prefer:'return=minimal' });
+    await _adminRPC('admin_update_passcode', { p_target: pin, p_field: 'is_admin', p_value: String(newVal) });
     apiAudit('admin_toggle_admin', 'passcode', pin, newVal ? '设为主帐号' : '撤销主帐号');
     renderUserMgmt();
   }catch(e){ alert('切换失败：'+e.message); }
@@ -990,7 +1000,7 @@ async function toggleUserAdmin(pin, newVal){
 async function deleteUser(pin){
   if(!confirm(`确认删除 PIN ${pin}？\n\n此 PIN 之后无法登入。audit log 历史保留。`)) return;
   try{
-    await sb(`passcodes?pin=eq.${encodeURIComponent(pin)}`, { method:'DELETE', prefer:'return=minimal' });
+    await _adminRPC('admin_delete_passcode', { p_target: pin });
     apiAudit('admin_delete_user', 'passcode', pin, '删除用户');
     renderUserMgmt();
   }catch(e){ alert('删除失败：'+e.message); }
