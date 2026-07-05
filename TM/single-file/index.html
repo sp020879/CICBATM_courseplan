@@ -7904,8 +7904,17 @@ function renderWorkbench(){
     const cohort = s.classCode||autoClassCode(s.cohort,s.type,s.prog);
     const t = {'上':0,'下':0,'全':0};
     if(_SCHED_HALF) Object.entries(s.courses||{}).forEach(([code,val]) => {
-      if(val!==sem || /[^\x00-\x7F]/.test(code)) return;
-      const key = _bridge(code)+'|'+sem;
+      if(!val || val==='Transferred') return;
+      let realCode, semVal;
+      if(_extSlotRE4Cnt.test(code) || code==='ext2'){   // 外系槽:值是「代码|学期」,拆出真实码再查
+        const parts = String(val).split('|');
+        if(parts.length<2) return;                       // 外系没填代码 → 无从查上下半
+        realCode = parts[0]; semVal = parts[1];
+      } else if(!/[^\x00-\x7F]/.test(code)){
+        realCode = code; semVal = val;
+      } else { return; }                                 // 中文孤儿 key 跳过
+      if(semVal!==sem) return;
+      const key = _bridge(realCode)+'|'+sem;
       const m = (_SCHED_HALF_CO && _SCHED_HALF_CO[key+'|'+cohort]) || (_SCHED_HALF && _SCHED_HALF[key]);
       if(m==='上'||m==='下'||m==='全') t[m]++;
     });
