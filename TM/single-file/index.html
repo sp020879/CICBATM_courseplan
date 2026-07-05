@@ -7895,17 +7895,25 @@ function renderWorkbench(){
   studs.forEach(s => {
     const cnt = _quickCntSem(s, TARGET);
     const _onLeaveT = isOnLeaveAt(s, TARGET);
-    let cls, label;
-    if(_onLeaveT)         { cls='leave'; label='🌙'; }
-    else if(cnt===0)      { cls='zero';  label='·';  }
-    else if(cnt>cntCap)   { cls='over';  label=String(cnt); }
-    else                  { cls='ok';    label=String(cnt); }
+    let cls;
+    if(_onLeaveT)         cls='leave';
+    else if(cnt===0)      cls='zero';
+    else if(cnt>cntCap)   cls='over';
+    else                  cls='ok';
     const _capHint = _onLeaveT ? '' : `  上限 ${cntCap} 门`;
     const _sh = _onLeaveT ? {'上':0,'下':0,'全':0} : _studHalf(s, TARGET);
+    const _chip=(l,n,fg,bg)=> n?`<span style="display:inline-block;font-size:8px;font-weight:700;color:${fg};background:${bg};border-radius:3px;padding:0 3px;margin:0 1px">${l}${n}</span>`:'';
     const _shTxt = (_sh['上']||_sh['下']||_sh['全'])
-      ? `<div style="font-size:8px;line-height:1.1;margin-top:1px;white-space:nowrap;font-weight:600">${_sh['上']?`<span style="color:#1d4ed8">上${_sh['上']}</span>`:''}${_sh['下']?`<span style="color:#c2410c">下${_sh['下']}</span>`:''}${_sh['全']?`<span style="color:#64748b">全${_sh['全']}</span>`:''}</div>`
+      ? `<div style="margin-top:2px;line-height:1;white-space:nowrap">${_chip('上',_sh['上'],'#1d4ed8','#dbeafe')}${_chip('下',_sh['下'],'#c2410c','#ffedd5')}${_chip('全',_sh['全'],'#475569','#eef2f6')}</div>`
       : '';
-    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" title="${s.name} · ${TARGET}: ${cnt}门 (上${_sh['上']} 下${_sh['下']} 全${_sh['全']})${_capHint}">${label}${_shTxt}</th>`;
+    const _num = _onLeaveT ? '<span style="opacity:.6">🌙</span>'
+      : cnt===0 ? '<span style="color:#cbd5e1;font-weight:600">·</span>'
+      : `<span style="font-size:13px;font-weight:700;color:${cnt>cntCap?'#dc2626':'#334155'}">${cnt}${cnt>cntCap?' ⚠':''}</span>`;
+    const _cellSty = _onLeaveT ? 'background:#f8fafc'
+      : cnt===0 ? 'background:#fafafa'
+      : cnt>cntCap ? 'background:#fff;box-shadow:inset 0 0 0 1.5px #fca5a5'
+      : 'background:#fff';
+    h += `<th class="wb-thead-sem-cnt-cell cnt-${cls}" style="${_cellSty};text-align:center;vertical-align:middle" title="${s.name} · ${TARGET}: ${cnt}门 (上${_sh['上']} 下${_sh['下']} 全${_sh['全']})${_capHint}">${_num}${_shTxt}</th>`;
   });
   h += '</tr></thead><tbody>';
 
