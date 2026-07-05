@@ -1365,6 +1365,7 @@ async function init() {
   const _whoEl = document.getElementById('audit-who-label');
   if(_whoEl) _whoEl.textContent = getAuditWho();
   try {
+    const _masterP = apiGetMaster().catch(()=>[]);   // 与 apiGetAll 并行拉取,省一个网络往返(两者互相独立)
     const data = await apiGetAll();
     DB.students = (data.students||[]).map(s=>({...s,classCode:s.classCode||autoClassCode(s.cohort,s.type,s.prog)}));
     DB.programs = data.programs && data.programs.length
@@ -1391,7 +1392,7 @@ async function init() {
     if(DB.programs.length) activeProg=DB.programs[0].id;
     // 拉取课程库 master list
     try{
-      DB.masterCourses = await apiGetMaster();
+      DB.masterCourses = await _masterP;   // 上面已并行发起
       _rebuildMasterIndex();
     }catch(e){ DB.masterCourses = []; }
     render();
@@ -5522,7 +5523,7 @@ async function _ctReconcileBA(){
     (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{ if(x&&x.cohort) o.cohorts[x.cohort]=(o.cohorts[x.cohort]||0)+(x.count||0); });
     if(r.half) o.halves.add(String(r.half).replace('学期',''));
   });
-  let issues=0, rows='';
+  let issues=0, rows=''; const _statCnt={missing:0,lack:0,diff:0,extra:0};
   Object.keys(tm).sort().forEach(code=>{
     const t=tm[code], b=ba[code], det=[]; let stat='ok';
     if(!b){ stat='missing'; }
@@ -5534,7 +5535,7 @@ async function _ctReconcileBA(){
       Object.keys(b.cohorts).forEach(ch=>{ if(ch.startsWith(short)&&!(ch in t)){ if(stat==='ok')stat='extra'; det.push(`BA多出 ${ch}(${b.cohorts[ch]})`); } });
     }
     if(stat==='ok') return;
-    issues++;
+    issues++; _statCnt[stat]++;
     const badge={missing:'🔴 BA未排此课',lack:'🟠 BA缺届别',diff:'🟡 人数不符',extra:'🟣 BA多出届别'}[stat];
     const half=b?([...b.halves].join('/')||'—'):'—';
     rows+=`<tr style="border-top:1px solid #eee"><td style="padding:5px 8px;font-family:var(--mono);font-weight:600">${code}</td><td style="padding:5px 8px;white-space:nowrap">${badge}</td><td style="padding:5px 8px;font-size:11px;color:#4b5563">${det.join('；')||'—'}</td><td style="padding:5px 8px;text-align:center">${half}</td></tr>`;
@@ -5544,9 +5545,12 @@ async function _ctReconcileBA(){
   let _semOpts='';
   for(let y=_semNow-3;y<=_semNow+2;y++){ for(let k=1;k<=3;k++){ const sv=y+'/'+k; _semOpts+=`<option value="${sv}" ${sv===sem?'selected':''}>${sv}${sv===NOW_SEM?' ·当前':''}</option>`; } }
   const _semSel=`<select onchange="window._ctSem=this.value;_ctReconcileBA()" title="切换对账学期" style="padding:3px 8px;border:1px solid var(--g6);border-radius:6px;background:#fff;color:#374151;font-family:var(--mono);font-size:12px;cursor:pointer;height:26px">${_semOpts}</select>`;
+  // 按状态汇总条(一眼看清各类问题各几处)
+  const _sc=(emo,lbl,n,fg,bg)=> n?`<span style="display:inline-block;font-size:11px;color:${fg};background:${bg};border:1px solid ${fg}22;border-radius:5px;padding:2px 8px;margin-right:6px;font-weight:600">${emo} ${lbl} ${n}</span>`:'';
+  const _statBar=_sc('🔴','未排',_statCnt.missing,'#991b1b','#fef2f2')+_sc('🟠','缺届别',_statCnt.lack,'#9a3412','#fff7ed')+_sc('🟡','人数',_statCnt.diff,'#854d0e','#fefce8')+_sc('🟣','BA多出',_statCnt.extra,'#6b21a8','#faf5ff');
   body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:14px">🔗 对账 BA 排课 · ${short}</b><div style="display:flex;gap:8px;align-items:center"><span style="font-size:11px;color:#6b7280">学期</span>${_semSel}<button onclick="_ctExportCSV()" title="导出本学期排课 CSV,去 BA『导入排课』上传" style="padding:3px 10px;border:1px solid var(--g6);border-radius:6px;background:#f0fdf4;color:var(--g8);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)">📥 导出 CSV → 导入 BA</button><button onclick="document.getElementById('recon-ov').remove()" style="border:none;background:#f3f4f6;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px">✕</button></div></div><div style="font-size:11px;color:#6b7280;background:#f9fafb;border:1px solid #eee;border-radius:6px;padding:6px 9px;margin-bottom:8px;line-height:1.6">流程:看下方差异 → 点「📥 导出 CSV」→ 到 BA『导入排课』上传这份 CSV(BA 按 <b>课程+学期</b> 更新)。<b>TM 不直接写 BA</b>,写入走 BA 自己的导入校验。</div>`
     +(issues
-      ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px">发现 <b>${issues}</b> 处不一致 · 纯只读,未改任何数据</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;text-align:left"><th style="padding:6px 8px">课程</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">明细(TM/BA)</th><th style="padding:6px 8px;text-align:center">BA上下半</th></tr></thead><tbody>${rows}</tbody></table>`
+      ? `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 0;margin-bottom:8px"><span style="font-size:12px;color:#b45309;margin-right:10px">发现 <b>${issues}</b> 处不一致 · 纯只读</span>${_statBar}</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;text-align:left"><th style="padding:6px 8px">课程</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">明细(TM/BA)</th><th style="padding:6px 8px;text-align:center">BA上下半</th></tr></thead><tbody>${rows}</tbody></table>`
       : `<div style="color:#16a34a;padding:10px 0">✅ ${sem} · TM 与 BA 完全一致,没有需要处理的差异。</div>`)
     +`<div style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.6">口径:只对账 ${short} 学生修的课、只比 ${short} 届别;外系选修/中文 slot 不含。BA 数据实时来自 Supabase。<br>🔴 BA完全没排 · 🟠 BA有课但缺某届别 · 🟡 某届别人数对不上 · 🟣 BA有此届别但TM无(可能TM已删/漂移)。</div>`;
 }
