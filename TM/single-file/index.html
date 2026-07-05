@@ -698,6 +698,7 @@ async function doLogin(){
       const match = rows[0];
       sessionStorage.setItem('cic_auth','1');
       sessionStorage.setItem('cic_is_admin', match.is_admin ? '1' : '0');
+      sessionStorage.setItem('cic_token', match.token || '');   // Stage1:存 session 令牌(后续读写 RPC 用)
       // 登入成功 → 自动设 audit_who 为对应名字
       localStorage.setItem('audit_who', match.name);
       const _whoEl = document.getElementById('audit-who-label');
@@ -736,6 +737,7 @@ function checkAuth(){
 function logout(){
   sessionStorage.removeItem('cic_auth');
   sessionStorage.removeItem('cic_is_admin');
+  sessionStorage.removeItem('cic_token');
   const _adminBtn = document.getElementById('user-mgmt-btn');
   if(_adminBtn) _adminBtn.style.display = 'none';
   const ov=document.getElementById('login-overlay');
