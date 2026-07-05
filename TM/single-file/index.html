@@ -1055,14 +1055,15 @@ async function apiGetAll() {
   } catch(e) { setSyncError(); throw e; }
 }
 
+// Stage3:带令牌校验的学生写(失败退回直写,尚未锁 → 零风险)
+async function _stuWrite(fn, extra){
+  return sb('rpc/'+fn, { method:'POST', body: JSON.stringify({ p_token: sessionStorage.getItem('cic_token')||'', ...extra }), prefer:'return=minimal' });
+}
 async function apiSaveStudent(s) {
   setSyncing(true);
   try {
-    await sb('students', {
-      method: 'POST',
-      body: JSON.stringify(toRow(s)),
-      prefer: 'resolution=merge-duplicates,return=minimal'
-    });
+    await _stuWrite('upsert_student', { p_row: toRow(s) })
+      .catch(() => sb('students', { method:'POST', body: JSON.stringify(toRow(s)), prefer:'resolution=merge-duplicates,return=minimal' }));
     setSyncing(false);
     apiAudit('save_student', 'student', s.id, `${s.cname||''} ${s.name||''}`.trim());
   } catch(e) { setSyncError(); throw e; }
@@ -1072,7 +1073,8 @@ async function apiDeleteStudent(id) {
   const s = DB.students.find(x => x.id === id);
   setSyncing(true);
   try {
-    await sb(`students?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await _stuWrite('delete_student', { p_id: id })
+      .catch(() => sb(`students?id=eq.${encodeURIComponent(id)}`, { method:'DELETE', prefer:'return=minimal' }));
     setSyncing(false);
     apiAudit('delete_student', 'student', id, s ? `${s.cname||''} ${s.name||''}`.trim() : id);
   } catch(e) { setSyncError(); throw e; }
@@ -1085,11 +1087,8 @@ async function apiSaveCourse(studentId, courseCode, value) {
   if (value) s.courses[courseCode] = value; else delete s.courses[courseCode];
   setSyncing(true);
   try {
-    await sb(`students?id=eq.${encodeURIComponent(studentId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ courses: s.courses, updated_at: new Date().toISOString() }),
-      prefer: 'return=minimal'
-    });
+    await _stuWrite('upsert_student', { p_row: { id: studentId, courses: s.courses, updated_at: new Date().toISOString() } })
+      .catch(() => sb(`students?id=eq.${encodeURIComponent(studentId)}`, { method:'PATCH', body: JSON.stringify({ courses: s.courses, updated_at: new Date().toISOString() }), prefer:'return=minimal' }));
     setSyncing(false);
     const stuName = `${s.cname||''} ${s.name||''}`.trim();
     apiAudit('update_course', 'student', studentId, `${stuName} · ${courseCode}: ${before||'空'} → ${value||'清空'}`, {[courseCode]:before}, {[courseCode]:value});
@@ -1102,11 +1101,8 @@ async function apiSaveTep(studentId, type, data) {
   if (data && Object.keys(data).length) s.tep[type] = data; else delete s.tep[type];
   setSyncing(true);
   try {
-    await sb(`students?id=eq.${encodeURIComponent(studentId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ tep: s.tep }),
-      prefer: 'return=minimal'
-    });
+    await _stuWrite('upsert_student', { p_row: { id: studentId, tep: s.tep } })
+      .catch(() => sb(`students?id=eq.${encodeURIComponent(studentId)}`, { method:'PATCH', body: JSON.stringify({ tep: s.tep }), prefer:'return=minimal' }));
     setSyncing(false);
     apiAudit('save_tep', 'student', studentId, `${s.cname||''} ${s.name||''} · ${type}`.trim(), null, data);
   } catch(e) { setSyncError(); throw e; }
@@ -1117,11 +1113,8 @@ async function apiSaveGpa(studentId, gpa, updatedAt) {
   const before = s.gpa;
   setSyncing(true);
   try {
-    await sb(`students?id=eq.${encodeURIComponent(studentId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ gpa, gpa_history: s.gpaHistory || [], gpa_updated: updatedAt }),
-      prefer: 'return=minimal'
-    });
+    await _stuWrite('upsert_student', { p_row: { id: studentId, gpa, gpa_history: s.gpaHistory || [], gpa_updated: updatedAt } })
+      .catch(() => sb(`students?id=eq.${encodeURIComponent(studentId)}`, { method:'PATCH', body: JSON.stringify({ gpa, gpa_history: s.gpaHistory || [], gpa_updated: updatedAt }), prefer:'return=minimal' }));
     setSyncing(false);
     apiAudit('save_gpa', 'student', studentId, `${s.cname||''} ${s.name||''} · GPA ${before||'—'} → ${gpa}`.trim(), {gpa:before}, {gpa});
   } catch(e) { setSyncError(); throw e; }
@@ -1131,17 +1124,9 @@ async function apiSaveCounselor(studentId, data) {
   const s = DB.students.find(x => x.id === studentId); if (!s) return;
   setSyncing(true);
   try {
-    await sb(`students?id=eq.${encodeURIComponent(studentId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        advisor: data.advisor || s.advisor || '',
-        status: s.status || '就读',
-        counselor: data,
-        counselor_notes: s.counselorNotes || [],
-        updated_at: new Date().toISOString()
-      }),
-      prefer: 'return=minimal'
-    });
+    const _cf = { advisor: data.advisor || s.advisor || '', status: s.status || '就读', counselor: data, counselor_notes: s.counselorNotes || [], updated_at: new Date().toISOString() };
+    await _stuWrite('upsert_student', { p_row: { id: studentId, ..._cf } })
+      .catch(() => sb(`students?id=eq.${encodeURIComponent(studentId)}`, { method:'PATCH', body: JSON.stringify(_cf), prefer:'return=minimal' }));
     setSyncing(false);
     apiAudit('save_counselor', 'student', studentId, `${s.cname||''} ${s.name||''}`.trim(), null, data);
   } catch(e) { setSyncError(); throw e; }
@@ -1157,11 +1142,8 @@ async function apiSaveBatch(students) {
   setSyncing(true);
   try {
     const rows = unique.map(toRow);
-    await sb('students', {
-      method: 'POST',
-      body: JSON.stringify(rows),
-      prefer: 'resolution=merge-duplicates,return=minimal'
-    });
+    await _stuWrite('upsert_students', { p_rows: rows })
+      .catch(() => sb('students', { method:'POST', body: JSON.stringify(rows), prefer:'resolution=merge-duplicates,return=minimal' }));
     setSyncing(false);
     apiAudit('save_batch', 'student', null, `批次保存 ${unique.length} 位学生`, null, {count: unique.length, ids: unique.map(s=>s.id).slice(0,20)});
   } catch(e) { setSyncError(); throw e; }
@@ -8721,11 +8703,8 @@ async function _wbBatchClearSem(sem){
     codes.forEach(code => delete newCourses[code]);
     s.courses = newCourses;
     try{
-      await sb(`students?id=eq.${encodeURIComponent(s.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ courses: newCourses, updated_at: new Date().toISOString() }),
-        prefer: 'return=minimal'
-      });
+      await _stuWrite('upsert_student', { p_row: { id: s.id, courses: newCourses, updated_at: new Date().toISOString() } })
+        .catch(() => sb(`students?id=eq.${encodeURIComponent(s.id)}`, { method:'PATCH', body: JSON.stringify({ courses: newCourses, updated_at: new Date().toISOString() }), prefer:'return=minimal' }));
       apiAudit('batch_clear_sem', 'student', s.id,
         `批量清空 ${sem}（${codes.length} 门: ${codes.join(', ')}）`,
         before, newCourses);
