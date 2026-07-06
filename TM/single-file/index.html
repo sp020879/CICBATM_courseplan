@@ -8724,9 +8724,27 @@ async function _wbApply(action){
       ? `选中 ${sel.length} 格：\n  ✓ ${toWrite.length} 格空 → 填 ${_WB.targetSem}\n  ⏭ ${toSkip.length} 格已有值 → 跳过\n\n继续？`
       : `将以下 ${toWrite.length} 格填 ${_WB.targetSem}？\n（同步到 Supabase）`;
     if(!confirm(msg)) return;
+  } else if(action === 'clear'){
+    // 清空:保护 ✈Transferred(已抵免)不被批量误清 —— 要清某格 Transferred 请切「单次排课」点该格在弹窗改
+    const _cellSem = key => {
+      const [sid, code] = key.split('|');
+      const raw = (DB.students.find(x=>x.id===sid)?.courses||{})[code] || '';
+      if(code==='ext2' || /^ext_\d+$/.test(code)){ const p=raw.split('|'); return p.length>1?p[1]:raw; }
+      return raw;
+    };
+    toSkip  = sel.filter(k => _cellSem(k) === 'Transferred');
+    toWrite = sel.filter(k => _cellSem(k) !== 'Transferred');
+    if(!toWrite.length){
+      alert(`所选 ${sel.length} 格都是 ✈Transferred(已抵免)· 已保护,未清空。\n\n如确需清除某格 Transferred:切到「单次排课」点该格,在弹窗里改。`);
+      return;
+    }
+    const msg = toSkip.length
+      ? `清空 ${sel.length} 格:\n  ✓ ${toWrite.length} 格 → 清空\n  🛡 ${toSkip.length} 格 ✈Transferred → 保护(不清)\n\n继续？`
+      : `将以下 ${toWrite.length} 格清空？\n（不可还原 · 同步 Supabase）`;
+    if(!confirm(msg)) return;
   } else {
-    const label = action === 'transfer' ? 'Transferred' : '清空';
-    if(!confirm(`将以下 ${sel.length} 格 ${label}？\n（不可还原 · 同步 Supabase）`)) return;
+    // transfer:标记 Transferred(按用户明确意图覆盖)
+    if(!confirm(`将以下 ${sel.length} 格 标记 ✈Transferred？\n（同步 Supabase）`)) return;
   }
 
   const newVal = action === 'fill' ? _WB.targetSem
