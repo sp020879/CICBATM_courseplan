@@ -3385,7 +3385,7 @@ function openCell(sid,code,pid){
   // 进入前先清掉 readonly class（避免之前查看模式残留）
   const _cm=document.getElementById('cell-modal'); if(_cm) _cm.classList.remove('readonly');
   const cur=(s.courses||{})[code]||'';
-  cellCtx={sid,code,pid:pid||activeProg}; pickedVal=cur;
+  cellCtx={sid,code,pid:pid||activeProg,orig:cur}; pickedVal=cur;
   document.getElementById('cm-n').textContent=shortName(s.name);
   document.getElementById('cm-i').textContent=`${s.cohort}届 · ${s.id}`;
   document.getElementById('cm-chip').innerHTML=`<div class="ccode">${course.c} · ${course.cr}学分</div><div class="cname">${course.n}</div><div class="cgrp">${course.g}</div>${cur?`<div class="ccur">目前：<span class="cur-pill">${cur}</span></div>`:''}`;
@@ -3405,6 +3405,12 @@ async function confirmCell(){
   if(!cellCtx) return;
   const s=DB.students.find(x=>x.id===cellCtx.sid); if(!s) return;
   if(!s.courses) s.courses={};
+  // 防误改:原本 ✈Transferred(已抵免)却要改成别的 → 二次确认(眼花点错也拦得住)
+  const _origT = cellCtx.orig === 'Transferred' || String(cellCtx.orig||'').endsWith('|Transferred');
+  if(_origT && pickedVal !== 'Transferred'){
+    const _to = pickedVal ? `「${pickedVal}」` : '清除(未修)';
+    if(!confirm(`⚠ 这格原本是 ✈ Transferred(已抵免)\n\n确定要改成 ${_to} 吗？`)) return;
+  }
   if(cellCtx.isExt){
     const codeInp=document.getElementById('ext-modal-code');
     const code=(codeInp?.value||cellCtx.extCode||'').trim().toUpperCase();
@@ -3647,7 +3653,7 @@ function openExtCell(sid, slot, co, n) {
     rawSem = looksLikeSem ? only : '';
   }
   const curSem=rawSem&&/^\d\/25\d\d$/.test(rawSem)?(rawSem.match(/^(\d)\/(25\d\d)$/)||[])[2]+'/'+rawSem.split('/')[0]:rawSem;
-  cellCtx={sid,code:slot,pid:activeProg,isExt:true,extCode:curCode,extCo:co,extN:n};
+  cellCtx={sid,code:slot,pid:activeProg,isExt:true,extCode:curCode,extCo:co,extN:n,orig:val};
   pickedVal=curSem||'';
   document.getElementById('cm-n').textContent=shortName(s.name);
   document.getElementById('cm-i').textContent=s.cohort+'届 · '+s.id;
@@ -8128,8 +8134,8 @@ function renderWorkbench(){
         const _targetLeave = isOnLeaveAt(s, TARGET);
         let cellStyle = '', cellTxt = '·';
         if(isTrans){
-          cellStyle = 'background:#dbeafe;color:#1e40af;font-size:7.5px;letter-spacing:-.4px;font-weight:600';
-          cellTxt = 'Transferred';
+          cellStyle = 'background:#bfdbfe;color:#1e3a8a;font-size:9px;font-weight:700;letter-spacing:0;box-shadow:inset 0 0 0 1px #60a5fa';
+          cellTxt = '✈抵免';
         } else if(hasVal){
           cellStyle = (val === TARGET) ? globalSemStyleBold(val) : globalSemStyle(val);
           cellTxt = val + _halfMark(co.c, val, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm');
@@ -8215,8 +8221,8 @@ function renderWorkbench(){
 
         let cellStyle = '', cellTxt = '·', tip = '';
         if(isTrans){
-          cellStyle = 'background:#dbeafe;color:#1e40af;font-size:7.5px;letter-spacing:-.4px;font-weight:600';
-          cellTxt = 'Transferred';
+          cellStyle = 'background:#bfdbfe;color:#1e3a8a;font-size:9px;font-weight:700;letter-spacing:0;box-shadow:inset 0 0 0 1px #60a5fa';
+          cellTxt = '✈抵免';
         } else if(hasVal){
           cellStyle = (sem === TARGET) ? globalSemStyleBold(sem) : globalSemStyle(sem);
           cellTxt = sem;
