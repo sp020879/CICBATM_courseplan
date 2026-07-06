@@ -4758,6 +4758,7 @@ let _SCHED_HALF=null;      // 课程级(退回/班级课表)：{ 'KB217|2569/1':
 let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|2569/1|TM67':'下' }
 let _schedLoading=false;
 let _CODE_ALIAS=null;     // 代码桥:{官方码 → schedule 实际码}(catalog 当前专业的 1:1 mapping)
+let _PARTNER=null;        // 等价码双向表:{ LA131↔LA161 }(同一门课两个码;即便两码都真实排课也收,用于半学期镜像)
 function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
 function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='全') ? '上下' : cur; }
 // 手动课程对接(catalog 没覆盖、或两个都是真实码而自动闸挡掉的同课不同码)。往里加一行即可。
@@ -4794,11 +4795,19 @@ async function loadSchedHalves(force){
     try{
       const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
       const crows=await fetch(`${_BA_SUPA_URL}/rest/v1/catalog?dept=eq.${encodeURIComponent(short)}&select=code,mapping`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
-      const al={};
+      const al={}, partner={};
       (Array.isArray(crows)?crows:[]).forEach(r=>{ const c=String(r.code||'').trim().toUpperCase(), m=String(r.mapping||'').trim().toUpperCase();
-        if(c&&m&&!m.includes('待定')&&!/[+/,、]/.test(m)&&!schedCodes.has(m)) al[m]=c; });   // 只收 1:1 纯替身码(m 本身不是实际排课码)→ 实际码 c
-      _CODE_ALIAS=al;
-    }catch(e){ _CODE_ALIAS=_CODE_ALIAS||{}; }
+        if(c&&m&&!m.includes('待定')&&!/[+/,、]/.test(m)){
+          partner[c]=m; partner[m]=c;                 // 双向等价(同课不同码),两码都真实也收
+          if(!schedCodes.has(m)) al[m]=c;             // 旧代码桥:只收 1:1 纯替身码(m 非实际排课码)→ 实际码 c
+        }
+      });
+      _CODE_ALIAS=al; _PARTNER=partner;
+      // 半学期镜像:把某码在某学期/届别的上下半标记,同时写到它的等价码上。
+      // 这样 TM 用官方码 LA131 也能取到 BA 排在等价码 LA161 下的 2569/2 下半;而 2569/1 上半仍走 LA131 自身,互不覆盖(按学期/届别精确)。
+      Object.keys(_SCHED_HALF).forEach(k=>{ const i=k.indexOf('|'); const p=partner[k.slice(0,i)]; if(p){ const nk=p+k.slice(i); _SCHED_HALF[nk]=_mergeMark(_SCHED_HALF[nk],_SCHED_HALF[k]); } });
+      Object.keys(_SCHED_HALF_CO).forEach(k=>{ const i=k.indexOf('|'); const p=partner[k.slice(0,i)]; if(p){ const nk=p+k.slice(i); _SCHED_HALF_CO[nk]=_mergeMark(_SCHED_HALF_CO[nk],_SCHED_HALF_CO[k]); } });
+    }catch(e){ _CODE_ALIAS=_CODE_ALIAS||{}; _PARTNER=_PARTNER||{}; }
   }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
 }
