@@ -723,6 +723,8 @@ async function doLogin(){
       if(errEl) errEl.textContent='';
       // 记录登入 audit
       if(typeof apiAudit === 'function') apiAudit('login', 'system', null, `${match.name} 登入`);
+      // 拿到新令牌 → 重新加载数据(修:页面加载时若令牌过期读到空 0 学生,登入后补上)
+      if(typeof init === 'function') init();
     } else {
       if(errEl) errEl.textContent='PIN 错误，请再试一次';
       if(inp){ inp.value=''; inp.focus(); inp.style.borderColor='#dc2626'; setTimeout(()=>inp.style.borderColor='#e5e7eb',1500); }
@@ -743,6 +745,18 @@ function checkAuth(){
     ov.style.display='flex';
     setTimeout(()=>document.getElementById('pw-input')?.focus(), 100);
   }
+}
+// 令牌失效(12h 过期 / 无效)→ 强制重新登入。Stage4 锁表后 students 直读只会得空,
+// 不能再静默兜底假装"0 学生";必须弹登录框让用户重取令牌。
+function _sessionExpired(){
+  const wasAuthed = sessionStorage.getItem('cic_auth')==='1';
+  sessionStorage.removeItem('cic_auth');
+  sessionStorage.removeItem('cic_token');
+  const ov=document.getElementById('login-overlay');
+  if(ov) ov.style.display='flex';
+  if(wasAuthed){ const err=document.getElementById('pw-error'); if(err) err.textContent='登录已过期,请重新登入'; }
+  const inp=document.getElementById('pw-input');
+  if(inp){ setTimeout(()=>inp.focus(),100); }
 }
 function logout(){
   sessionStorage.removeItem('cic_auth');
@@ -1054,7 +1068,7 @@ async function apiGetAll() {
     const _tok = sessionStorage.getItem('cic_token') || '';
     const [students, programs] = await Promise.all([
       sb('rpc/list_students', { method:'POST', body: JSON.stringify({ p_token: _tok }) })
-        .catch(() => sb('students?select=*&order=id')),   // Stage2 过渡:RPC 失败暂退回直读(students 尚未锁)
+        .catch(() => { _sessionExpired(); return []; }),   // Stage4:令牌失效→弹登录框(students 已锁,直读只会得空)
       sb('programs?select=*')
     ]);
     setSyncing(false);
