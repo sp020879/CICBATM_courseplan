@@ -4759,13 +4759,22 @@ let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|256
 let _schedLoading=false;
 let _CODE_ALIAS=null;     // 代码桥:{官方码 → schedule 实际码}(catalog 当前专业的 1:1 mapping)
 let _PARTNER=null;        // 等价码双向表:{ LA131↔LA161 }(同一门课两个码;即便两码都真实排课也收,用于半学期镜像)
+let _SCHED_CODES=null;    // BA schedule 实际用到的所有课码(Set),给 ↔ 备注小标判断「对接码是否真被排过」
 function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
 function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='全') ? '上下' : cur; }
 // 手动课程对接(catalog 没覆盖、或两个都是真实码而自动闸挡掉的同课不同码)。往里加一行即可。
 const _MANUAL_ALIAS = { 'KG155':'GE172' };   // TM 码 → BA schedule 码
 function _bridge(code){ const c=String(code||'').toUpperCase(); return _MANUAL_ALIAS[c] || (_CODE_ALIAS&&_CODE_ALIAS[c]) || c; }
 // 备注小标:某课手动对接了 BA 另一个码时,在代码旁显示 ↔BA码
-function _aliasNote(code){ const c=String(code||'').toUpperCase(); const a=_MANUAL_ALIAS[c]; return a?`<span style="margin-left:4px;font-size:8px;font-weight:600;color:#7c3aed;background:#f3e8ff;border-radius:3px;padding:0 3px;vertical-align:middle" title="TM ${c} 与 BA ${a} 是同一门课;上下半取自 ${a}">↔${a}</span>`:''; }
+function _aliasNote(code){
+  const c=String(code||'').toUpperCase();
+  let a=_MANUAL_ALIAS[c];                                    // 手动对接优先
+  if(!a && _PARTNER && _PARTNER[c]){                          // 自动等价:只标 BA 实际排过课的等价码(上下半可能取自它)
+    const rel=_PARTNER[c].filter(p=> _SCHED_CODES ? _SCHED_CODES.has(p) : true);
+    if(rel.length) a=rel.join(',');
+  }
+  return a?`<span style="margin-left:4px;font-size:8px;font-weight:600;color:#7c3aed;background:#f3e8ff;border-radius:3px;padding:0 3px;vertical-align:middle" title="TM ${c} 与 ${a} 是同一门课(对接);上下半可能取自 ${a}">↔${a}</span>`:'';
+}
 async function loadSchedHalves(force){
   if(_schedLoading) return;
   if(_SCHED_HALF && !force) return;
@@ -4790,7 +4799,7 @@ async function loadSchedHalves(force){
         });
       });
     }
-    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo;
+    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo; _SCHED_CODES=schedCodes;
     // 代码桥:catalog 当前专业的 1:1 mapping(官方码→实际码),让 TM 用官方码的课也对得上 schedule
     try{
       const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
