@@ -4794,19 +4794,22 @@ async function loadSchedHalves(force){
     // 代码桥:catalog 当前专业的 1:1 mapping(官方码→实际码),让 TM 用官方码的课也对得上 schedule
     try{
       const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
-      const crows=await fetch(`${_BA_SUPA_URL}/rest/v1/catalog?dept=eq.${encodeURIComponent(short)}&select=code,mapping`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
+      // 全库抓 code↔mapping:对接可能只写在「另一边」的专业行(如 KG151 在 TM 行 mapping 为空,却在 SC106 行写了 →KG151),
+      // 故等价表必须全局 + 双向,才能两边都接上。_CODE_ALIAS(旧代码桥)仍只取当前专业行,行为不变。
+      const crows=await fetch(`${_BA_SUPA_URL}/rest/v1/catalog?select=dept,code,mapping&mapping=not.is.null&limit=5000`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
       const al={}, partner={};
+      const _pAdd=(a,b)=>{ (partner[a]=partner[a]||[]); if(partner[a].indexOf(b)<0) partner[a].push(b); };
       (Array.isArray(crows)?crows:[]).forEach(r=>{ const c=String(r.code||'').trim().toUpperCase(), m=String(r.mapping||'').trim().toUpperCase();
-        if(c&&m&&!m.includes('待定')&&!/[+/,、]/.test(m)){
-          partner[c]=m; partner[m]=c;                 // 双向等价(同课不同码),两码都真实也收
-          if(!schedCodes.has(m)) al[m]=c;             // 旧代码桥:只收 1:1 纯替身码(m 非实际排课码)→ 实际码 c
+        if(c&&m&&c!==m&&!m.includes('待定')&&!/[+/,、]/.test(m)){
+          _pAdd(c,m); _pAdd(m,c);                                                                         // 全局双向等价(同课不同码)
+          if(String(r.dept||'').trim().toUpperCase()===String(short).toUpperCase() && !schedCodes.has(m)) al[m]=c;  // 旧代码桥:仅当前专业 + m 非真实排课码
         }
       });
       _CODE_ALIAS=al; _PARTNER=partner;
-      // 半学期镜像:把某码在某学期/届别的上下半标记,同时写到它的等价码上。
-      // 这样 TM 用官方码 LA131 也能取到 BA 排在等价码 LA161 下的 2569/2 下半;而 2569/1 上半仍走 LA131 自身,互不覆盖(按学期/届别精确)。
-      Object.keys(_SCHED_HALF).forEach(k=>{ const i=k.indexOf('|'); const p=partner[k.slice(0,i)]; if(p){ const nk=p+k.slice(i); _SCHED_HALF[nk]=_mergeMark(_SCHED_HALF[nk],_SCHED_HALF[k]); } });
-      Object.keys(_SCHED_HALF_CO).forEach(k=>{ const i=k.indexOf('|'); const p=partner[k.slice(0,i)]; if(p){ const nk=p+k.slice(i); _SCHED_HALF_CO[nk]=_mergeMark(_SCHED_HALF_CO[nk],_SCHED_HALF_CO[k]); } });
+      // 半学期镜像:把某码在某学期/届别的上下半标记,同时写到它所有等价码上(按学期/届别精确,互不覆盖)。
+      // 这样 TM 用 LA131 取得排在 LA161 下的 2569/2 下半;用 KG151 取得排在 SC106 下的下半——两边(不论对接写在哪一边)都接上。
+      const _mir=(obj)=>{ Object.keys(obj).forEach(k=>{ const i=k.indexOf('|'); const ps=partner[k.slice(0,i)]; if(ps) ps.forEach(p=>{ const nk=p+k.slice(i); obj[nk]=_mergeMark(obj[nk],obj[k]); }); }); };
+      _mir(_SCHED_HALF); _mir(_SCHED_HALF_CO);
     }catch(e){ _CODE_ALIAS=_CODE_ALIAS||{}; _PARTNER=_PARTNER||{}; }
   }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
