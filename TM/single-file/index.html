@@ -4811,7 +4811,11 @@ async function loadSchedHalves(force){
       (Array.isArray(crows)?crows:[]).forEach(r=>{ const c=String(r.code||'').trim().toUpperCase(), m=String(r.mapping||'').trim().toUpperCase();
         if(c&&m&&c!==m&&!m.includes('待定')&&!/[+/,、]/.test(m)){
           _pAdd(c,m); _pAdd(m,c);                                                                         // 全局双向等价(同课不同码)
-          if(String(r.dept||'').trim().toUpperCase()===String(short).toUpperCase() && !schedCodes.has(m)) al[m]=c;  // 旧代码桥:仅当前专业 + m 非真实排课码
+          // 代码桥(仅当前专业):把「不在 BA 实际排课里的那个码」桥到「在排课里的那个码」——双向
+          if(String(r.dept||'').trim().toUpperCase()===String(short).toUpperCase()){
+            if(!schedCodes.has(m)) al[m]=c;             // mapping 是替身 → 桥到实际码 code
+            else if(!schedCodes.has(c)) al[c]=m;        // code 是替身(如 TM 的 LA132)→ 桥到实际排课码 mapping(LA162)
+          }
         }
       });
       _CODE_ALIAS=al; _PARTNER=partner;
