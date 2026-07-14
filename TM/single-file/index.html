@@ -2599,6 +2599,7 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
         <div class="sc-badges" style="margin-top:1px;display:flex;flex-wrap:wrap;gap:3px;">
           ${bt?`<span class="bdg ${bl}">${bt}</span>`:''}
           <span class="bdg ${s.type==='transfer'?'b-x':'b-n'}">${s.type==='transfer'?'专升本':'全日生'}</span>
+          ${s.scoreNote?`<span class="bdg" style="background:#f0fdf4;color:#166534" title="已录逐科成绩(点 ✏️ 编辑查看/修改):\n${String(s.scoreNote).replace(/"/g,'&quot;').slice(0,300)}">📝 成绩</span>`:''}
           ${(()=>{const sd=s.statusDetail||{};
               if(sd.withdrawn){const wi=[sd.withdrawDate,sd.withdrawSem].filter(Boolean).join(' ');return `<span class="bdg" style="background:#f5f3ff;color:#7c3aed">退学${wi?' · '+wi:''}</span>`;}
               const _lst = getLeaveStatus(s);
