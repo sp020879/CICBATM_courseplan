@@ -267,6 +267,8 @@
         <div style="font-size:10px;color:var(--ink3);margin-top:4px">从「🏫 班级届别」清单挑或手填新代码</div>
       </div>
       <div class="fr"><label>辅导员老师</label><input type="text" id="f-advisor" placeholder="例：Mr. Peng Lu"></div>
+      <div class="fr"><label>逐科成绩 <span style="font-weight:400;color:var(--ink3)">（备查 · 随意记录，不算 GPA）</span></label>
+        <textarea id="f-score" rows="6" placeholder="一行一门，例：&#10;KT330 85&#10;KT333 78&#10;KE311 90&#10;…（8-10 门都可）" style="width:100%;border:1px solid var(--line2);border-radius:6px;padding:7px 9px;font-family:var(--mono);font-size:12px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea></div>
       <div class="fr"><label>在籍状况</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px"><input type="radio" name="f-status" value="在学" onchange="toggleStatusFields(this.value)" style="width:13px;height:13px"> 在学</label>
@@ -841,6 +843,7 @@ function toRow(s) {
     type: s.type || 'normal',
     note: s.note || '',
     note_text: s.noteText || '',
+    score_note: s.scoreNote || '',
     advisor: s.advisor || '',
     status: s.status || '就读',
     class_code: s.classCode || '',
@@ -867,6 +870,7 @@ function fromRow(r) {
     type: r.type || 'normal',
     note: r.note || '',
     noteText: r.note_text || '',
+    scoreNote: r.score_note || '',
     advisor: r.advisor || '',
     status: r.status || '就读',
     classCode: r.class_code || '',
@@ -3688,7 +3692,7 @@ function _populateClassCodeOptions(){
 function openAddStudent(){
   document.getElementById('am-title').textContent='新增学生';
   renderProgSelect();  // ★ 重新渲染专业 dropdown，确保跟上当前 activeProg
-  ['f-id','f-name','f-cname','f-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-id','f-name','f-cname','f-other','f-score'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const ccEl=document.getElementById('f-classcode');
   if(ccEl) ccEl.value=autoClassCode(document.getElementById('f-cohort').value,document.getElementById('f-type').value);
   _populateClassCodeOptions();
@@ -3711,6 +3715,7 @@ function openEditStudent(id){
   document.getElementById('f-type').value=s.type;
   document.getElementById('f-note').value=s.note||'';
   document.getElementById('f-advisor').value=s.advisor||'';
+  const _fs=document.getElementById('f-score'); if(_fs) _fs.value=s.scoreNote||'';
   document.getElementById('f-other').value=s.noteText||'';
   document.getElementById('f-other-row').style.display=s.note==='other'?'flex':'none';
   // 在籍状况
@@ -3761,7 +3766,8 @@ async function confirmAdd(){
   if(!classCode) classCode = autoClassCode(_cohortVal, _typeVal, pid);
   const advisor=(document.getElementById('f-advisor')?.value||'').trim();
   const cname=(document.getElementById('f-cname')?.value||'').trim();
-  const st={id,name,cname,cohort:document.getElementById('f-cohort').value,type:document.getElementById('f-type').value,note,noteText:nt,prog:pid,classCode,advisor,
+  const scoreNote=(document.getElementById('f-score')?.value||'').trim();
+  const st={id,name,cname,cohort:document.getElementById('f-cohort').value,type:document.getElementById('f-type').value,note,noteText:nt,prog:pid,classCode,advisor,scoreNote,
     status:statusRadio,  // 同步文字状态
     statusDetail,
     courses:ei>=0?DB.students[ei].courses:{},tep:ei>=0?DB.students[ei].tep||{}:{},
