@@ -139,6 +139,7 @@
           <option value="在学">在学</option>
           <option value="休学">休学</option>
           <option value="退学">退学</option>
+          <option value="转专业">↪ 转专业</option>
           <option value="毕业">🎓 达标毕业</option>
         </select>
         <!-- 学生特况筛选 -->
@@ -274,6 +275,7 @@
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px"><input type="radio" name="f-status" value="在学" onchange="toggleStatusFields(this.value)" style="width:13px;height:13px"> 在学</label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px"><input type="radio" name="f-status" value="休学" onchange="toggleStatusFields(this.value)" style="width:13px;height:13px"> 休学</label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px"><input type="radio" name="f-status" value="退学" onchange="toggleStatusFields(this.value)" style="width:13px;height:13px"> 退学</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px"><input type="radio" name="f-status" value="转专业" onchange="toggleStatusFields(this.value)" style="width:13px;height:13px"> 转专业</label>
         </div>
       </div>
       <div id="f-leave-area" style="display:none">
@@ -292,6 +294,12 @@
           <div class="fr"><label>退学学期</label><input type="text" id="f-withdraw-sem" placeholder="例：2568/2"></div>
         </div>
         <div class="fr"><label>退学备注</label><input type="text" id="f-withdraw-note" placeholder="退学原因..."></div>
+      </div>
+      <div id="f-transfer-area" style="display:none">
+        <div class="fr-row">
+          <div class="fr"><label>转专业日期</label><input type="date" id="f-transfer-date"></div>
+          <div class="fr"><label>转专业备注</label><input type="text" id="f-transfer-note" placeholder="转去哪个专业 / 原因..."></div>
+        </div>
       </div>
     </div>
     <div class="mf"><button class="tbtn" onclick="closeModal('add-modal')">取消</button><button class="tbtn acc" onclick="confirmAdd()">储存</button></div>
@@ -2021,8 +2029,9 @@ function visStudents() {
   if(st) s=s.filter(x=>{
     const sd=x.statusDetail||{};
     if(st==='退学') return sd.withdrawn;
-    if(st==='休学') return sd.leave&&sd.leave.length>0&&!sd.withdrawn;
-    if(st==='在学'){const _pg=calcProgress(x,progCourses(x.prog||'TM'));const _gn2=parseFloat(x.gpa);const _isGrad2=_pg.remC===0&&_pg.internOk&&(x.gpa==null||_gn2>=2.0);return !sd.withdrawn&&!(sd.leave&&sd.leave.length>0)&&!_isGrad2;}
+    if(st==='转专业') return sd.transferred;
+    if(st==='休学') return sd.leave&&sd.leave.length>0&&!sd.withdrawn&&!sd.transferred;
+    if(st==='在学'){const _pg=calcProgress(x,progCourses(x.prog||'TM'));const _gn2=parseFloat(x.gpa);const _isGrad2=_pg.remC===0&&_pg.internOk&&(x.gpa==null||_gn2>=2.0);return !sd.withdrawn&&!sd.transferred&&!(sd.leave&&sd.leave.length>0)&&!_isGrad2;}
     if(st==='毕业'){const p=calcProgress(x,progCourses(x.prog||'TM'));const _gn=parseFloat(x.gpa);return p.remC===0&&p.internOk&&(x.gpa==null||_gn>=2.0);}
     return true;
   });
@@ -2602,6 +2611,7 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
           ${s.scoreNote?`<span class="bdg" style="background:#f0fdf4;color:#166534" title="已录逐科成绩(点 ✏️ 编辑查看/修改):\n${String(s.scoreNote).replace(/"/g,'&quot;').slice(0,300)}">📝 成绩</span>`:''}
           ${(()=>{const sd=s.statusDetail||{};
               if(sd.withdrawn){const wi=[sd.withdrawDate,sd.withdrawSem].filter(Boolean).join(' ');return `<span class="bdg" style="background:#f5f3ff;color:#7c3aed">退学${wi?' · '+wi:''}</span>`;}
+              if(sd.transferred){return `<span class="bdg" style="background:#fff7ed;color:#c2410c" title="转专业${sd.transferDate?' · '+sd.transferDate:''}${sd.transferNote?' · '+String(sd.transferNote).replace(/"/g,'&quot;'):''}">↪ 转专业${sd.transferDate?' · '+sd.transferDate:''}</span>`;}
               const _lst = getLeaveStatus(s);
               if(_lst === 'leaving'){
                 // 休学中 (NOW_SEM 在 leave 内)：每学期独立 chip + ✕ 可提早结束
@@ -3485,6 +3495,7 @@ let _leaveSems = [];
 function toggleStatusFields(val){
   document.getElementById('f-leave-area').style.display=val==='休学'?'block':'none';
   document.getElementById('f-withdraw-area').style.display=val==='退学'?'block':'none';
+  const _ta=document.getElementById('f-transfer-area'); if(_ta) _ta.style.display=val==='转专业'?'block':'none';
 }
 function addLeaveSem(){
   const inp=document.getElementById('f-leave-input');
@@ -3700,7 +3711,7 @@ function openAddStudent(){
   _leaveSems=[];renderLeaveTags();
   document.querySelectorAll('input[name="f-status"]').forEach((r,i)=>{r.checked=i===0;});
   toggleStatusFields('在学');
-  ['f-withdraw-date','f-withdraw-sem','f-withdraw-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-withdraw-date','f-withdraw-sem','f-withdraw-note','f-transfer-date','f-transfer-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   openModal('add-modal');
 }
 function openEditStudent(id){
@@ -3724,6 +3735,7 @@ function openEditStudent(id){
   _leaveSems=sd.leave?[...sd.leave]:[];
   let statusVal='在学';
   if(sd.withdrawn) statusVal='退学';
+  else if(sd.transferred) statusVal='转专业';
   else if(sd.leave&&sd.leave.length) statusVal='休学';
   document.querySelectorAll('input[name="f-status"]').forEach(r=>{r.checked=r.value===statusVal;});
   toggleStatusFields(statusVal);
@@ -3732,6 +3744,10 @@ function openEditStudent(id){
     const d=document.getElementById('f-withdraw-date');if(d)d.value=sd.withdrawDate||'';
     const sm=document.getElementById('f-withdraw-sem');if(sm)sm.value=sd.withdrawSem||'';
     const nt=document.getElementById('f-withdraw-note');if(nt)nt.value=sd.withdrawNote||'';
+  }
+  if(sd.transferred){
+    const d=document.getElementById('f-transfer-date');if(d)d.value=sd.transferDate||'';
+    const nt=document.getElementById('f-transfer-note');if(nt)nt.value=sd.transferNote||'';
   }
   openModal('add-modal');
 }
@@ -3751,6 +3767,7 @@ async function confirmAdd(){
   let statusDetail={};
   if(statusRadio==='休学'){ statusDetail={leave:[..._leaveSems]}; }
   else if(statusRadio==='退学'){ statusDetail={withdrawn:true,withdrawDate:document.getElementById('f-withdraw-date')?.value||'',withdrawSem:document.getElementById('f-withdraw-sem')?.value||'',withdrawNote:document.getElementById('f-withdraw-note')?.value||''}; }
+  else if(statusRadio==='转专业'){ statusDetail={transferred:true,transferDate:document.getElementById('f-transfer-date')?.value||'',transferNote:document.getElementById('f-transfer-note')?.value||''}; }
   // classCode 处理：如果用户没填，按当前专业自动算（CA67/CA67ZSB 之类）
   // 如果是编辑模式 + 专业改了 + classCode 还是旧专业格式 → 自动重算
   const _cohortVal = document.getElementById('f-cohort').value;
