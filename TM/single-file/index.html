@@ -105,6 +105,7 @@
     <div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--h-border);flex-shrink:0;gap:4px;">
       <button id="grad-toggle" class="bar-btn-txt" onclick="toggleHideGrads()" title="点击切换：是否隐藏达标毕业的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🎓 <span id="grad-toggle-label">☑ 隐藏毕业生</span></button>
       <button id="leave-toggle" class="bar-btn-txt" onclick="toggleHideLeave()" title="点击切换：是否隐藏休学的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🌙 <span id="leave-toggle-label">☐ 隐藏休学</span></button>
+      <button id="transfer-toggle" class="bar-btn-txt" onclick="toggleHideTransfer()" title="点击切换：是否隐藏转专业的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">↪ <span id="transfer-toggle-label">☐ 隐藏转专业</span></button>
       <div style="position:relative;display:inline-block" id="export-wrap">
         <button class="bar-btn-txt" onclick="_toggleExportMenu(event)" title="打印 / 导出 CSV / 导出 JSON" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">⬇ 导出 ▾</button>
         <div id="export-menu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:#fff;border:1px solid var(--line2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);z-index:200;min-width:150px;overflow:hidden;padding:4px">
@@ -1848,6 +1849,7 @@ function isOnLeave(s){
   const sd = s.statusDetail || {};
   return !!(sd.leave && sd.leave.length && !sd.withdrawn);
 }
+function isTransferred(s){ return !!((s.statusDetail||{}).transferred); }
 // 判断学生「指定学期是否正在休学」（用于 per-sem 排课计算）
 function isOnLeaveAt(s, sem){
   if(!sem) return false;
@@ -1883,6 +1885,8 @@ function getLeaveStatus(s){
 if(typeof window !== 'undefined' && window._hideGrads === undefined) window._hideGrads = true;
 // 全局开关：默认不隐藏休学（用户自己开）
 if(typeof window !== 'undefined' && window._hideLeave === undefined) window._hideLeave = false;
+// 全局开关：转专业默认隐藏（已离开本专业）
+if(typeof window !== 'undefined' && window._hideTransfer === undefined) window._hideTransfer = true;
 function toggleHideGrads(){
   window._hideGrads = !window._hideGrads;
   try{ localStorage.setItem('hide_grads', window._hideGrads?'1':'0'); }catch(e){}
@@ -1907,6 +1911,7 @@ function updateGradToggleLabel(){
   };
   _set('grad-toggle', '隐藏毕业生', window._hideGrads);
   _set('leave-toggle', '隐藏休学', window._hideLeave);
+  _set('transfer-toggle', '隐藏转专业', window._hideTransfer);
 }
 
 // 全局开关：隐藏休学学生
@@ -1920,6 +1925,17 @@ function toggleHideLeave(){
   if(active==='overview') renderOverview();
 }
 try{ const v = localStorage.getItem('hide_leave'); if(v!==null) window._hideLeave = v==='1'; }catch(e){}
+function toggleHideTransfer(){
+  window._hideTransfer = !window._hideTransfer;
+  try{ localStorage.setItem('hide_transfer', window._hideTransfer?'1':'0'); }catch(e){}
+  updateGradToggleLabel();
+  render();
+  const active = sessionStorage.getItem('activeTab')||'progress';
+  if(active==='classtable') renderClassTable();
+  if(active==='workbench') renderWorkbench();
+  if(active==='overview') renderOverview();
+}
+try{ const v = localStorage.getItem('hide_transfer'); if(v!==null) window._hideTransfer = v==='1'; }catch(e){}
 // 启动时读 localStorage
 try{ const v = localStorage.getItem('hide_grads'); if(v!==null) window._hideGrads = v==='1'; }catch(e){}
 function semsByStudent(s) {
@@ -2056,6 +2072,10 @@ function visStudents() {
   // 隐藏休学学生（除非用户显式按状态筛"休学"）
   if(window._hideLeave && st !== '休学'){
     s = s.filter(x => !isOnLeave(x));
+  }
+  // 隐藏转专业学生（除非用户显式按状态筛"转专业"）
+  if(window._hideTransfer && st !== '转专业'){
+    s = s.filter(x => !isTransferred(x));
   }
   return s.sort((a,b)=>a.id.localeCompare(b.id));
 }
@@ -3030,6 +3050,7 @@ function blockHTML(co, _studs, _classCode, _prebuilt) {
   // 全局开关：默认隐藏已毕业学生 + 可选隐藏休学
   if(window._hideGrads) studs = studs.filter(s => !isGraduated(s));
   if(window._hideLeave) studs = studs.filter(s => !isOnLeave(s));
+  if(window._hideTransfer) studs = studs.filter(s => !isTransferred(s));
   // 预建班级：无学生时检查是否有预建班级
   if(!studs.length){
     const _prog2=getProg(activeProg);
@@ -5531,6 +5552,7 @@ function _ctShowCourseStudents(realCode, isExt2) {
   let progStuds = allProgStuds;
   if(window._hideGrads) progStuds = progStuds.filter(s => !isGraduated(s));
   if(window._hideLeave) progStuds = progStuds.filter(s => !isOnLeave(s));
+  if(window._hideTransfer) progStuds = progStuds.filter(s => !isTransferred(s));
   const studs = selClass==='all' ? progStuds : progStuds.filter(s => (s.classCode||autoClassCode(s.cohort,s.type,s.prog))===selClass);
   const allPC = progCourses(activeProg).length ? progCourses(activeProg) : (getProg(activeProg)?.courses||getBuiltinTMCourses());
   const _cMap = {}; allPC.forEach(c => _cMap[c.c]=c);
@@ -5596,6 +5618,7 @@ function _tmSemAgg(sem){
   let studs=DB.students.filter(s=>(s.prog||'TM')===activeProg);
   if(window._hideGrads) studs=studs.filter(s=>!isGraduated(s));
   if(window._hideLeave) studs=studs.filter(s=>!isOnLeave(s));
+  if(window._hideTransfer) studs = studs.filter(s => !isTransferred(s));
   const agg={};
   studs.forEach(s=>{
     if(isOnLeaveAt(s,sem)) return;
@@ -5669,6 +5692,7 @@ function _ctExportCSV(){
   let progStuds=DB.students.filter(s=>(s.prog||'TM')===activeProg);
   if(window._hideGrads) progStuds=progStuds.filter(s=>!isGraduated(s));
   if(window._hideLeave) progStuds=progStuds.filter(s=>!isOnLeave(s));
+  if(window._hideTransfer) progStuds = progStuds.filter(s => !isTransferred(s));
   const studs=selClass==='all'?progStuds:progStuds.filter(s=>(s.classCode||autoClassCode(s.cohort,s.type,s.prog))===selClass);
   const allPC=progCourses(activeProg).length?progCourses(activeProg):(getProg(activeProg)?.courses||getBuiltinTMCourses());
   const courseMap={};allPC.forEach(c=>courseMap[c.c]=c);
@@ -5764,6 +5788,7 @@ function renderClassTable(){
   let progStuds = _allProgStuds;
   if(window._hideGrads) progStuds = progStuds.filter(s => !isGraduated(s));
   if(window._hideLeave) progStuds = progStuds.filter(s => !isOnLeave(s));
+  if(window._hideTransfer) progStuds = progStuds.filter(s => !isTransferred(s));
   const _ctProg=getProg(activeProg);
   const _preClassCodes=_ctProg?.preCohorts||[];
   // codes 包含所有班级代码（含已毕业 / 休学的），避免下拉漏选
@@ -7806,6 +7831,7 @@ function renderWorkbench(){
   let progStuds = DB.students.filter(s => (s.prog||'TM') === activeProg);
   if(window._hideGrads) progStuds = progStuds.filter(s => !isGraduated(s));
   if(window._hideLeave) progStuds = progStuds.filter(s => !isOnLeave(s));
+  if(window._hideTransfer) progStuds = progStuds.filter(s => !isTransferred(s));
 
   // 所有班级
   const allCodes = [...new Set([
