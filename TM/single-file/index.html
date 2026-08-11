@@ -2442,6 +2442,33 @@ function selectAll() {
   visStudents().forEach(s=>selectedIds.add(s.id)); renderCards();
 
 }
+async function batchSetAdvisor() {
+  if(!selectedIds.size){ alert('请先选择要改的学生'); return; }
+  const ids=[...selectedIds];
+  const advisors=getAdvisors();
+  const name=prompt(`把所选 ${ids.length} 位学生的辅导员老师改成:\n\n直接输入姓名（现有:${advisors.join(' / ')||'无'}）`, advisors[0]||'');
+  if(name===null) return;
+  const tgt=(name||'').trim();
+  if(!tgt){ alert('未输入,已取消'); return; }
+  if(!confirm(`确定把 ${ids.length} 位学生的辅导员老师改成「${tgt}」?`)) return;
+  gpShow(`改辅导员中 0/${ids.length}`);
+  let ok=0, fail=0;
+  for(let i=0;i<ids.length;i++){
+    const s=DB.students.find(x=>x.id===ids[i]);
+    if(!s){ fail++; continue; }
+    const prev=s.advisor; s.advisor=tgt;
+    try{ await apiSaveCounselor(s.id,{advisor:tgt,consent:s.counselor?.consent||'',consentNote:s.counselor?.consentNote||'',notes:JSON.stringify(s.counselorNotes||[])}); ok++; }
+    catch(e){ fail++; s.advisor=prev; console.error(e); }   // 失败回滚本地值
+    gpSet(`改辅导员中 ${i+1}/${ids.length}`, Math.round((i+1)/ids.length*100));
+  }
+  gpDone(`✓ 已改 ${ok} 位辅导员${fail?` · ${fail} 失败(未改动)`:''}`);
+  selectedIds.clear();
+  selectMode=false;
+  const _smb=document.getElementById('select-mode-btn');
+  if(_smb) _smb.textContent='☐ 批次管理';
+  render();
+  renderAdvisorDropdowns();
+}
 async function batchDelete() {
   if(!selectedIds.size){alert('请先选择要删除的学生');return;}
   const sorted=[...selectedIds].sort();
@@ -2499,6 +2526,7 @@ function renderCards() {
       <button onclick="selectAll()" style="padding:3px 10px;border-radius:5px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-size:11px;font-family:var(--font);">☑ 全选</button>
       <button onclick="selectedIds.clear();renderCards();" style="padding:3px 10px;border-radius:5px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-size:11px;font-family:var(--font);">清除</button>
       <div style="flex:1;"></div>
+      <button onclick="batchSetAdvisor()" style="padding:3px 14px;border-radius:5px;border:none;background:#16a34a;color:#fff;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--font);">👨‍🏫 改辅导员 (${selectedIds.size})</button>
       <button onclick="batchDelete()" style="padding:3px 14px;border-radius:5px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--font);">🗑 删除所选 (${selectedIds.size})</button>
       <button onclick="toggleSelectMode()" style="padding:3px 10px;border-radius:5px;border:1px solid var(--line2);background:#fff;color:var(--ink2);cursor:pointer;font-size:11px;font-family:var(--font);">✕ 取消</button>
     </div>`+studs.map((s,i)=>cardHTML(s,i+1)).join('');
