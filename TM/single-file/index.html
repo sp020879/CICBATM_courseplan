@@ -1845,18 +1845,21 @@ async function unmarkGraduation(sid){
 }
 window.unmarkGraduation = unmarkGraduation;
 // 判断学生「歷史上有沒有休過」（用于全域隐藏、统计徽章等）
-function isOnLeave(s){
-  const sd = s.statusDetail || {};
-  return !!(sd.leave && sd.leave.length && !sd.withdrawn);
-}
+function isOnLeave(s){ return isOnLeaveAt(s, NOW_SEM); }   // 「当前学期是否休学」(尊重已确认复学)
 function isTransferred(s){ return !!((s.statusDetail||{}).transferred); }
 // 判断学生「指定学期是否正在休学」（用于 per-sem 排课计算）
 function isOnLeaveAt(s, sem){
   if(!sem) return false;
   const sd = s.statusDetail || {};
   if(sd.withdrawn) return false;
-  if(!sd.leave || !sd.leave.length) return false;
-  return sd.leave.includes(sem);
+  if(!sd.leave || !sd.leave.includes(sem)) return false;
+  // 已确认复学:从 leaveResumedAt 学期起视为在学(leave 数组仅作历史,不再算休学)
+  if(sd.leaveResumedAt){
+    const _v=x=>{const m=String(x||'').match(/^(25\d\d)\/(\d)$/);return m?parseInt(m[1])*10+parseInt(m[2]):null;};
+    const rv=_v(sd.leaveResumedAt), sv=_v(sem);
+    if(rv!=null && sv!=null && sv>=rv) return false;
+  }
+  return true;
 }
 // 学期前一学期（2569/1 → 2568/3）
 function prevSem(sem){
