@@ -7570,7 +7570,7 @@ function printStudentList(){
   // 统计
   const allStuds=visStudents();
   const totalCount=allStuds.length;
-  const leaveCount=allStuds.filter(s=>{const sd=s.statusDetail||{};return sd.leave&&sd.leave.length&&!sd.withdrawn;}).length;
+  const leaveCount=allStuds.filter(s=>isOnLeave(s)).length;   // 尊重已复学(leaveResumedAt)
   const withdrawCount=allStuds.filter(s=>(s.statusDetail||{}).withdrawn).length;
   const gradCount=allStuds.filter(s=>{const p=calcProgress(s,progCourses(s.prog||'TM'));return p.remC===0&&p.internOk;}).length;
   const activeCount=totalCount-leaveCount-withdrawCount-gradCount;
