@@ -170,7 +170,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 规则:实习前一学期要考过 **TEP 毕业**(沿用现有 `s.tep.exit`,及格 `TEP_PASS`=39,补考分也算)。
 - 考试学期 = 实习学期的前一个**大学期**(小学期 /3 不算);已排 KT411/KT331/KT332 用排的学期,否则用 `internshipReminder` 推算。
 - 新函数 `tepExitPassed / prevMainSem / getTepExitState`(在 `getInternshipState` 后)。提示:总览待办两行(本学期应考 / 逾期未过)、筛选「TEP本学期应考 / TEP逾期未过」、卡片 chip(下学期要考 / 本学期应考 / 逾期)、排 KT411/331/332 时 `_tepInternGuard` 弹警告(只警告不阻挡)。
-- 2026-11-09 用户反馈 chip 太挤、跟实习蓝色撞色 → 改为提醒**放进卡片「TEP 毕业」格子**(`_tepBox`):下学期=格内蓝字「2569/2 考」、本学期=整格黄「本学期考/补考」、逾期=整格红「逾期未考/逾期·补考」;列表视图同样小标。格子外不再加 TEP chip(无时程状态但未过才保留旧「⚠ TEP 毕业未过」)。分支 `feat/tep-box-reminder`。
+- 2026-11-09 用户反馈 chip 太挤、跟实习蓝色撞色 → 改为提醒**放进卡片「TEP 毕业」格子**(`_tepBox`):下学期=格内蓝字「2569/2 考」、本学期=整格黄「本学期考/补考」、逾期=整格红「逾期未考/逾期·补考」;列表视图同样小标。格子外不再加 TEP chip(无时程状态但未过才保留旧「⚠ TEP 毕业未过」)。已部署 `67ded6b`。
 - 已毕业/退学/转专业/实习已做完的不提醒(旧生不追溯)。备份 `_backups/index.html.bak_tep_20261109`。
 - ✅ 2026-11-09 已推 main 并上线(GitHub Pages 确认生效)。
 
