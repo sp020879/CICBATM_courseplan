@@ -4943,6 +4943,7 @@ const _CAT_GROUP_META = {
 const _CAT_CAPSTONE = new Set(['KT412']);
 const _CAT_INTERN   = new Set(['KT411','KT331','KT332']);
 const _CAT_XC       = new Set(['LA130','LA131','LA132']);   // 强制归"语言与跨文化"(catalog 错放通识语言选修)
+const _CAT_NAME_FROM_CATALOG = new Set(['KT305']);         // 课名以 catalog 为准(用户 2026-11-09 确认 KT305 = Tour Operation Management)
 function _catIsDeferred(row){
   if(row.block === '自由选修') return true;
   if(row.block === '通识语言课程' && row.req === '选修' && !_CAT_XC.has(row.code)) return true;
@@ -5000,7 +5001,7 @@ async function hydrateProgramCoursesFromCatalog(){
         // 阶段 1:沿用 TM 原课名 + 原排序,画面不变;catalog 新增的课排在最后
         const pos = {}, nm = {};
         dbCs.forEach((c, i) => { pos[c.c] = i; nm[c.c] = c.n; });
-        cs.forEach(c => { if(nm[c.c]) c.n = nm[c.c]; });
+        cs.forEach(c => { if(nm[c.c] && !_CAT_NAME_FROM_CATALOG.has(c.c)) c.n = nm[c.c]; });
         cs.sort((a, b) => (pos[a.c] ?? 1e9) - (pos[b.c] ?? 1e9));
       }
       p._dbCourses = dbCs;
@@ -5663,7 +5664,7 @@ function getBuiltinTMCourses(){return[
   {c:'KB221',n:'Business Economics',cr:3,g:'基础专业课',_gtype:'required',_gcr:0},
   {c:'KB222',n:'Accounting for Business',cr:3,g:'基础专业课',_gtype:'required',_gcr:0},
   {c:'KB223',n:'Law and Ethics for Business Operation',cr:3,g:'基础专业课',_gtype:'required',_gcr:0},
-  {c:'KT305',n:'Travel Business Management',cr:3,g:'旅游专业·必修',_gtype:'required',_gcr:0},
+  {c:'KT305',n:'Tour Operation Management',cr:3,g:'旅游专业·必修',_gtype:'required',_gcr:0},
   {c:'KT311',n:'Tourist Behavior',cr:3,g:'旅游专业·必修',_gtype:'required',_gcr:0},
   {c:'KT316',n:'Introduction to Tourism Industry',cr:3,g:'旅游专业·必修',_gtype:'required',_gcr:0},
   {c:'KT319',n:'Tourism Information System',cr:3,g:'旅游专业·必修',_gtype:'required',_gcr:0},
