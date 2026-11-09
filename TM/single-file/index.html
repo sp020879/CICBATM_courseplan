@@ -2709,13 +2709,17 @@ function cardHTML(s, idx) {
   }
 
   // ─── 4. TEP chip（毕业考时程提醒；考过不显示）───
+  // 时程提醒改放进「TEP 毕业」格子(2026-11-09 用户反馈 chip 太挤、跟实习撞色);格子外不再另加 chip
   const _tepSt = getTepExitState(s);
-  if(_tepSt){
-    const _tag = _tepSt.failed ? '补考' : '考';
-    if(_tepSt.status === 'overdue') alerts.push({t:`⛔ 英文毕业考逾期未过 · 应在 ${_tepSt.examSem}（实习 ${_tepSt.internSem} 前）`, c:'over'});
-    else if(_tepSt.status === 'due') alerts.push({t:`🗣 本学期应${_tag}英文毕业考 · ${_tepSt.examSem}`, c:_tepSt.failed?'over':'warn'});
-    else alerts.push({t:`🗣 下学期要${_tag}英文毕业考 · ${_tepSt.examSem}`, c:'plan'});
-  } else if(xFail) alerts.push({t:'⚠ TEP 毕业未过', c:'warn'});
+  const _tepBox = (()=>{
+    if(!_tepSt) return { style:'', tag:'', title:'' };
+    const _bu = _tepSt.failed ? '补考' : '考';
+    const title = `英文毕业考应在 ${_tepSt.examSem} 考过（实习 ${_tepSt.internSem} 前一学期）`;
+    if(_tepSt.status === 'overdue') return { style:'background:#fee2e2;border-color:#ef4444;', tag:`<span style="font-size:10px;font-weight:600;color:#991b1b;margin-left:auto;white-space:nowrap">${_tepSt.failed?'逾期·补考':'逾期未考'}</span>`, title };
+    if(_tepSt.status === 'due')     return { style:'background:#fef3c7;border-color:#f59e0b;', tag:`<span style="font-size:10px;font-weight:600;color:#92400e;margin-left:auto;white-space:nowrap">本学期${_bu}</span>`, title };
+    return { style:'', tag:`<span style="font-size:10px;color:#1e40af;margin-left:auto;white-space:nowrap">${_tepSt.examSem} ${_bu}</span>`, title };
+  })();
+  if(!_tepSt && xFail) alerts.push({t:'⚠ TEP 毕业未过', c:'warn'});
   // DPU-TEP score badge
   const tepBadge=s.dpuTepScore!=null?`<span class="bdg" style="background:#eff6ff;color:#1e40af">TEP ${s.dpuTepScore}</span>`:'';
   const _onclick=selectMode?`onclick="toggleSelect('${s.id}')"`:'';
@@ -2823,7 +2827,8 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
             <div><span style="font-size:9px;color:var(--ink3)">入 </span><span style="${te?'color:var(--g7);font-weight:600':'color:var(--ink3)'}">${te?te.score:'—'}</span></div>
             <div><span style="font-size:9px;color:var(--ink3)">毕 </span><span style="${xFail?'color:var(--red);font-weight:600':tx?'color:var(--g7);font-weight:600':'color:var(--ink3)'}">${tx?tx.score:'—'}</span>
               ${tx?.retest?`<span style="font-size:9px;${parseInt(tx.retest)>=TEP_PASS?'color:var(--g7)':'color:var(--red)'}"> / 补${tx.retest}${parseInt(tx.retest)>=TEP_PASS?' ✓':' ✗'}</span>`:''}
-              ${xFail&&!tx?.retest?`<span style="font-size:9px;color:var(--red)"> ⚠需补考</span>`:''}
+              ${xFail&&!tx?.retest&&!_tepSt?`<span style="font-size:9px;color:var(--red)"> ⚠需补考</span>`:''}
+              ${_tepSt?`<span title="${_tepBox.title}" style="font-size:9px;font-weight:600;padding:0 4px;border-radius:3px;${_tepSt.status==='overdue'?'background:#fee2e2;color:#991b1b':_tepSt.status==='due'?'background:#fef3c7;color:#92400e':'color:#1e40af'}"> ${_tepSt.status==='overdue'?(_tepSt.failed?'逾期·补考':'逾期未考'):(_tepSt.status==='due'?'本学期':_tepSt.examSem)+(_tepSt.failed?'补考':'考')}</span>`:''}
             </div>
           </div>
         </div>
@@ -2855,10 +2860,11 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
           <div class="tep-label" style="white-space:nowrap;">TEP 入学</div>
           <div class="tep-val ${te?'pass':'none'}" style="font-size:11px;">${te?te.score:'—'}</div>
         </div>
-        <div class="tep-item" onclick="openTep('${s.id}','exit')" style="display:flex;align-items:center;gap:6px;padding:3px 7px;">
+        <div class="tep-item" onclick="openTep('${s.id}','exit')" style="display:flex;align-items:center;gap:6px;padding:3px 7px;${_tepBox.style}" title="${_tepBox.title}">
           <div class="tep-label" style="white-space:nowrap;">TEP 毕业</div>
           <div class="tep-val ${xFail?'fail':tx?'pass':'none'}" style="font-size:11px;">${tx?(tx.score+(tx.retest?' /补'+tx.retest:'')):'—'}</div>
           ${xFail?'<span style="font-size:9px;color:var(--red);margin-left:2px">⚠</span>':(tx?.retest?'<span style="font-size:9px;color:var(--g7);margin-left:2px">✓补</span>':'')}
+          ${_tepBox.tag}
         </div>
       </div>
       <div class="counsel-box">
