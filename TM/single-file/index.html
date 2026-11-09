@@ -1360,7 +1360,7 @@ async function apiSaveProgram(prog) {
   try {
     await sb('programs', {
       method: 'POST',
-      body: JSON.stringify({ id: prog.id, name: prog.name, total_cr: prog.totalCr, courses: prog.courses, pre_cohorts: prog.preCohorts||[], meta: prog.meta||null }),
+      body: JSON.stringify({ id: prog.id, name: prog.name, total_cr: prog.totalCr, courses: prog._fromCatalog ? (prog._dbCourses||[]) : prog.courses, pre_cohorts: prog.preCohorts||[], meta: prog.meta||null }),
       prefer: 'resolution=merge-duplicates,return=minimal'
     });
     setSyncing(false);
@@ -1404,6 +1404,7 @@ async function init() {
   const _whoEl = document.getElementById('audit-who-label');
   if(_whoEl) _whoEl.textContent = getAuditWho();
   try {
+    prefetchCatalog();                               // catalog 课表与下面并行拉取
     const _masterP = apiGetMaster().catch(()=>[]);   // 与 apiGetAll 并行拉取,省一个网络往返(两者互相独立)
     const data = await apiGetAll();
     DB.students = (data.students||[]).map(s=>({...s,classCode:s.classCode||autoClassCode(s.cohort,s.type,s.prog)}));
@@ -1434,6 +1435,7 @@ async function init() {
       DB.masterCourses = await _masterP;   // 上面已并行发起
       _rebuildMasterIndex();
     }catch(e){ DB.masterCourses = []; }
+    await hydrateProgramCoursesFromCatalog();   // 课表改读 BA catalog(阶段 1)
     render();
     renderAdvisorDropdowns();
     // 数据载入完，补渲染当前 active tab（render() 不含 classtable/workbench/counsel/dash/graduates）
@@ -2172,6 +2174,7 @@ async function syncFromSheet() {
       });
     }
     if(!DB.programs.length) DB.programs=[{id:'TM',name:'旅游管理 TM',totalCr:123,courses:getBuiltinTMCourses()}];
+    await hydrateProgramCoursesFromCatalog();   // 课表改读 BA catalog(阶段 1)
     render();
     if(btn){ btn.textContent='⟳ 同步'; btn.disabled=false; }
   } catch(e) {
@@ -4913,6 +4916,100 @@ const _SHEET_CSV_URL='https://docs.google.com/spreadsheets/d/1qwIQenOb9dv0WGDSr_
 //    半学期按【学生届别】精确匹配：同一门课同学期若上/下半都排了，不同届别各显示各的。
 const _BA_SUPA_URL='https://ahygebtmavcmzqdwwhbs.supabase.co';
 const _BA_SUPA_KEY='sb_publishable_hWK78P_LTzHgKcuFMI2FVg_44Yw_tsZ'; // anon/publishable，可公开
+
+// ═══════════════════════════════════════════════════════════════
+// TM 单一真源 · 课表改读 BA catalog（阶段 1 · 2026-11-09）
+//   p.courses 改用 catalog 的课程结构（组别/类型/组学分/学分）；v0.2 回归 51 门 0 差异、36 位学生进度 0 差异。
+//   阶段 1：画面完全不变 → 沿用 TM 原有课名与排序；10 门待显示选修（自由选修 + 通识语言选修）先排除。
+//   DB 的 programs.courses 不再被覆盖（apiSaveProgram 改回写原值 _dbCourses），catalog 失败时退回 DB 课表。
+//   阶段 2 把 _CAT_STAGE1 改 false 并做可折叠显示。
+// ═══════════════════════════════════════════════════════════════
+const _CAT_STAGE1 = true;
+const _CAT_PROG2DEPT = { TourismManagement: 'TM' /*, IB…, FA… 待补 program id */ };
+const _CAT_DEFAULT_VER = { TM: '2565', IB: '2565', FA: '2565' };
+const _CAT_BLOCK2G = {
+  '专业必修课':'旅游专业·必修','专业核心课':'基础专业课','专业选修课':'实习课程',
+  '专业选修/辅修-选修':'语言修选','跨文化交际课程-必修':'语言与跨文化',
+  '价值与伦理课程-必修':'价值论理-必修','价值与伦理课程-选修':'价值论理-选修',
+  '生活质量课程-必修':'生活质量-必修','生活质量课程-选修':'生活质量-选修',
+  '终身学习课程-必修':'通识课·必修','终身学习课程-选修':'终身学习-选修',
+};
+const _CAT_GROUP_META = {
+  '旅游专业·必修':['required',0],'Capstone':['required',0],'基础专业课':['required',0],
+  '语言与跨文化':['required',0],'通识课·必修':['required',0],'生活质量-必修':['required',0],
+  '价值论理-必修':['required',0],'语言修选':['elective',15],'终身学习-选修':['elective',3],
+  '生活质量-选修':['elective',3],'价值论理-选修':['elective',3],'实习课程':['skip',6],
+};
+const _CAT_CAPSTONE = new Set(['KT412']);
+const _CAT_INTERN   = new Set(['KT411','KT331','KT332']);
+const _CAT_XC       = new Set(['LA130','LA131','LA132']);   // 强制归"语言与跨文化"(catalog 错放通识语言选修)
+function _catIsDeferred(row){
+  if(row.block === '自由选修') return true;
+  if(row.block === '通识语言课程' && row.req === '选修' && !_CAT_XC.has(row.code)) return true;
+  return false;
+}
+function _catRowToCourse(row){
+  let g;
+  if(_CAT_CAPSTONE.has(row.code))      g = 'Capstone';
+  else if(_CAT_INTERN.has(row.code))   g = '实习课程';
+  else if(_CAT_XC.has(row.code))       g = '语言与跨文化';
+  else if(row.block === '通识语言课程') g = (row.req === '必修') ? '语言与跨文化' : '语言修选';
+  else                                  g = _CAT_BLOCK2G[row.block] || row.block;
+  const m = _CAT_GROUP_META[g];
+  const gtype = m ? m[0] : (row.req === '选修' ? 'elective' : 'required');
+  const gcr   = m ? m[1] : (row.req === '选修' ? (Number(row.block_credit)||0) : 0);
+  return { c: row.code, g, n: row.en || row.zh || row.code, cr: Number(row.credit)||0, _gtype: gtype, _gcr: gcr };
+}
+const _catRowsCache = {};
+function _catFetchRows(dept, ver){
+  const k = dept + '-' + ver;
+  if(!_catRowsCache[k]){
+    const url = `${_BA_SUPA_URL}/rest/v1/catalog?dept=eq.${dept}&version=eq.${ver}&select=code,zh,en,credit,block,req,block_credit`;
+    _catRowsCache[k] = fetch(url, { headers: { apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY } })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('catalog HTTP ' + r.status)))
+      .catch(e => { delete _catRowsCache[k]; throw e; });
+  }
+  return _catRowsCache[k];
+}
+async function getProgramCoursesFromCatalog(progId, version){
+  const dept = _CAT_PROG2DEPT[progId];
+  if(!dept) return null;                                   // 非 catalog 托管的专业 → 不动
+  const ver = version || _CAT_DEFAULT_VER[dept] || '2565';
+  const rows = await _catFetchRows(dept, ver);
+  if(!Array.isArray(rows) || !rows.length) return null;    // 空 → 保留原课表
+  const seen = new Set(), out = [];
+  for(const row of rows){
+    if(seen.has(row.code)) continue;                       // 去重(catalog 的 KB216 重复两行)
+    seen.add(row.code);
+    if(_CAT_STAGE1 && _catIsDeferred(row)) continue;
+    out.push(_catRowToCourse(row));
+  }
+  return out;
+}
+// 预取(与 apiGetAll 并行,省等待)
+function prefetchCatalog(){
+  Object.values(_CAT_PROG2DEPT).forEach(d => _catFetchRows(d, _CAT_DEFAULT_VER[d] || '2565').catch(()=>{}));
+}
+async function hydrateProgramCoursesFromCatalog(){
+  await Promise.all((DB.programs||[]).map(async (p) => {
+    try{
+      const cs = await getProgramCoursesFromCatalog(p.id, p.meta && p.meta.catalogVersion);
+      if(!cs || !cs.length) return;
+      const dbCs = p._fromCatalog ? (p._dbCourses || []) : (p.courses || []);
+      if(_CAT_STAGE1 && dbCs.length){
+        // 阶段 1:沿用 TM 原课名 + 原排序,画面不变;catalog 新增的课排在最后
+        const pos = {}, nm = {};
+        dbCs.forEach((c, i) => { pos[c.c] = i; nm[c.c] = c.n; });
+        cs.forEach(c => { if(nm[c.c]) c.n = nm[c.c]; });
+        cs.sort((a, b) => (pos[a.c] ?? 1e9) - (pos[b.c] ?? 1e9));
+      }
+      p._dbCourses = dbCs;
+      p.courses = cs;
+      p._fromCatalog = true;
+    }catch(e){ console.warn('[catalog] 读取失败,沿用原课表:', p.id, e.message); }
+  }));
+}
+window.hydrateProgramCoursesFromCatalog = hydrateProgramCoursesFromCatalog;
 let _SCHED_HALF=null;      // 课程级(退回/班级课表)：{ 'KB217|2569/1':'上/下/全/上下' }；null=还没载
 let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|2569/1|TM67':'下' }
 let _schedLoading=false;
@@ -5469,6 +5566,7 @@ async function peConfirm(){
     c._gcr=meta.required_cr||0;
   });
   const valid=_peData.filter(c=>c.c.trim()&&c.n.trim());
+  if(prog._fromCatalog && !confirm('ℹ 此专业的课表来自 BA 课程目录(catalog)。\n\n在这里增删改课程只到重新载入为止,之后会以 catalog 为准;要永久改课请到 BA 课程目录改。\n名称、外系选修 slot、总课数等设定会正常保存。\n\n继续储存？')) return;
   if(valid.length<_peData.length){if(!confirm(`有 ${_peData.length-valid.length} 门课程代码或名称为空，将被忽略。确认储存？`))return;}
   prog.name=name;prog.totalCr=cr;prog.courses=valid;
   // 保存外系选修 slot 配置 + 总课数 / 实习课数

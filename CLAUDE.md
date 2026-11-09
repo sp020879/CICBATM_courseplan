@@ -155,8 +155,11 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - ✅ 总方案 `双课纲2570/排课双课纲方案_2570_20261104.md`;CLAUDE.md、memory `ba-dual-curriculum-2570` 已更新。
 
 **下一步(就差这几步,阶段1 即可上线)**
-1. ⏳ **用户**:v0.2 回归脚本贴 TM 网页 Console 跑 → 回报课程级/学生级(应 **0/0**)。
-2. **Claude**:0/0 后把适配层 + 3 处接线(`init` 1435 render 前、同步 2103-2112 后、`apiSaveProgram` 1359 开头 `if(prog._fromCatalog)return`)写进 `TM/single-file/index.html`(先存 `.bak`、给 diff)。
+1. ✅ 2026-11-09 v0.2 回归在线上网页跑过:catalog 61 门(去重后)· 相同 51 门 · 新增 10 门;**课程级 0 处不一致、学生级 36/36 一致**。
+2. ✅ 2026-11-09 已接线(分支 `feat/tm-catalog-stage1`,备份 `_backups/index.html.bak_catalog_stage1_20261109`):适配层放在 `_BA_SUPA_KEY` 定义后;`init` 先 `prefetchCatalog()`、render 前 `hydrateProgramCoursesFromCatalog()`;`syncFromSheet` render 前同样 hydrate。
+   - ⚠ 草稿的「apiSaveProgram 开头 return」**没采用**——会让外系 slot / 预排届别 / 名称存不进去。改为 catalog 托管专业回写原 DB 课表 `_dbCourses`,其他字段照存;`peConfirm` 编辑课程时弹提示「课表来自 BA catalog」。
+   - 阶段 1 沿用 TM 原课名 + 原排序(catalog 有 11 门英文名不同,含错字 KG134 "Issus"、KT412 "Managment";KT305 名称完全不同 "Tour Operation Management" vs TM "Travel Business Management"——待用户确认哪个对)。
+   - 本机预览实测:课表 51 门、36 位学生进度、36 张卡片文字与线上版 **完全一致**。
 3. **Claude** 说「可以部署了」→ **用户**部署。
 4. 阶段1 上线效果:TM 画面/进度不变,课表改吃 catalog ⇒ **2570 只灌 catalog 一次 TM 自动跟上**。
 
@@ -167,13 +170,13 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 排课层加字段(`cohorts.catalog_version`、`catalog.plan_year/plan_term`、`schedule.version`)——与 2570 定稿无关,可先行。
 - 灌 2570 catalog + 建 2565→2570 对接 mapping —— 等 `tm-tqf2-2570-draft` TQF2 定稿。
 
-## 📌 英文毕业考提醒（2026-11-09 · 分支 `feat/tep-exit-reminder`，未合并未部署）
+## 📌 英文毕业考提醒（2026-11-09 · 已部署 commit b0d25b4）
 
 - 规则:实习前一学期要考过 **TEP 毕业**(沿用现有 `s.tep.exit`,及格 `TEP_PASS`=39,补考分也算)。
 - 考试学期 = 实习学期的前一个**大学期**(小学期 /3 不算);已排 KT411/KT331/KT332 用排的学期,否则用 `internshipReminder` 推算。
 - 新函数 `tepExitPassed / prevMainSem / getTepExitState`(在 `getInternshipState` 后)。提示:总览待办两行(本学期应考 / 逾期未过)、筛选「TEP本学期应考 / TEP逾期未过」、卡片 chip(下学期要考 / 本学期应考 / 逾期)、排 KT411/331/332 时 `_tepInternGuard` 弹警告(只警告不阻挡)。
 - 已毕业/退学/转专业/实习已做完的不提醒(旧生不追溯)。备份 `_backups/index.html.bak_tep_20261109`。
-- 待办:用户在网页实测 → commit → 合并 main → 部署。
+- ✅ 2026-11-09 已推 main 并上线(GitHub Pages 确认生效)。
 
 ---
 
