@@ -28,7 +28,7 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 
 ⚠️ **路径陷阱**：此工作区命名「排课 (TM & BA)」但实际 git remote 是 **TM 仓库**。改 BA 前端要去 BA-repo（不在工作区里）改。
 
-## 🎯 当前工作焦点（2026-11-05）· 双课纲 2570 + TM 单一真源
+## 🎯 当前工作焦点（2026-11-09）· 双课纲 2570 + TM 单一真源
 
 **背景**：2570 学年（2027-08 起）**TM / IB / FA** 三个专业换新课纲（旧版 **2565** → 新 **2570**），旧生 teach-out 约 3 年、两套并行；其余 5 专业这轮不动。详见 memory `ba-dual-curriculum-2570`。
 
@@ -36,15 +36,14 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 - `catalog.version` = 每专业「课纲启用届」，**非入学届**。TM/IB/FA=2565、CA=2566、IT/EV=2568、SC=2569、CD=2567+2569（已双版本并存）。⚠️ 下方旧焦点写「TM-2568」有误，实际 **TM=2565**。
 - 课纲层（catalog 有 version、grad 按 dept-version）已就绪；**排课层/届别层缺「届别→课纲版本」映射**（核心待建）。catalog 无年级/学期维度 → 方案拟加 `catalog.plan_year/plan_term`、`cohorts.catalog_version`、`schedule.catalog_version`。
 
-**TM 单一真源（进行中）**：TM 现自维 `programs.courses`，与 BA catalog 已漂移（BA 62 vs TM 51）。查证 **BA catalog 是 TM 课表的超集**（51 门全含 + 多 10 门选修池）。改法 = TM 前端只读 BA catalog（加适配层），**2570 只灌 catalog 一次 TM 自动跟上**。
-- **阶段 1（先做）**：只换来源，画面/进度与现状**完全一致**（离线四字段验证 0 差异），那 10 门待显示选修先排除。
-- **阶段 2（后做）**：放开 10 门选修 + **可折叠**显示（TM matrix 是写死版面 `sections` 3173-3203，语言修选只渲染写死的 LANG_EN/LANG_TH，需用户定版面）。
+**TM 单一真源**：✅ **阶段 1 已上线（2026-11-09，commit 1040bd9）**——TM 课表改读 BA catalog（TM-2565），画面/进度与旧版完全一致。**2570 只要灌进 BA catalog，TM 自动跟上。**
+- 代码位置：`TM/single-file/index.html` 内 `_CAT_*` 常数 + `getProgramCoursesFromCatalog / hydrateProgramCoursesFromCatalog / prefetchCatalog`（在 `_BA_SUPA_KEY` 定义之后）；`init` 与 `syncFromSheet` 在 render 前 hydrate。
+- `_CAT_PROG2DEPT` 目前只有 `TourismManagement → TM`；IB/FA 用户说**先不动**。
+- 阶段 1 规则：沿用 TM 原课名 + 原排序（例外：`_CAT_NAME_FROM_CATALOG` 里的课用 catalog 名，现有 KT305）；10 门待显示选修（自由选修 + 通识语言选修，LA130-132 除外）排除。
+- 存档：catalog 托管专业 `apiSaveProgram` 回写原 DB 课表 `_dbCourses`（programs.courses 不被覆盖），外系 slot / 预排届别 / 名称照存；`peConfirm` 编辑课程会提示「课表来自 BA catalog」。
+- **阶段 2（用户说先不动）**：`_CAT_STAGE1=false` 放开 10 门选修 + **可折叠**显示（TM matrix 写死版面 `sections`，语言修选只渲染写死的 LANG_EN/LANG_TH，需用户定版面）。
 
-**产出（都在 `双课纲2570/`，2026-11-05 从 BTEC 移来）**：`排课双课纲方案_2570_20261104.md`（总方案）、`tm_catalog_adapter_draft.js` v0.2（适配层）、`tm_regression_check.js` v0.2（回归脚本）。
-
-**当前状态 / 下一步**：等用户用 v0.2 回归在 TM 网页 Console 跑最终关卡 → **0/0** → 我把适配层 + 3 处接线（`init` 1435 render 前、同步 2103-2112 后、`apiSaveProgram` 1359 开头 `if(prog._fromCatalog)return`）写进 `TM/single-file/index.html`（先存 .bak、给 diff）→ 说「可以部署」→ 用户部署。
-- 修正记录：`LA130/131/132` 加按码覆盖（→语言与跨文化，catalog 错放通识语言选修）；`KB216` 在 catalog **重复两行**，适配已去重，建议 catalog 删重复。
-- 待办：用户给 **IB/FA 的 program id**（阶段 1 一起纳入）；2570 学习架构表等 `tm-tqf2-2570-draft` 定稿再灌。
+**产出（都在 `双课纲2570/`）**：`排课双课纲方案_2570_20261104.md`（总方案）、`tm_catalog_adapter_draft.js` v0.2（适配层草稿，已被线上版取代）、`tm_regression_check.js` v0.2（回归脚本）。
 
 ## 🗂 早期焦点（2026-06 · 课程目录子系统）
 
@@ -69,7 +68,7 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 3. **改 courseWeight 要两边同步** —— BA 前端 `index.html` + Apps Script `Code.gs` 各有一份。详见 [[courseweight-dual-maintenance]]
 4. **CD Capstone = 0.5 / 课** —— 不是 0.75（3 门 × 0.5 = 1.5）。详见 [[capstone-workload]]
 5. **改 BA 前端前必跑 `git fetch && git pull --ff-only`** —— 避免 Friday UI loss 重演（2026-06-08 事故）
-6. **沙盒不能 git push** —— 没 Mac Keychain · 给用户 Terminal 命令让他自己跑
+6. **沙盒不能 git push** —— 没 Mac Keychain · 给用户 Terminal 命令让他自己跑（注：本机 Claude Code 2026-11-09 实测可直接 push，用户说「部署」时推）
 7. **不要假数据** —— 数据不确定就说不知道，绝不蒙混
 
 ## ⚠️ 操作守则
@@ -114,9 +113,9 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 | 优先级 | 项目 | 卡在哪 |
 |---|---|---|
-| 🔥 高 | **双课纲 · TM 单一真源 阶段1** | 等用户跑 v0.2 回归(0/0)→ 我接线 index.html(先存.bak+给diff)→ 部署 |
+| ✅ 完成 | 双课纲 · TM 单一真源 阶段1 + TEP 毕业考提醒 + KT305 课名 | 2026-11-09 已上线 |
 | 高 | 双课纲加字段(cohorts.catalog_version / catalog.plan_year,plan_term / schedule.version) | 可先行,与 2570 定稿无关 |
-| 中 | TM 单一真源 阶段2(放开10门选修 + 可折叠显示) | 等用户定矩阵版面 |
+| 中 | TM 单一真源 阶段2(放开10门选修 + 可折叠显示) | 用户说先不动 · 需定矩阵版面 |
 | 低 | 灌 2570 catalog + 建 2565→2570 对接 mapping | 等 TQF2 定稿 |
 | 低 | 用户选 popup 风格（A-F）| 等用户决定 · A=Hover / D=极简 popup 是候选 |
 | 高 | v0.8 看板版 HTML | popup 决定后开做 · 估 1.5-2 小时 |
@@ -144,31 +143,27 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 出错坦诚说 · 不甩锅
 - 对话末尾用「问你 X 件事」结构让用户决定下一步
 
-## 📌 进度 / 待办（2026-11-05 · 双课纲 TM 单一真源 阶段1）
+## 📌 进度 / 待办（2026-11-09）
 
-**目前做到哪**
-- ✅ 诊断:CD 双版本=纯数据层并列(排课/届别层完全版本盲,无「届别→版本」wiring,得从零建)。
-- ✅ TM 单一真源方案定案:TM 改读 BA catalog(已证 catalog 是 TM 课表超集,51 门全含 + 多 10 门选修池)。
-- ✅ 版块对照表逐门验证并修正:加 `LA130/131/132→语言与跨文化` 按码覆盖;catalog `KB216` 重复两行,适配已去重。
-- ✅ 适配层 `tm_catalog_adapter_draft.js` v0.2 + 回归脚本 `tm_regression_check.js` v0.2(都在 `双课纲2570/`)。
-- ✅ 离线四字段(g/_gtype/_gcr/cr)验证:51 门与现状 **0 差异**。
-- ✅ 总方案 `双课纲2570/排课双课纲方案_2570_20261104.md`;CLAUDE.md、memory `ba-dual-curriculum-2570` 已更新。
+**2026-11-09 已完成（都已上线）**
+- ✅ v0.2 回归（线上网页跑）：catalog 61 门（去重后）· 相同 51 门 · 新增 10 门；**课程级 0 处不一致、学生级 36/36 一致**。
+- ✅ TM 单一真源阶段 1 接线并部署 `1040bd9`；本机预览实测课表 51 门、36 位学生进度、36 张卡片文字与旧版完全一致；线上确认 `_fromCatalog=true`。
+  - 草稿的「apiSaveProgram 开头 return」**没采用**（会让外系 slot / 预排届别存不进去），改为回写 `_dbCourses`。
+- ✅ KT305 课名改 catalog 的 "Tour Operation Management"（用户确认），部署 `6aa33b5`；内建 fallback 课表同步改。
+- ✅ BA catalog 修错字（用户登入 BA → 「课程结构」iframe 编辑器 `cxEditCourse/cxSaveCourse`）：KG134 → "Global Issues"（id 234/295/356，TM/IB/FA）、KT412 → "Tourism Management"（id 268）。查库确认其他栏位没动。
+- ✅ 英文毕业考提醒部署 `b0d25b4`（见下节）。
+- 备份：`_backups/index.html.bak_tep_20261109`、`_backups/index.html.bak_catalog_stage1_20261109`。
 
-**下一步(就差这几步,阶段1 即可上线)**
-1. ✅ 2026-11-09 v0.2 回归在线上网页跑过:catalog 61 门(去重后)· 相同 51 门 · 新增 10 门;**课程级 0 处不一致、学生级 36/36 一致**。
-2. ✅ 2026-11-09 已接线(分支 `feat/tm-catalog-stage1`,备份 `_backups/index.html.bak_catalog_stage1_20261109`):适配层放在 `_BA_SUPA_KEY` 定义后;`init` 先 `prefetchCatalog()`、render 前 `hydrateProgramCoursesFromCatalog()`;`syncFromSheet` render 前同样 hydrate。
-   - ⚠ 草稿的「apiSaveProgram 开头 return」**没采用**——会让外系 slot / 预排届别 / 名称存不进去。改为 catalog 托管专业回写原 DB 课表 `_dbCourses`,其他字段照存;`peConfirm` 编辑课程时弹提示「课表来自 BA catalog」。
-   - 阶段 1 沿用 TM 原课名 + 原排序(catalog 有 11 门英文名不同,含错字 KG134 "Issus"、KT412 "Managment";KT305 名称完全不同 "Tour Operation Management" vs TM "Travel Business Management"——待用户确认哪个对)。
-   - 本机预览实测:课表 51 门、36 位学生进度、36 张卡片文字与线上版 **完全一致**。
-3. **Claude** 说「可以部署了」→ **用户**部署。
-4. 阶段1 上线效果:TM 画面/进度不变,课表改吃 catalog ⇒ **2570 只灌 catalog 一次 TM 自动跟上**。
-
-**待办(非阻塞)**
-- 用户给 **IB/FA 的 program id** → 阶段1 一起纳入(现仅 TM)。
-- BA catalog 删 `KB216` 重复行(适配已自动去重,不删也不出错)。
-- **阶段2**:放开那 10 门选修 + 做可折叠显示(TM matrix 写死版面,需用户先定版面)。
-- 排课层加字段(`cohorts.catalog_version`、`catalog.plan_year/plan_term`、`schedule.version`)——与 2570 定稿无关,可先行。
+**待办**
+- 用户：TM 右上角 📅 当下学期仍是 **2568/2**（浏览器 localStorage 个人设定，Claude 改不了）→ 改成现在学期，TEP 提醒才准。
+- CD 的 **FA320** "Fashion Merchandising Managment" 同样错字（id 572），用户未表态，未改。
+- BA catalog `KB216` TM 重复行：删 id **767**（手动），留 248（官方PDF）。BA 无删除功能，需 Supabase 后台；适配已去重，不急。
+- 其余 catalog 与 TM 课名差异（如 LA130 "Essential English" vs TM "Fundamental English"、KG154 "Statistics" vs "Sciences"）阶段 1 仍显示 TM 名，未确认哪个对。
+- 排课层加字段（`cohorts.catalog_version`、`catalog.plan_year/plan_term`、`schedule.version`）——与 2570 定稿无关，可先行。
 - 灌 2570 catalog + 建 2565→2570 对接 mapping —— 等 `tm-tqf2-2570-draft` TQF2 定稿。
+- IB/FA 接入、阶段 2：用户说先不动。
+
+**部署方式（TM）**：在本机 Claude Code 里用户说「部署」→ Claude 合并到 `main` 并 `git push origin main`（2026-11-09 实测可推），GitHub Pages 约 40-60 秒生效，curl 线上 index.html 确认新代码。⚠️ 不要用 `tmpush`（`git add -A` 会把 `tmpush-setup.sh`、`课程目录_本机版_v0.7.2.html`、`.claude/` 一起推上去）。本机预览：`.claude/launch.json` 的 `tm-preview`（从 scratchpad 拷贝 index.html + style.css 服务，Documents 目录 python 读不了）。
 
 ## 📌 英文毕业考提醒（2026-11-09 · 已部署 commit b0d25b4）
 
@@ -180,4 +175,4 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ---
 
-**最后更新**：2026-11-05 · 由 Claude 自动维护 · 重大变动同步更新此文件
+**最后更新**：2026-11-09 · 由 Claude 自动维护 · 重大变动同步更新此文件
