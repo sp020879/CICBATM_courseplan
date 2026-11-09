@@ -1,5 +1,7 @@
 # 📚 排课 (TM & BA) · 项目宪法
 
+> 简称：**【TM】**（TM 智能排课，旧暗号「📚 排课」同义）。BA 排课的代码在 `BA-repo`（简称【BA】），不在这里。
+
 > 此文件由 Claude 维护 · 在此工作区内每次对话**自动加载** · 是项目专家身份的"宪法"
 
 ## 🔑 启动暗号
@@ -26,7 +28,25 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 
 ⚠️ **路径陷阱**：此工作区命名「排课 (TM & BA)」但实际 git remote 是 **TM 仓库**。改 BA 前端要去 BA-repo（不在工作区里）改。
 
-## 🎯 当前工作焦点（2026-06-13）
+## 🎯 当前工作焦点（2026-11-05）· 双课纲 2570 + TM 单一真源
+
+**背景**：2570 学年（2027-08 起）**TM / IB / FA** 三个专业换新课纲（旧版 **2565** → 新 **2570**），旧生 teach-out 约 3 年、两套并行；其余 5 专业这轮不动。详见 memory `ba-dual-curriculum-2570`。
+
+**关键事实**
+- `catalog.version` = 每专业「课纲启用届」，**非入学届**。TM/IB/FA=2565、CA=2566、IT/EV=2568、SC=2569、CD=2567+2569（已双版本并存）。⚠️ 下方旧焦点写「TM-2568」有误，实际 **TM=2565**。
+- 课纲层（catalog 有 version、grad 按 dept-version）已就绪；**排课层/届别层缺「届别→课纲版本」映射**（核心待建）。catalog 无年级/学期维度 → 方案拟加 `catalog.plan_year/plan_term`、`cohorts.catalog_version`、`schedule.catalog_version`。
+
+**TM 单一真源（进行中）**：TM 现自维 `programs.courses`，与 BA catalog 已漂移（BA 62 vs TM 51）。查证 **BA catalog 是 TM 课表的超集**（51 门全含 + 多 10 门选修池）。改法 = TM 前端只读 BA catalog（加适配层），**2570 只灌 catalog 一次 TM 自动跟上**。
+- **阶段 1（先做）**：只换来源，画面/进度与现状**完全一致**（离线四字段验证 0 差异），那 10 门待显示选修先排除。
+- **阶段 2（后做）**：放开 10 门选修 + **可折叠**显示（TM matrix 是写死版面 `sections` 3173-3203，语言修选只渲染写死的 LANG_EN/LANG_TH，需用户定版面）。
+
+**产出（都在 `双课纲2570/`，2026-11-05 从 BTEC 移来）**：`排课双课纲方案_2570_20261104.md`（总方案）、`tm_catalog_adapter_draft.js` v0.2（适配层）、`tm_regression_check.js` v0.2（回归脚本）。
+
+**当前状态 / 下一步**：等用户用 v0.2 回归在 TM 网页 Console 跑最终关卡 → **0/0** → 我把适配层 + 3 处接线（`init` 1435 render 前、同步 2103-2112 后、`apiSaveProgram` 1359 开头 `if(prog._fromCatalog)return`）写进 `TM/single-file/index.html`（先存 .bak、给 diff）→ 说「可以部署」→ 用户部署。
+- 修正记录：`LA130/131/132` 加按码覆盖（→语言与跨文化，catalog 错放通识语言选修）；`KB216` 在 catalog **重复两行**，适配已去重，建议 catalog 删重复。
+- 待办：用户给 **IB/FA 的 program id**（阶段 1 一起纳入）；2570 学习架构表等 `tm-tqf2-2570-draft` 定稿再灌。
+
+## 🗂 早期焦点（2026-06 · 课程目录子系统）
 
 📚 **课程目录子系统**（设计/试用阶段）
 
@@ -94,7 +114,11 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 | 优先级 | 项目 | 卡在哪 |
 |---|---|---|
-| 高 | 用户选 popup 风格（A-F）| 等用户决定 · A=Hover / D=极简 popup 是候选 |
+| 🔥 高 | **双课纲 · TM 单一真源 阶段1** | 等用户跑 v0.2 回归(0/0)→ 我接线 index.html(先存.bak+给diff)→ 部署 |
+| 高 | 双课纲加字段(cohorts.catalog_version / catalog.plan_year,plan_term / schedule.version) | 可先行,与 2570 定稿无关 |
+| 中 | TM 单一真源 阶段2(放开10门选修 + 可折叠显示) | 等用户定矩阵版面 |
+| 低 | 灌 2570 catalog + 建 2565→2570 对接 mapping | 等 TQF2 定稿 |
+| 低 | 用户选 popup 风格（A-F）| 等用户决定 · A=Hover / D=极简 popup 是候选 |
 | 高 | v0.8 看板版 HTML | popup 决定后开做 · 估 1.5-2 小时 |
 | 中 | Apps Script `readCatalog` action | 集成 BA 系统时 |
 | 中 | BA 系统加 📚 课程目录 tab (v8.14) | 等 v0.8 试用 1-2 周后 |
@@ -120,6 +144,37 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 出错坦诚说 · 不甩锅
 - 对话末尾用「问你 X 件事」结构让用户决定下一步
 
+## 📌 进度 / 待办（2026-11-05 · 双课纲 TM 单一真源 阶段1）
+
+**目前做到哪**
+- ✅ 诊断:CD 双版本=纯数据层并列(排课/届别层完全版本盲,无「届别→版本」wiring,得从零建)。
+- ✅ TM 单一真源方案定案:TM 改读 BA catalog(已证 catalog 是 TM 课表超集,51 门全含 + 多 10 门选修池)。
+- ✅ 版块对照表逐门验证并修正:加 `LA130/131/132→语言与跨文化` 按码覆盖;catalog `KB216` 重复两行,适配已去重。
+- ✅ 适配层 `tm_catalog_adapter_draft.js` v0.2 + 回归脚本 `tm_regression_check.js` v0.2(都在 `双课纲2570/`)。
+- ✅ 离线四字段(g/_gtype/_gcr/cr)验证:51 门与现状 **0 差异**。
+- ✅ 总方案 `双课纲2570/排课双课纲方案_2570_20261104.md`;CLAUDE.md、memory `ba-dual-curriculum-2570` 已更新。
+
+**下一步(就差这几步,阶段1 即可上线)**
+1. ⏳ **用户**:v0.2 回归脚本贴 TM 网页 Console 跑 → 回报课程级/学生级(应 **0/0**)。
+2. **Claude**:0/0 后把适配层 + 3 处接线(`init` 1435 render 前、同步 2103-2112 后、`apiSaveProgram` 1359 开头 `if(prog._fromCatalog)return`)写进 `TM/single-file/index.html`(先存 `.bak`、给 diff)。
+3. **Claude** 说「可以部署了」→ **用户**部署。
+4. 阶段1 上线效果:TM 画面/进度不变,课表改吃 catalog ⇒ **2570 只灌 catalog 一次 TM 自动跟上**。
+
+**待办(非阻塞)**
+- 用户给 **IB/FA 的 program id** → 阶段1 一起纳入(现仅 TM)。
+- BA catalog 删 `KB216` 重复行(适配已自动去重,不删也不出错)。
+- **阶段2**:放开那 10 门选修 + 做可折叠显示(TM matrix 写死版面,需用户先定版面)。
+- 排课层加字段(`cohorts.catalog_version`、`catalog.plan_year/plan_term`、`schedule.version`)——与 2570 定稿无关,可先行。
+- 灌 2570 catalog + 建 2565→2570 对接 mapping —— 等 `tm-tqf2-2570-draft` TQF2 定稿。
+
+## 📌 英文毕业考提醒（2026-11-09 · 分支 `feat/tep-exit-reminder`，未合并未部署）
+
+- 规则:实习前一学期要考过 **TEP 毕业**(沿用现有 `s.tep.exit`,及格 `TEP_PASS`=39,补考分也算)。
+- 考试学期 = 实习学期的前一个**大学期**(小学期 /3 不算);已排 KT411/KT331/KT332 用排的学期,否则用 `internshipReminder` 推算。
+- 新函数 `tepExitPassed / prevMainSem / getTepExitState`(在 `getInternshipState` 后)。提示:总览待办两行(本学期应考 / 逾期未过)、筛选「TEP本学期应考 / TEP逾期未过」、卡片 chip(下学期要考 / 本学期应考 / 逾期)、排 KT411/331/332 时 `_tepInternGuard` 弹警告(只警告不阻挡)。
+- 已毕业/退学/转专业/实习已做完的不提醒(旧生不追溯)。备份 `_backups/index.html.bak_tep_20261109`。
+- 待办:用户在网页实测 → commit → 合并 main → 部署。
+
 ---
 
-**最后更新**：2026-06-13 · 由 Claude 自动维护 · 重大变动同步更新此文件
+**最后更新**：2026-11-05 · 由 Claude 自动维护 · 重大变动同步更新此文件

@@ -149,6 +149,8 @@
           <option value="jmei">集美学生</option>
           <option value="btec">BTEC学生</option>
           <option value="tep_fail">TEP未过</option>
+          <option value="tep_due">TEP本学期应考</option>
+          <option value="tep_overdue">TEP逾期未过</option>
           <option value="other">其他</option>
         </select>
         <!-- 辅导员老师筛选 -->
@@ -2031,6 +2033,62 @@ function getInternshipState(s){
   return { ...r, status, 最早实习: 最早, 最晚实习: 最晚, isPlanned, plannedSem, isPlanLate };
 }
 
+// ── 英文毕业考（TEP 毕业）提醒 ──
+// 规则（用户确认 2026-11-09）：实习前一学期要考 TEP 毕业（及格 TEP_PASS）
+//   考试学期 = 实习学期的「前一个大学期」（小学期 /3 不算，例 2570/3 实习 → 2570/2 考）
+//   实习学期：已排 KT411/KT331/KT332 用排的学期，否则用 internshipReminder 推算的最早实习学期
+//   提前一学期显示「下学期考」，考试学期 = 本学期应考，过了还没通过 = 逾期
+function tepExitPassed(s){
+  const tx = s?.tep?.exit;
+  if(!tx) return false;
+  return parseInt(tx.score||0) >= TEP_PASS || (!!tx.retest && parseInt(tx.retest||0) >= TEP_PASS);
+}
+// 前一个大学期：2570/3 → 2570/2，2570/2 → 2570/1，2570/1 → 2569/2
+function prevMainSem(sem){
+  const m = (sem||'').match(/^(25\d\d)\/(\d)$/);
+  if(!m) return null;
+  const y = parseInt(m[1]), n = parseInt(m[2]);
+  if(n === 3) return y + '/2';
+  if(n === 2) return y + '/1';
+  return (y - 1) + '/2';
+}
+// 返回 null = 不提醒；否则 { status:'upcoming'|'due'|'overdue', examSem, internSem, taken, failed }
+function getTepExitState(s){
+  if(tepExitPassed(s)) return null;
+  const sd = s.statusDetail || {};
+  if(sd.withdrawn || sd.transferred) return null;
+  if(typeof isGraduated === 'function' && isGraduated(s)) return null;
+  const r = internshipReminder(s);
+  if(!r) return null;
+  const c = s.courses || {};
+  const _sv = v => { const m = String(v||'').match(/^(25\d\d)\/(\d)$/); return m ? parseInt(m[1])*10+parseInt(m[2]) : null; };
+  const _nowV = _sv(NOW_SEM);
+  // 实习已真做完（Transferred 或学期 < 当下）→ 不再提醒（旧生不追溯）
+  const _done = v => v === 'Transferred' || (_sv(v) !== null && _nowV !== null && _sv(v) < _nowV);
+  if(_done(c.KT411) || (_done(c.KT331) && _done(c.KT332))) return null;
+  const _plan = v => _sv(v) !== null;
+  let internSem = null;
+  if(_plan(c.KT411)) internSem = c.KT411;
+  else if(_plan(c.KT331) || _plan(c.KT332)){
+    const a = _plan(c.KT331) ? c.KT331 : null, b = _plan(c.KT332) ? c.KT332 : null;
+    internSem = (a && b) ? (_semCmp(a, b) <= 0 ? a : b) : (a || b);   // 取较早那门
+  } else {
+    internSem = r.实习替 ? (_semCmp(r.实习替, r.实习主) < 0 ? r.实习替 : r.实习主) : r.实习主;
+  }
+  const examSem = prevMainSem(internSem);
+  if(!examSem) return null;
+  const tx = s.tep?.exit;
+  const taken = !!tx, failed = taken;   // 走到这里代表没通过：有成绩 = 考了没过
+  const cmp = _semCmp(NOW_SEM, examSem);
+  let status;
+  if(cmp > 0) status = 'overdue';
+  else if(cmp === 0) status = 'due';
+  else if(_semCmp(NOW_SEM, prevMainSem(examSem)) >= 0) status = 'upcoming';
+  else return null;   // 还没到提前一学期的窗口
+  return { status, examSem, internSem, taken, failed };
+}
+window.getTepExitState = getTepExitState;
+
 function shortName(n) { if(!n||typeof n!=='string') return '—'; return n.replace(/^(Mr\.|Miss|Mrs\.|Ms\.)\s*/i,'').split(' ').slice(0,2).join(' '); }
 function gpaClass(g) { if(!g) return 'none'; return g>=2?'ok':g>=1.5?'warn':'risk'; }
 function gpaLabel(g) {
@@ -2060,6 +2118,9 @@ function visStudents() {
       s=s.filter(x=>x.note===nt);
     } else if(nt==='tep_fail'){
       s=s.filter(x=>{const tx=x.tep?.exit;return tx&&parseInt(tx.score||0)<TEP_PASS&&!(tx.retest&&parseInt(tx.retest||0)>=TEP_PASS);});
+    } else if(nt==='tep_due'||nt==='tep_overdue'){
+      const _want = nt==='tep_due' ? 'due' : 'overdue';
+      s=s.filter(x=>getTepExitState(x)?.status===_want);
     } else if(nt==='gpa_warn'){
       s=s.filter(x=>x.gpa&&parseFloat(x.gpa)<2.0);
     } else if(nt==='intern_eligible'){
@@ -2161,7 +2222,7 @@ async function renderDashboard(){
   const stats = {
     total: allStuds.length,
     active: 0, leaving: 0, pending: 0, past: 0, graduated: 0, withdrawn: 0,
-    gpaWarn: [], pendingLeave: [], internEligible: [], gradPending: [], overflow: [], noClassCode: []
+    gpaWarn: [], pendingLeave: [], internEligible: [], gradPending: [], overflow: [], noClassCode: [], tepDue: [], tepOverdue: []
   };
 
   const _semVal = v => { const m=(v||'').match(/^(25\d\d)\/(\d)$/); return m?parseInt(m[1])*10+parseInt(m[2]):0; };
@@ -2191,6 +2252,10 @@ async function renderDashboard(){
     if(s.gpa != null && parseFloat(s.gpa) < 2.0){
       stats.gpaWarn.push({s, gpa:parseFloat(s.gpa)});
     }
+    // 英文毕业考（TEP 毕业）：本学期应考 / 逾期未过
+    const _tep = getTepExitState(s);
+    if(_tep?.status === 'due') stats.tepDue.push({s});
+    else if(_tep?.status === 'overdue') stats.tepOverdue.push({s});
     // 实习可申请
     if(p.remC === 0 && !p.internOk && (s.gpa==null || parseFloat(s.gpa) >= 2.0)){
       stats.internEligible.push({s});
@@ -2247,6 +2312,8 @@ async function renderDashboard(){
         ${_todoRow('🌙', '上学期休学待确认本学期复学', stats.pendingLeave.length, `switchTab('progress');setTimeout(()=>document.getElementById('bar-status').focus(),100)`, 'var(--amber)')}
         ${_todoRow('⚠', 'GPA 预警 (<2.0)', stats.gpaWarn.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='gpa_warn';e.dispatchEvent(new Event('change'))}},100)`, 'var(--red)')}
         ${_todoRow('🎓', '已达标待标记毕业', stats.gradPending.length, `switchTab('graduates')`, '#854d0e')}
+        ${_todoRow('🗣', '本学期应考英文毕业考 (TEP)', stats.tepDue.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='tep_due';e.dispatchEvent(new Event('change'))}},100)`, 'var(--amber)')}
+        ${_todoRow('🔴', '英文毕业考逾期未通过', stats.tepOverdue.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='tep_overdue';e.dispatchEvent(new Event('change'))}},100)`, 'var(--red)')}
         ${_todoRow('💼', '课程修完可申请实习', stats.internEligible.length, `switchTab('progress');setTimeout(()=>{const e=document.getElementById('bar-note');if(e){e.value='intern_eligible';e.dispatchEvent(new Event('change'))}},100)`, 'var(--g7)')}
         ${_todoRow('📋', '外系选修 slot 超额', stats.overflow.length, `switchTab('workbench')`, 'var(--red)')}
       </div>
@@ -2638,8 +2705,14 @@ function cardHTML(s, idx) {
     alerts.push({t:`⚠ 落后约 ${behind} 学分`, c:'warn'});
   }
 
-  // ─── 4. TEP chip ───
-  if(xFail) alerts.push({t:'⚠ TEP 毕业未过', c:'warn'});
+  // ─── 4. TEP chip（毕业考时程提醒；考过不显示）───
+  const _tepSt = getTepExitState(s);
+  if(_tepSt){
+    const _tag = _tepSt.failed ? '补考' : '考';
+    if(_tepSt.status === 'overdue') alerts.push({t:`⛔ 英文毕业考逾期未过 · 应在 ${_tepSt.examSem}（实习 ${_tepSt.internSem} 前）`, c:'over'});
+    else if(_tepSt.status === 'due') alerts.push({t:`🗣 本学期应${_tag}英文毕业考 · ${_tepSt.examSem}`, c:_tepSt.failed?'over':'warn'});
+    else alerts.push({t:`🗣 下学期要${_tag}英文毕业考 · ${_tepSt.examSem}`, c:'plan'});
+  } else if(xFail) alerts.push({t:'⚠ TEP 毕业未过', c:'warn'});
   // DPU-TEP score badge
   const tepBadge=s.dpuTepScore!=null?`<span class="bdg" style="background:#eff6ff;color:#1e40af">TEP ${s.dpuTepScore}</span>`:'';
   const _onclick=selectMode?`onclick="toggleSelect('${s.id}')"`:'';
@@ -3468,6 +3541,15 @@ function pick(val){
   if(val==='Transferred') document.getElementById('sp-t').classList.add('sel');
   else if(val){const el=document.getElementById('so-'+val.replace('/','_'));if(el)el.classList.add('sel');}
 }
+// 排实习课时：TEP 毕业还没通过 → 警告（只提醒，不阻挡）。返回 false = 用户取消
+function _tepInternGuard(s, code, sem){
+  if(!['KT411','KT331','KT332'].includes(code)) return true;
+  if(!/^25\d\d\/\d$/.test(sem||'')) return true;
+  if(tepExitPassed(s)) return true;
+  const tx = s.tep?.exit;
+  const why = tx ? `TEP 毕业 ${tx.score}${tx.retest?' / 补考 '+tx.retest:''} 分，未达 ${TEP_PASS}` : '还没有 TEP 毕业成绩';
+  return confirm(`⚠ ${s.cname||s.name||s.id} 的英文毕业考还没通过（${why}）\n\n规定实习前一学期（${prevMainSem(sem)}）要考过。\n\n仍要把 ${code} 排在 ${sem} 吗？`);
+}
 async function confirmCell(){
   if(!cellCtx) return;
   const s=DB.students.find(x=>x.id===cellCtx.sid); if(!s) return;
@@ -3489,6 +3571,7 @@ async function confirmCell(){
     catch(e){alert('同步失败：'+e.message);}
     return;
   }
+  if(pickedVal && !_tepInternGuard(s, cellCtx.code, pickedVal)) return;
   if(!pickedVal) delete s.courses[cellCtx.code]; else s.courses[cellCtx.code]=pickedVal;
   closeModal('cell-modal'); _renderOverviewKeepScroll();
   try{await apiSaveCourse(cellCtx.sid,cellCtx.code,pickedVal||'');}
@@ -8956,6 +9039,7 @@ async function _wbWriteOne(sid, code, sem){
   const s = DB.students.find(x => x.id === sid);
   if(!s) return;
   if(!s.courses) s.courses = {};
+  if(!_tepInternGuard(s, code, sem)) return;
   s.courses[code] = sem;
   renderWorkbench();            // 乐观更新:本地一改立刻重画,即时看到结果(不用再"按出来")
   try{
