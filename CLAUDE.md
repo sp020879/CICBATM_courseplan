@@ -145,7 +145,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-09）
 
-**2026-11-10 · 上下半标记修正（分支 `fix/tm-half-mark-fallback`，未提交、未部署）**
+**2026-11-10 · 上下半标记修正（✅ 已部署 `ae88487`，GitHub Pages 确认生效）**
 - 原因：学生届别码（TM67/TM68ZSB）不在 BA schedule 该班 cohorts 名单 → 退回「整门课」合并 → 假「上下」（例 KB222 2569/2：上半全 IB、下半才有 TM69）。
 - 新 `_normCohort`（TM67-2/TM68-2.1→TM67/TM68，TM68-2ZSB→TM68ZSB）+ `_resolveHalf(code,sem,cohort)` 逐级查：届别 → 正规化届别 → 名单有同专业（TM*）的开班 → 整门课；`loadSchedHalves` 多存 `_SCHED_ROWS`（每开班 mark/teacher/cohorts，含等价码镜像）与 `_SCHED_HALF_CON`，fetch 加 `teacher`。
 - 显示 `_halfMark`：实查=实底；推测（prog/all）=虚线淡色；分不出=灰虚线「?」，title 写两班老师。cohort=null（班级课表、工作台总数）改看 TM 学生所在开班。`_studHalf` 与工作台「BA排课」统计改用 resolver（「?」不计）。
