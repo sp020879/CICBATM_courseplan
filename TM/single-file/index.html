@@ -5030,6 +5030,8 @@ window.hydrateProgramCoursesFromCatalog = hydrateProgramCoursesFromCatalog;
 let _SCHED_HALF=null;      // 课程级(退回/班级课表)：{ 'KB217|2569/1':'上/下/全/上下' }；null=还没载
 let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|2569/1|TM67':'下' }
 let _SCHED_HALF_CON=null;  // 届别级(正规化届别码):{ 'KB217|2569/2|TM67':'上' }(TM67-2 → TM67)
+let _SCHED_PRES=null;      // 交叉比对:{ 'KB222|2569/2': Set(['TM69','TM69ZSB','FA69',…]) }(原码大写 + 正规化码)
+let _SCHED_SEM_CNT=null;   // BA schedule 每学期开班数 { '2569/2':81 };不足 _BA_SEM_MIN_ROWS 的学期视为 BA 还没排,不比对
 let _SCHED_ROWS=null;      // 每个开班:{ 'KB222|2569/2':[{mark:'上',teacher,cohorts:['IB67-1FAN-A',…]},…] }
 let _schedLoading=false;
 let _CODE_ALIAS=null;     // 代码桥:{官方码 → schedule 实际码}(catalog 当前专业的 1:1 mapping)
@@ -5040,8 +5042,21 @@ function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='�
 // 届别码正规化:'TM67-2'→'TM67'、'TM68-2.1'→'TM68'、'TM68-2ZSB'→'TM68ZSB'、'tm 69 zsb'→'TM69ZSB';不像届别码(个人名等)回 ''
 function _normCohort(x){
   const s=String(x||'').toUpperCase().replace(/\s+/g,'');
-  const m=s.match(/^([A-Z]+)-?(\d{2})(?:-[\d.]+)?(ZSB)?$/);
+  const m=s.match(/^([A-Z]+)-?(\d{2})(?:[-.][\d.]+)?(ZSB)?$/);
   return m ? m[1]+m[2]+(m[3]||'') : '';
+}
+const _BA_SEM_MIN_ROWS=10;
+function _semNum(s){ const m=String(s||'').match(/^(\d{4})[\/-]([123])$/); return m ? +m[1]*10 + +m[2] : 0; }
+// 交叉比对:TM 排的(课, 学期, 届别)在 BA schedule 有没有。回 'ok' | 'lack'(BA 有开这门课但名单没有该届别) | 'none'(BA 这学期没排这门课) | null(不比对)
+function _baPresence(code, sem, cohort){
+  if(!_SCHED_PRES || !_SCHED_SEM_CNT) return null;
+  const S=_normSem(sem); if(!_semNum(S) || (_SCHED_SEM_CNT[S]||0)<_BA_SEM_MIN_ROWS) return null;   // BA 没排(或才零星几班)的学期不比对:2568 以前、2570 以后
+  sem=S;
+  const ps=_SCHED_PRES[_bridge(code)+'|'+_normSem(sem)];
+  if(!ps) return 'none';
+  if(!cohort) return 'ok';
+  const co=String(cohort).trim().toUpperCase(), n=_normCohort(co);
+  return (ps.has(co) || (n && ps.has(n))) ? 'ok' : 'lack';
 }
 // 某生/某专业在 BA 某课某学期是上半还是下半。回 {m, lvl, tip}
 //   lvl: 'co'=该生届别在 BA 名单里(含分班码) · 'prog'=BA 名单只有同专业学生的那几班(推测) · 'all'=整门课只有一种半(推测) · 'amb'=分不出
@@ -5090,15 +5105,18 @@ async function loadSchedHalves(force){
     const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half,cohorts,teacher`, {
       headers:{ apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY }
     }).then(r=>r.json());
-    const map={}, mapCo={}, rowsMap={}, schedCodes=new Set();
+    const map={}, mapCo={}, rowsMap={}, pres={}, semCnt={}, schedCodes=new Set();
     if(Array.isArray(rows)){
       rows.forEach(r=>{
         const code=String(r.course_code||'').trim().toUpperCase(); if(!code) return;
         schedCodes.add(code);   // 记录 BA 实际排课用到的码(用于代码桥安全闸)
         const sem=_normSem(r.sem); const raw=String(r.half||'').trim();
         const mark=raw.includes('上半')?'上':raw.includes('下半')?'下':raw.includes('全')?'全':'';
-        if(!mark) return;
         const k=code+'|'+sem;
+        const ps=pres[k]=pres[k]||new Set();                  // 交叉比对:BA 有没有排、排给哪些届别(不管有没有填上下半)
+        (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{ const co=String(x&&x.cohort||'').trim(); if(co){ ps.add(co.toUpperCase()); const n=_normCohort(co); if(n) ps.add(n); } });
+        semCnt[sem]=(semCnt[sem]||0)+1;
+        if(!mark) return;
         map[k]=_mergeMark(map[k], mark);                       // 课程级
         (rowsMap[k]=rowsMap[k]||[]).push({ mark, teacher:String(r.teacher||'').trim(),   // 每个开班(给 TM 班级名单退回用)
           cohorts:(Array.isArray(r.cohorts)?r.cohorts:[]).map(x=>String(x&&x.cohort||'').trim()).filter(Boolean) });
@@ -5108,7 +5126,7 @@ async function loadSchedHalves(force){
         });
       });
     }
-    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo; _SCHED_ROWS=rowsMap; _SCHED_CODES=schedCodes;
+    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo; _SCHED_ROWS=rowsMap; _SCHED_PRES=pres; _SCHED_SEM_CNT=semCnt; _SCHED_CODES=schedCodes;
     // 代码桥:catalog 当前专业的 1:1 mapping(官方码→实际码),让 TM 用官方码的课也对得上 schedule
     try{
       const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
@@ -5132,6 +5150,7 @@ async function loadSchedHalves(force){
       // 这样 TM 用 LA131 取得排在 LA161 下的 2569/2 下半;用 KG151 取得排在 SC106 下的下半——两边(不论对接写在哪一边)都接上。
       const _mir=(obj)=>{ Object.keys(obj).forEach(k=>{ const i=k.indexOf('|'); const ps=partner[k.slice(0,i)]; if(ps) ps.forEach(p=>{ const nk=p+k.slice(i); obj[nk]=_mergeMark(obj[nk],obj[k]); }); }); };
       _mir(_SCHED_HALF); _mir(_SCHED_HALF_CO);
+      Object.keys(Object.assign({},pres)).forEach(k=>{ const i=k.indexOf('|'); const ps=partner[k.slice(0,i)]; if(ps) ps.forEach(p=>{ const nk=p+k.slice(i); const s=_SCHED_PRES[nk]=_SCHED_PRES[nk]||new Set(); pres[k].forEach(v=>s.add(v)); }); });
       const _r0=Object.assign({},rowsMap);   // 用镜像前的快照,避免 A→B 再 B→A 重复
       Object.keys(_r0).forEach(k=>{ const i=k.indexOf('|'); const ps=partner[k.slice(0,i)]; if(ps) ps.forEach(p=>{ const nk=p+k.slice(i); _SCHED_ROWS[nk]=(_SCHED_ROWS[nk]||[]).concat(_r0[k]); }); });
     }catch(e){ _CODE_ALIAS=_CODE_ALIAS||{}; _PARTNER=_PARTNER||{}; }
@@ -5139,13 +5158,21 @@ async function loadSchedHalves(force){
     const con={};
     Object.keys(_SCHED_HALF_CO).forEach(k=>{ const j=k.lastIndexOf('|'); const n=_normCohort(k.slice(j+1)); if(!n) return; const nk=k.slice(0,j)+'|'+n; con[nk]=_mergeMark(con[nk], _SCHED_HALF_CO[k]); });
     _SCHED_HALF_CON=con;
-  }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; _SCHED_HALF_CON={}; _SCHED_ROWS={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
+  }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; _SCHED_HALF_CON={}; _SCHED_ROWS={}; _SCHED_PRES={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
 }
 // 小标记：先按【课+学期+届别】精确查，查不到退回课程级；再查不到返回空。size='sm'|'md'
 function _halfMark(code, sem, cohort, size){
   const r=_resolveHalf(code, sem, cohort);
-  if(!r) return '';
+  // 交叉比对角标(只在有届别的格子:工作台学生×课程)
+  const pr = cohort ? _baPresence(code, sem, cohort) : null;
+  const fsB=size==='md'?'9px':'7px';
+  const badge = pr==='none'
+    ? `<span style="display:inline-block;margin-left:2px;font-size:${fsB};font-weight:700;color:#fff;background:#dc2626;border-radius:3px;padding:0 2px;vertical-align:super;line-height:1.2" title="BA 排课 ${_normSem(sem)} 没有排 ${_bridge(code)}（TM 排了，BA 还没排）">BA无</span>`
+    : pr==='lack'
+    ? `<span style="display:inline-block;margin-left:2px;font-size:${fsB};font-weight:700;color:#fff;background:#ea580c;border-radius:3px;padding:0 2px;vertical-align:super;line-height:1.2" title="BA 有开 ${_bridge(code)} ${_normSem(sem)}，但名单里没有 ${String(cohort).trim()}（请 BA 补届别）">缺</span>`
+    : '';
+  if(!r) return badge;
   const m=r.m;
   const col = m==='?' ? ['#64748b','transparent']
     : (m.includes('上')&&m.includes('下')) ? ['#6b21a8','#f3e8ff']
@@ -5158,7 +5185,7 @@ function _halfMark(code, sem, cohort, size){
   const bd = guess ? `1px dashed ${col[0]}` : `1px solid ${col[1]}`;
   const bg = guess ? 'transparent' : col[1];
   const tip = String(r.tip).replace(/"/g,'&quot;');
-  return `<span style="display:inline-block;margin-left:3px;font-size:${fs};font-weight:600;color:${col[0]};background:${bg};border:${bd};border-radius:4px;padding:${pad};vertical-align:middle;letter-spacing:-.3px;${guess?'opacity:.85;':''}" title="${tip}">${m}</span>`;
+  return `<span style="display:inline-block;margin-left:3px;font-size:${fs};font-weight:600;color:${col[0]};background:${bg};border:${bd};border-radius:4px;padding:${pad};vertical-align:middle;letter-spacing:-.3px;${guess?'opacity:.85;':''}" title="${tip}">${m}</span>${badge}`;
 }
 const _SHEET_PROG_MAP={IB:['InternationalBusiness','International Business 国际商务',123],FA:['FinanceAccounting','Finance & Accounting 金融与会计',123],CA:['CommunicationArts','Communication Arts 传媒艺术',126],IT:['InformationTechnology','Information Technology 信息技术',133],SC:['SportsScience','Sports & Exercise Science 体育与运动科学',123],EV:['AutomotiveEngineering','Automotive Engineering 现代汽车工程',134],CD:['CreativeDesign','Creative Design 创意设计',126],TM:['TourismManagement','Tourism Management 旅游管理',123]};
 function _sheetCSVParse(text){
@@ -5873,7 +5900,8 @@ function _tmSemAgg(sem){
       if(v!==sem) return;
       if(/[^\x00-\x7F]/.test(code)) return;              // 跳过中文孤儿 key(外系选修等)
       const C=_bridge(code);                             // 过代码桥,对齐到 BA schedule 码
-      (agg[C]=agg[C]||{})[cc]=(agg[C][cc]||0)+1;
+      const K=_normCohort(cc)||cc;                       // 届别码正规化(TM67-2 → TM67),与 BA 同一把尺
+      (agg[C]=agg[C]||{})[K]=(agg[C][K]||0)+1;
     });
   });
   return agg;
@@ -5897,7 +5925,7 @@ async function _ctReconcileBA(){
   (Array.isArray(baRows)?baRows:[]).forEach(r=>{
     const c=String(r.course_code||'').toUpperCase(); if(!c) return;
     const o=ba[c]=ba[c]||{cohorts:{},halves:new Set()};
-    (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{ if(x&&x.cohort) o.cohorts[x.cohort]=(o.cohorts[x.cohort]||0)+(x.count||0); });
+    (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{ if(x&&x.cohort){ const K=_normCohort(x.cohort)||String(x.cohort).trim(); o.cohorts[K]=(o.cohorts[K]||0)+(x.count||0); } });   // BA 分班码 TM67-2 / TM68-2.1 / TM67.1 归到 TM67 / TM68 / TM67
     if(r.half) o.halves.add(String(r.half).replace('学期',''));
   });
   let issues=0, rows=''; const _statCnt={missing:0,lack:0,diff:0,extra:0};

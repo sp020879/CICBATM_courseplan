@@ -145,6 +145,13 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-09）
 
+**2026-11-10 · BA⇄TM 交叉比对（分支 `feat/tm-ba-crosscheck`，已 commit、未部署）**
+- `loadSchedHalves` 多存 `_SCHED_PRES`（课|学期 → BA 名单届别 Set，含原码大写 + 正规化码，不管有没有填上下半，含等价码镜像）与 `_SCHED_SEM_CNT`（每学期开班数）。
+- `_baPresence(code,sem,cohort)` → ok / lack / none / null；**BA 该学期开班 < `_BA_SEM_MIN_ROWS`(10) 不比对**（2568 以前、2570 以后、2570/3 只有 1 笔）。
+- `_halfMark` 有届别时（工作台格子）加角标：红「BA无」= BA 该学期没排这门课；橘「缺」= BA 有开但名单没有该届别。班级课表（cohort=null）不加。
+- `_normCohort` 也吃 `TM67.1`。🔗 对账 BA 弹窗（`_tmSemAgg` / `_ctReconcileBA`）两边届别都过 `_normCohort` 再比，TM67-2/TM68-2.1 不再误报「缺届别」，人数合并比。
+- 线上数据实测：KB222 2569/2 TM67→缺、TM69→ok；KB216 2569/2→BA无；2568/1、2570/1→不比对。**有数据画面未在浏览器验证**。
+
 **2026-11-10 · 上下半标记修正（✅ 已部署 `ae88487`，GitHub Pages 确认生效）**
 - 原因：学生届别码（TM67/TM68ZSB）不在 BA schedule 该班 cohorts 名单 → 退回「整门课」合并 → 假「上下」（例 KB222 2569/2：上半全 IB、下半才有 TM69）。
 - 新 `_normCohort`（TM67-2/TM68-2.1→TM67/TM68，TM68-2ZSB→TM68ZSB）+ `_resolveHalf(code,sem,cohort)` 逐级查：届别 → 正规化届别 → 名单有同专业（TM*）的开班 → 整门课；`loadSchedHalves` 多存 `_SCHED_ROWS`（每开班 mark/teacher/cohorts，含等价码镜像）与 `_SCHED_HALF_CON`，fetch 加 `teacher`。
