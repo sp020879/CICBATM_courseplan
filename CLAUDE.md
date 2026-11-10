@@ -145,7 +145,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-09）
 
-**2026-11-10 · BA⇄TM 交叉比对（分支 `feat/tm-ba-crosscheck`，已 commit、未部署）**
+**2026-11-10 · BA⇄TM 交叉比对（✅ 已部署 `983ffa9`，GitHub Pages 确认生效）**
 - `loadSchedHalves` 多存 `_SCHED_PRES`（课|学期 → BA 名单届别 Set，含原码大写 + 正规化码，不管有没有填上下半，含等价码镜像）与 `_SCHED_SEM_CNT`（每学期开班数）。
 - `_baPresence(code,sem,cohort)` → ok / lack / none / null；**BA 该学期开班 < `_BA_SEM_MIN_ROWS`(10) 不比对**（2568 以前、2570 以后、2570/3 只有 1 笔）。
 - `_halfMark` 有届别时（工作台格子）加角标：红「BA无」= BA 该学期没排这门课；橘「缺」= BA 有开但名单没有该届别。班级课表（cohort=null）不加。
