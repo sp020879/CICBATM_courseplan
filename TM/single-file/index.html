@@ -5029,12 +5029,46 @@ async function hydrateProgramCoursesFromCatalog(){
 window.hydrateProgramCoursesFromCatalog = hydrateProgramCoursesFromCatalog;
 let _SCHED_HALF=null;      // 课程级(退回/班级课表)：{ 'KB217|2569/1':'上/下/全/上下' }；null=还没载
 let _SCHED_HALF_CO=null;   // 届别级(工作台按学生精确)：{ 'KB217|2569/1|TM67':'下' }
+let _SCHED_HALF_CON=null;  // 届别级(正规化届别码):{ 'KB217|2569/2|TM67':'上' }(TM67-2 → TM67)
+let _SCHED_ROWS=null;      // 每个开班:{ 'KB222|2569/2':[{mark:'上',teacher,cohorts:['IB67-1FAN-A',…]},…] }
 let _schedLoading=false;
 let _CODE_ALIAS=null;     // 代码桥:{官方码 → schedule 实际码}(catalog 当前专业的 1:1 mapping)
 let _PARTNER=null;        // 等价码双向表:{ LA131↔LA161 }(同一门课两个码;即便两码都真实排课也收,用于半学期镜像)
 let _SCHED_CODES=null;    // BA schedule 实际用到的所有课码(Set),给 ↔ 备注小标判断「对接码是否真被排过」
 function _normSem(x){ return String(x||'').trim().replace(/-/g,'/'); }  // 2569-1 → 2569/1
 function _mergeMark(cur,m){ return !cur ? m : (cur!==m && cur!=='全' && m!=='全') ? '上下' : cur; }
+// 届别码正规化:'TM67-2'→'TM67'、'TM68-2.1'→'TM68'、'TM68-2ZSB'→'TM68ZSB'、'tm 69 zsb'→'TM69ZSB';不像届别码(个人名等)回 ''
+function _normCohort(x){
+  const s=String(x||'').toUpperCase().replace(/\s+/g,'');
+  const m=s.match(/^([A-Z]+)-?(\d{2})(?:-[\d.]+)?(ZSB)?$/);
+  return m ? m[1]+m[2]+(m[3]||'') : '';
+}
+// 某生/某专业在 BA 某课某学期是上半还是下半。回 {m, lvl, tip}
+//   lvl: 'co'=该生届别在 BA 名单里(含分班码) · 'prog'=BA 名单只有同专业学生的那几班(推测) · 'all'=整门课只有一种半(推测) · 'amb'=分不出
+//   cohort=null 时(班级课表/工作台总数)直接看同专业的开班
+function _resolveHalf(code, sem, cohort){
+  if(!_SCHED_HALF) return null;
+  const key=_bridge(code)+'|'+_normSem(sem);
+  const rows=(_SCHED_ROWS&&_SCHED_ROWS[key])||[];
+  const desc=rows.map(r=>`${r.mark}半 ${r.teacher||''}`.trim()).filter((v,i,a)=>a.indexOf(v)===i).join(' / ');
+  if(cohort){
+    const co=String(cohort).trim();
+    const m=(_SCHED_HALF_CO&&_SCHED_HALF_CO[key+'|'+co]) || (_SCHED_HALF_CON&&_SCHED_HALF_CON[key+'|'+_normCohort(co)]);
+    if(m) return {m, lvl:'co', tip:`BA 排课：${m}半学期（${co}）`};
+  }
+  const pre=String(cohort||'').toUpperCase().match(/^[A-Z]+/)?.[0]
+    || String((DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg||'').toUpperCase();
+  const preRE=new RegExp('^'+pre+'-?\\d');
+  let pm='';
+  if(pre) rows.forEach(r=>{ if(r.cohorts.some(c=>preRE.test(c.toUpperCase().replace(/\s+/g,'')))) pm=_mergeMark(pm, r.mark); });
+  const who=cohort?`BA 名单里没有 ${cohort}`:`TM 学生`;
+  if(pm==='上下' && !cohort) return {m:'上下', lvl:'co', tip:`BA 排课：${pre} 学生上下半都有开班（${desc}）`};
+  if(pm && pm!=='上下') return {m:pm, lvl:cohort?'prog':'co', tip:cohort?`推测 ${pm}半：${who}，BA 只有 ${pm}半 那班有 ${pre} 学生（${desc}）`:`BA 排课：${pre} 学生在 ${pm}半学期（${desc}）`};
+  const all=_SCHED_HALF[key];
+  if(!all) return null;
+  if(!pm && all!=='上下') return {m:all, lvl:'all', tip:`推测 ${all}半：BA 名单里没有 ${cohort||pre} 学生，整门课只开 ${all}半（${desc}）`};
+  return {m:'?', lvl:'amb', tip:`分不出上下半：${pm?`BA 上下半两班都有 ${pre} 学生`:`BA 名单里没有 ${cohort||pre} 学生`}（${desc}）`};
+}
 // 手动课程对接(catalog 没覆盖、或两个都是真实码而自动闸挡掉的同课不同码)。往里加一行即可。
 const _MANUAL_ALIAS = { 'KG155':'GE172' };   // TM 码 → BA schedule 码
 function _bridge(code){ const c=String(code||'').toUpperCase(); return _MANUAL_ALIAS[c] || (_CODE_ALIAS&&_CODE_ALIAS[c]) || c; }
@@ -5053,10 +5087,10 @@ async function loadSchedHalves(force){
   if(_SCHED_HALF && !force) return;
   _schedLoading=true;
   try{
-    const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half,cohorts`, {
+    const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,sem,half,cohorts,teacher`, {
       headers:{ apikey:_BA_SUPA_KEY, Authorization:'Bearer '+_BA_SUPA_KEY }
     }).then(r=>r.json());
-    const map={}, mapCo={}, schedCodes=new Set();
+    const map={}, mapCo={}, rowsMap={}, schedCodes=new Set();
     if(Array.isArray(rows)){
       rows.forEach(r=>{
         const code=String(r.course_code||'').trim().toUpperCase(); if(!code) return;
@@ -5066,13 +5100,15 @@ async function loadSchedHalves(force){
         if(!mark) return;
         const k=code+'|'+sem;
         map[k]=_mergeMark(map[k], mark);                       // 课程级
+        (rowsMap[k]=rowsMap[k]||[]).push({ mark, teacher:String(r.teacher||'').trim(),   // 每个开班(给 TM 班级名单退回用)
+          cohorts:(Array.isArray(r.cohorts)?r.cohorts:[]).map(x=>String(x&&x.cohort||'').trim()).filter(Boolean) });
         (Array.isArray(r.cohorts)?r.cohorts:[]).forEach(x=>{   // 届别级
           const co=String(x&&x.cohort||'').trim(); if(!co) return;
           mapCo[k+'|'+co]=_mergeMark(mapCo[k+'|'+co], mark);
         });
       });
     }
-    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo; _SCHED_CODES=schedCodes;
+    _SCHED_HALF=map; _SCHED_HALF_CO=mapCo; _SCHED_ROWS=rowsMap; _SCHED_CODES=schedCodes;
     // 代码桥:catalog 当前专业的 1:1 mapping(官方码→实际码),让 TM 用官方码的课也对得上 schedule
     try{
       const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
@@ -5096,24 +5132,33 @@ async function loadSchedHalves(force){
       // 这样 TM 用 LA131 取得排在 LA161 下的 2569/2 下半;用 KG151 取得排在 SC106 下的下半——两边(不论对接写在哪一边)都接上。
       const _mir=(obj)=>{ Object.keys(obj).forEach(k=>{ const i=k.indexOf('|'); const ps=partner[k.slice(0,i)]; if(ps) ps.forEach(p=>{ const nk=p+k.slice(i); obj[nk]=_mergeMark(obj[nk],obj[k]); }); }); };
       _mir(_SCHED_HALF); _mir(_SCHED_HALF_CO);
+      const _r0=Object.assign({},rowsMap);   // 用镜像前的快照,避免 A→B 再 B→A 重复
+      Object.keys(_r0).forEach(k=>{ const i=k.indexOf('|'); const ps=partner[k.slice(0,i)]; if(ps) ps.forEach(p=>{ const nk=p+k.slice(i); _SCHED_ROWS[nk]=(_SCHED_ROWS[nk]||[]).concat(_r0[k]); }); });
     }catch(e){ _CODE_ALIAS=_CODE_ALIAS||{}; _PARTNER=_PARTNER||{}; }
-  }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
+    // 届别级「正规化」表:BA 的分班码 TM67-2 / TM68-2.1 / TM68-2ZSB 归到 TM 的 TM67 / TM68 / TM68ZSB
+    const con={};
+    Object.keys(_SCHED_HALF_CO).forEach(k=>{ const j=k.lastIndexOf('|'); const n=_normCohort(k.slice(j+1)); if(!n) return; const nk=k.slice(0,j)+'|'+n; con[nk]=_mergeMark(con[nk], _SCHED_HALF_CO[k]); });
+    _SCHED_HALF_CON=con;
+  }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; _SCHED_HALF_CON={}; _SCHED_ROWS={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
 }
 // 小标记：先按【课+学期+届别】精确查，查不到退回课程级；再查不到返回空。size='sm'|'md'
 function _halfMark(code, sem, cohort, size){
-  if(!_SCHED_HALF) return '';
-  const key=_bridge(code)+'|'+_normSem(sem);   // 先过代码桥,再拼键
-  let m = (cohort && _SCHED_HALF_CO) ? _SCHED_HALF_CO[key+'|'+String(cohort).trim()] : null;
-  if(!m) m = _SCHED_HALF[key];
-  if(!m) return '';
-  const col = (m.includes('上')&&m.includes('下')) ? ['#6b21a8','#f3e8ff']
+  const r=_resolveHalf(code, sem, cohort);
+  if(!r) return '';
+  const m=r.m;
+  const col = m==='?' ? ['#64748b','transparent']
+    : (m.includes('上')&&m.includes('下')) ? ['#6b21a8','#f3e8ff']
     : m[0]==='上' ? ['#1d4ed8','#dbeafe']
     : m[0]==='下' ? ['#c2410c','#ffedd5']
     : ['#64748b','#f1f5f9'];
-  const pad=size==='md'?'1px 6px':'0 3px';
+  const guess = r.lvl!=='co';                       // 推测/分不出 → 虚线框、淡底
+  const pad=size==='md'?'0 5px':'0 2px';
   const fs=size==='md'?'10px':'8px';
-  return `<span style="display:inline-block;margin-left:3px;font-size:${fs};font-weight:600;color:${col[0]};background:${col[1]};border-radius:4px;padding:${pad};vertical-align:middle;letter-spacing:-.3px" title="BA 排课：${m}半学期">${m}</span>`;
+  const bd = guess ? `1px dashed ${col[0]}` : `1px solid ${col[1]}`;
+  const bg = guess ? 'transparent' : col[1];
+  const tip = String(r.tip).replace(/"/g,'&quot;');
+  return `<span style="display:inline-block;margin-left:3px;font-size:${fs};font-weight:600;color:${col[0]};background:${bg};border:${bd};border-radius:4px;padding:${pad};vertical-align:middle;letter-spacing:-.3px;${guess?'opacity:.85;':''}" title="${tip}">${m}</span>`;
 }
 const _SHEET_PROG_MAP={IB:['InternationalBusiness','International Business 国际商务',123],FA:['FinanceAccounting','Finance & Accounting 金融与会计',123],CA:['CommunicationArts','Communication Arts 传媒艺术',126],IT:['InformationTechnology','Information Technology 信息技术',133],SC:['SportsScience','Sports & Exercise Science 体育与运动科学',123],EV:['AutomotiveEngineering','Automotive Engineering 现代汽车工程',134],CD:['CreativeDesign','Creative Design 创意设计',126],TM:['TourismManagement','Tourism Management 旅游管理',123]};
 function _sheetCSVParse(text){
@@ -8134,7 +8179,7 @@ function renderWorkbench(){
       <span class="wb-stat">${_WB.classes.size}/${allCodes.length} 班 · ${studs.length} 位学生</span>${(() => {
         if(!_SCHED_HALF) return '';
         const t={上:0,下:0,全:0,上下:0};
-        (allPC||[]).forEach(c=>{ const m=_SCHED_HALF[_bridge(c.c)+'|'+TARGET]; if(m&&t[m]!==undefined) t[m]++; });
+        (allPC||[]).forEach(c=>{ const m=_resolveHalf(c.c, TARGET, null)?.m; if(m&&t[m]!==undefined) t[m]++; });
         const tot=t.上+t.下+t.全+t.上下; if(!tot) return '';
         const chip=(l,n,fg,bg)=> n?`<span style="font-size:10px;color:${fg};background:${bg};border-radius:4px;padding:1px 6px;font-weight:600;margin-left:4px">${l}${n}</span>`:'';
         return `<span class="wb-stat" style="margin-left:10px">${TARGET} BA排课</span>`+chip('上',t.上,'#1d4ed8','#dbeafe')+chip('下',t.下,'#c2410c','#ffedd5')+chip('全',t.全,'#64748b','#f1f5f9')+chip('上下',t.上下,'#6b21a8','#f3e8ff');
@@ -8299,8 +8344,7 @@ function renderWorkbench(){
         realCode = code; semVal = val;
       } else { return; }                                 // 中文孤儿 key 跳过
       if(semVal!==sem) return;
-      const key = _bridge(realCode)+'|'+sem;
-      const m = (_SCHED_HALF_CO && _SCHED_HALF_CO[key+'|'+cohort]) || (_SCHED_HALF && _SCHED_HALF[key]);
+      const m = _resolveHalf(realCode, sem, cohort)?.m;   // 届别→分班码→同专业开班→整门课;'?'/'上下' 不计
       if(m==='上'||m==='下'||m==='全') t[m]++;
     });
     return t;

@@ -145,6 +145,13 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-09）
 
+**2026-11-10 · 上下半标记修正（分支 `fix/tm-half-mark-fallback`，未提交、未部署）**
+- 原因：学生届别码（TM67/TM68ZSB）不在 BA schedule 该班 cohorts 名单 → 退回「整门课」合并 → 假「上下」（例 KB222 2569/2：上半全 IB、下半才有 TM69）。
+- 新 `_normCohort`（TM67-2/TM68-2.1→TM67/TM68，TM68-2ZSB→TM68ZSB）+ `_resolveHalf(code,sem,cohort)` 逐级查：届别 → 正规化届别 → 名单有同专业（TM*）的开班 → 整门课；`loadSchedHalves` 多存 `_SCHED_ROWS`（每开班 mark/teacher/cohorts，含等价码镜像）与 `_SCHED_HALF_CON`，fetch 加 `teacher`。
+- 显示 `_halfMark`：实查=实底；推测（prog/all）=虚线淡色；分不出=灰虚线「?」，title 写两班老师。cohort=null（班级课表、工作台总数）改看 TM 学生所在开班。`_studHalf` 与工作台「BA排课」统计改用 resolver（「?」不计）。
+- 线上数据实测（TM 6 届 × 全部课学期）：旧「上下」48 → 「?」11（KG156/SC106/KG151/KH160 2569/1 真的上下两班都有 TM 学生）。**有数据画面未在浏览器验证**（需登入）。备份 `_backups/index.html.bak_halfmark_20261110`。
+- 下一步候选：剩下的「?」做手动指定（方案 ③）。
+
 **2026-11-10 已完成**
 - ✅ 修 macOS Secure Input（Chrome App 打开后 OpenVanilla 变灰）：登入 PIN 框 `pw-input` 不再在载入/过期/登出时自动 focus；登入成功与切走视窗时先 `blur()`（`_releasePwInput`）。全页只有这一个 password 框；用户管理 PIN 用 `window.prompt`，不涉及。验收：`ioreg -l -w 0 | grep -i SecureInput` 不再出现 `kCGSSessionSecureInputPID`。
 
