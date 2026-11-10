@@ -57,32 +57,32 @@
     <span class="bar-divv"></span>
     <span class="bar-stat" id="bar-warn" style="color:#fcd34d"></span>
     <span class="bar-divv"></span>
-    <button onclick="openSemSetting()" title="点击设定当前学期" style="display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);padding:3px 10px;border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--h-active);transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">
+    <button onclick="openSemSetting()" title="点击设定当前学期" class="bar-chip solid" style="font-family:var(--mono);color:var(--h-active)">
       <span style="color:var(--h-muted);font-size:10px;">📅</span>
       <span id="bar-sem">—</span>
       <span style="color:var(--h-muted);font-size:9px;margin-left:2px;">✎</span>
     </button>
     <span class="bar-divv"></span>
     <span id="login-label" style="font-size:11px;color:var(--h-text);font-family:var(--mono);"></span>
-    <button onclick="setAuditWho()" title="设定 audit log 操作者名称" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;margin-right:4px" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">👤 <span id="audit-who-label">—</span></button>
-    <button id="user-mgmt-btn" onclick="openUserMgmt()" title="管理所有登入帐号 (仅主帐号可见)" style="display:none;padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;margin-right:4px" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">🔑 用户管理</button>
-    <button id="login-btn" onclick="logout()" style="padding:2px 9px;border:1px solid rgba(255,255,255,.2);border-radius:4px;background:transparent;color:var(--h-text);font-size:11px;cursor:pointer;font-family:var(--font);transition:all .12s;" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">登出</button>
+    <button onclick="setAuditWho()" title="设定 audit log 操作者名称" class="bar-chip">👤 <span id="audit-who-label">—</span></button>
+    <button id="user-mgmt-btn" onclick="openUserMgmt()" title="管理所有登入帐号 (仅主帐号可见)" class="bar-chip" style="display:none">🔑 用户管理</button>
+    <button id="login-btn" onclick="logout()" class="bar-chip">登出</button>
   </div>
   <!-- Row 2: 新增学生 建档 更新成绩 排课 → → → 新增专业 | 专业选+笔 -->
   <div class="bar-r2">
     <button class="bar-btn bar-btn-primary" onclick="openAddStudent()">+ 新增学生</button>
     <button class="bar-btn" onclick="openBuildModal()">批次建档</button>
     <button class="bar-btn" onclick="openGradeModal()">更新成绩</button>
-    <div style="position:relative;display:inline-block" id="manage-wrap">
+    <div class="pb-wrap" id="manage-wrap">
       <button class="bar-btn" onclick="_toggleManageMenu(event)" title="维护:班级届别 / 辅导员名单 / 课程库 / 新增专业 / 数字检查 / 操作记录">⚙️ 管理 ▾</button>
-      <div id="manage-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid var(--line2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);z-index:200;min-width:172px;overflow:hidden;padding:4px">
-        <button onclick="_closeManageMenu();openPreCohortsModal()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">🏫 班级届别</button>
-        <button onclick="_closeManageMenu();openAdvisorsModal()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">👨‍🏫 辅导员名单</button>
-        <button onclick="_closeManageMenu();openMasterModal()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">📚 课程库</button>
-        <button onclick="_closeManageMenu();openAddProg()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">➕ 新增专业</button>
-        <div style="height:1px;background:var(--line);margin:4px 6px"></div>
-        <button onclick="_closeManageMenu();openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">🔍 数字检查</button>
-        <button onclick="_closeManageMenu();openAuditModal()" title="查看所有操作记录（谁、什么时候、改了什么）" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">📜 操作记录</button>
+      <div id="manage-menu" class="dd-menu left" style="display:none">
+        <button onclick="_closeManageMenu();openPreCohortsModal()" class="dd-item">🏫 班级届别</button>
+        <button onclick="_closeManageMenu();openAdvisorsModal()" class="dd-item">👨‍🏫 辅导员名单</button>
+        <button onclick="_closeManageMenu();openMasterModal()" class="dd-item">📚 课程库</button>
+        <button onclick="_closeManageMenu();openAddProg()" class="dd-item">➕ 新增专业</button>
+        <div class="dd-sep"></div>
+        <button onclick="_closeManageMenu();openProgressDiag()" title="检查所有学生 doneC/remC + 混选状态" class="dd-item">🔍 数字检查</button>
+        <button onclick="_closeManageMenu();openAuditModal()" title="查看所有操作记录（谁、什么时候、改了什么）" class="dd-item">📜 操作记录</button>
       </div>
     </div>
     <div class="bsp"></div>
@@ -103,15 +103,15 @@
       <button class="tab" onclick="switchTab('graduates')">🎓 毕业生清单</button>
     </div>
     <div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--h-border);flex-shrink:0;gap:4px;">
-      <button id="grad-toggle" class="bar-btn-txt" onclick="toggleHideGrads()" title="点击切换：是否隐藏达标毕业的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🎓 <span id="grad-toggle-label">☑ 隐藏毕业生</span></button>
-      <button id="leave-toggle" class="bar-btn-txt" onclick="toggleHideLeave()" title="点击切换：是否隐藏休学的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">🌙 <span id="leave-toggle-label">☐ 隐藏休学</span></button>
-      <button id="transfer-toggle" class="bar-btn-txt" onclick="toggleHideTransfer()" title="点击切换：是否隐藏转专业的学生" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">↪ <span id="transfer-toggle-label">☐ 隐藏转专业</span></button>
-      <div style="position:relative;display:inline-block" id="export-wrap">
-        <button class="bar-btn-txt" onclick="_toggleExportMenu(event)" title="打印 / 导出 CSV / 导出 JSON" style="border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:3px 8px;">⬇ 导出 ▾</button>
-        <div id="export-menu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:#fff;border:1px solid var(--line2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);z-index:200;min-width:150px;overflow:hidden;padding:4px">
-          <button onclick="_closeExportMenu();printBlock()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">🖨 打印当前页</button>
-          <button onclick="_closeExportMenu();exportCSV()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">📊 导出 CSV</button>
-          <button onclick="_closeExportMenu();exportJSON()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:transparent;color:#374151;font-size:12px;cursor:pointer;font-family:var(--font);border-radius:5px;white-space:nowrap" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">{ } 导出 JSON</button>
+      <button id="grad-toggle" class="bar-btn-txt" onclick="toggleHideGrads()" title="点击切换：是否隐藏达标毕业的学生">🎓 <span id="grad-toggle-label">☑ 隐藏毕业生</span></button>
+      <button id="leave-toggle" class="bar-btn-txt" onclick="toggleHideLeave()" title="点击切换：是否隐藏休学的学生">🌙 <span id="leave-toggle-label">☐ 隐藏休学</span></button>
+      <button id="transfer-toggle" class="bar-btn-txt" onclick="toggleHideTransfer()" title="点击切换：是否隐藏转专业的学生">↪ <span id="transfer-toggle-label">☐ 隐藏转专业</span></button>
+      <div class="pb-wrap" id="export-wrap">
+        <button class="bar-btn-txt" onclick="_toggleExportMenu(event)" title="打印 / 导出 CSV / 导出 JSON">⬇ 导出 ▾</button>
+        <div id="export-menu" class="dd-menu right" style="display:none">
+          <button onclick="_closeExportMenu();printBlock()" class="dd-item">🖨 打印当前页</button>
+          <button onclick="_closeExportMenu();exportCSV()" class="dd-item">📊 导出 CSV</button>
+          <button onclick="_closeExportMenu();exportJSON()" class="dd-item">{ } 导出 JSON</button>
         </div>
       </div>
     </div>
@@ -122,20 +122,20 @@
 <div class="shell" id="main-shell">
   <main class="main">
 
-    <div class="tab-pane" id="tab-overview" style="width:100%;padding:0;">
+    <div class="tab-pane" id="tab-overview">
       <div id="overview-page" style="width:100%;"></div>
     </div>
-    <div class="tab-pane on" id="tab-dash" style="width:100%;padding:16px 24px;">
-      <div id="dash-page" style="max-width:1280px;margin:0 auto"></div>
+    <div class="tab-pane on" id="tab-dash">
+      <div id="dash-page"></div>
     </div>
     <div class="tab-pane" id="tab-progress">
-      <div style="display:flex;align-items:center;gap:8px;padding:5px 16px;border-bottom:1px solid var(--line);background:var(--paper);min-height:36px;">
-        <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">学生进度</span>
-        <span style="width:1px;height:14px;background:var(--line2);margin:0 4px;flex-shrink:0;"></span>
+      <div class="page-bar">
+        <span class="pb-title">学生进度</span>
+        <span class="pb-sep"></span>
         <!-- 班级筛选 -->
-        <select id="bar-classcode" onchange="renderCards()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;"><option value="">学生届别</option></select>
+        <select id="bar-classcode" onchange="renderCards()" class="pb-sel"><option value="">学生届别</option></select>
         <!-- 在籍状况筛选 -->
-        <select id="bar-status" onchange="renderCards()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--font);font-size:11px;cursor:pointer;height:24px;">
+        <select id="bar-status" onchange="renderCards()" class="pb-sel">
           <option value="">在籍状况</option>
           <option value="在学">在学</option>
           <option value="休学">休学</option>
@@ -144,7 +144,7 @@
           <option value="毕业">🎓 达标毕业</option>
         </select>
         <!-- 学生特况筛选 -->
-        <select id="bar-note" onchange="renderCards()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--font);font-size:11px;cursor:pointer;height:24px;">
+        <select id="bar-note" onchange="renderCards()" class="pb-sel">
           <option value="">学生特况</option>
           <option value="jmei">集美学生</option>
           <option value="btec">BTEC学生</option>
@@ -154,28 +154,28 @@
           <option value="other">其他</option>
         </select>
         <!-- 辅导员老师筛选 -->
-        <select id="bar-advisor" onchange="renderCards()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--font);font-size:11px;cursor:pointer;height:24px;">
+        <select id="bar-advisor" onchange="renderCards()" class="pb-sel">
           <option value="">辅导员老师</option>
         </select>
         <!-- 届别统计 -->
         <span id="bar-cohort-stat" style="font-size:11px;color:var(--ink3);padding:0 4px;"></span>
         <!-- 取消筛选 -->
-        <button onclick="clearFilters()" id="btn-clear-filters" style="display:none;padding:2px 9px;border:1px solid var(--line2);border-radius:5px;background:#fff;color:var(--ink2);font-size:11px;cursor:pointer;font-family:var(--font);">✕ 取消筛选</button>
+        <button onclick="clearFilters()" id="btn-clear-filters" class="pb-btn" style="display:none">✕ 取消筛选</button>
         <!-- 搜索 -->
-        <div style="position:relative;display:flex;align-items:center;">
-          <span style="position:absolute;left:7px;color:var(--ink3);font-size:11px;pointer-events:none;">🔍</span>
-          <input id="bar-search" placeholder="学号 / 姓名" oninput="renderCards()" style="padding:2px 8px 2px 24px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--font);font-size:11px;width:160px;height:24px;">
+        <div class="pb-wrap">
+          <span class="pb-search-ic">🔍</span>
+          <input id="bar-search" placeholder="学号 / 姓名" oninput="renderCards()" class="pb-input" style="width:170px;padding-left:26px">
         </div>
-        <div style="flex:1;"></div>
-        <div style="position:relative;display:inline-block" id="roster-wrap">
-          <button onclick="document.getElementById('roster-menu').style.display=document.getElementById('roster-menu').style.display==='none'?'block':'none'" style="padding:3px 10px;border:1px solid var(--line2);border-radius:5px;background:transparent;color:var(--ink2);font-size:11px;cursor:pointer;font-family:var(--font);">📋 名单 ▾</button>
-          <div id="roster-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid var(--line2);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:100;min-width:120px;overflow:hidden">
-            <button onclick="printStudentList();document.getElementById('roster-menu').style.display='none'" style="display:block;width:100%;padding:8px 14px;text-align:left;border:none;background:transparent;font-size:11px;cursor:pointer;font-family:var(--font);">🖨 打印 PDF</button>
-            <button onclick="exportStudentListExcel();document.getElementById('roster-menu').style.display='none'" style="display:block;width:100%;padding:8px 14px;text-align:left;border:none;background:transparent;font-size:11px;cursor:pointer;font-family:var(--font);">📊 导出 Excel</button>
+        <div class="pb-sp"></div>
+        <div class="pb-wrap" id="roster-wrap">
+          <button onclick="document.getElementById('roster-menu').style.display=document.getElementById('roster-menu').style.display==='none'?'block':'none'" class="pb-btn">📋 名单 ▾</button>
+          <div id="roster-menu" class="dd-menu left" style="display:none">
+            <button onclick="printStudentList();document.getElementById('roster-menu').style.display='none'" class="dd-item">🖨 打印 PDF</button>
+            <button onclick="exportStudentListExcel();document.getElementById('roster-menu').style.display='none'" class="dd-item">📊 导出 Excel</button>
           </div>
         </div>
-        <button class="bar-btn-outline" onclick="toggleSelectMode()" style="padding:3px 10px;border:1px solid var(--line2);border-radius:5px;background:transparent;color:var(--ink2);font-size:11px;cursor:pointer;font-family:var(--font);">☐ 批次管理</button>
-        <span style="width:1px;height:16px;background:var(--line2);flex-shrink:0;"></span>
+        <button onclick="toggleSelectMode()" class="pb-btn">☐ 批次管理</button>
+        <span class="pb-sep"></span>
         <div style="display:flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden;">
           <button class="vp on" id="vp-card" onclick="setViewMode('card')" style="padding:3px 10px;font-size:11px;">⊞ 卡片</button>
           <button class="vp" id="vp-list" onclick="setViewMode('list')" style="padding:3px 10px;font-size:11px;">☰ 清单</button>
@@ -183,17 +183,17 @@
       </div>
       <div class="cards" id="cards"></div>
     </div>
-    <div class="tab-pane" id="tab-classtable" style="width:100%">
-      <div id="classtable-page" style="width:100%"></div>
+    <div class="tab-pane" id="tab-classtable">
+      <div id="classtable-page"></div>
     </div>
-    <div class="tab-pane" id="tab-workbench" style="width:100%">
-      <div id="workbench-page" style="width:100%"></div>
+    <div class="tab-pane" id="tab-workbench">
+      <div id="workbench-page"></div>
     </div>
-    <div class="tab-pane" id="tab-counsel" style="width:100%">
-      <div id="counsel-page" style="width:100%"></div>
+    <div class="tab-pane" id="tab-counsel">
+      <div id="counsel-page"></div>
     </div>
-    <div class="tab-pane" id="tab-graduates" style="width:100%">
-      <div id="graduates-page" style="width:100%"></div>
+    <div class="tab-pane" id="tab-graduates">
+      <div id="graduates-page"></div>
     </div>
   </main>
 </div>
@@ -2301,14 +2301,15 @@ async function renderDashboard(){
   const _allSysCount = DB.students.length;
   const _otherCount = _allSysCount - allStuds.length;
   let h = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
-      <h2 style="font-size:18px;color:var(--g8);margin:0">📊 总览</h2>
-      <span style="font-size:11px;color:var(--ink3)">· 仅显示 <b style="color:var(--g7)">${prog?.name||activeProg}</b> · 当下学期 ${NOW_SEM}</span>
+    <div class="page-bar">
+      <span class="pb-title">总览 · 待办与数字</span>
+      <span class="pb-sep"></span>
+      <span class="pb-stat">仅显示 <b style="color:var(--g7)">${prog?.name||activeProg}</b> · 当下学期 ${NOW_SEM}</span>
       ${_otherCount > 0 ? `<span style="font-size:10px;background:#e0f2fe;color:#075985;border-radius:3px;padding:2px 8px" title="其他专业有 ${_otherCount} 位学生 · 切右上专业 dropdown 查看">另有 ${_otherCount} 位在其他专业</span>` : ''}
-      <div style="flex:1"></div>
-      <button onclick="renderDashboard()" style="padding:4px 10px;border:1px solid var(--line2);border-radius:5px;background:#fff;color:var(--ink2);font-size:11px;cursor:pointer">🔄 刷新</button>
+      <div class="pb-sp"></div>
+      <button onclick="renderDashboard()" class="pb-btn">🔄 刷新</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;max-width:1400px">
       <!-- 待办区 -->
       <div style="background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
         <div style="background:var(--g8);color:#fff;padding:8px 14px;font-size:12px;font-weight:600">🎯 我的待办</div>
@@ -2359,7 +2360,7 @@ async function renderDashboard(){
     <!-- 最近活动（可折叠 · 状态存 localStorage） -->
     ${(() => {
       const collapsed = localStorage.getItem('dash_recent_collapsed') === '1';
-      return `<div style="margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+      return `<div style="margin-top:16px;max-width:1400px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
         <div onclick="_dashToggleRecent()" style="background:var(--g8);color:#fff;padding:8px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none" title="点击折叠/展开">
           <span style="font-size:10px;width:12px;text-align:center">${collapsed?'▶':'▼'}</span>
           🗂 最近活动
@@ -3032,16 +3033,16 @@ function renderOverview() {
   const _preCohortNums=[...new Set((_prog?.preCohorts||[]).map(cc=>cc.replace(/[^0-9]/g,'').substring(0,2)))].filter(Boolean);
   const cohorts=[...new Set([...allStuds.map(s=>s.cohort),..._preCohortNums])].sort();
 
-  let h = `<div style="position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:8px;padding:5px 16px;border-bottom:1px solid var(--line);background:var(--paper);min-height:36px;">
-    <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">排课总览 · 按学号排序</span>
-    <span style="width:1px;height:14px;background:var(--line2);margin:0 4px;flex-shrink:0;"></span>
+  let h = `<div class="page-bar">
+    <span class="pb-title">排课总览 · 按学号排序</span>
+    <span class="pb-sep"></span>
     <select onchange="window._ovCohort=this.value;_renderOverviewKeepScroll();"
-      style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;">
+      class="pb-sel">
       <option value="">学生届别</option>
       ${cohorts.map(c=>`<option value="${c}" ${c===selCo?'selected':''}>${c}届</option>`).join('')}
     </select>
-    <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">${studs.length} 位学生</span>
-    <div style="flex:1;"></div>
+    <span class="pb-stat">${studs.length} 位学生</span>
+    <div class="pb-sp"></div>
   </div>`;
 
   // 按届别分组（全新生+专升本合并），每届一张大表，学生按学号排序
@@ -4065,21 +4066,21 @@ function renderCounselPage(){
   const atRisk=counts.high+counts.risk+counts.warn,rate=all.length?Math.round(atRisk/all.length*100):0;
   const progOpts=['all',...new Set(DB.students.map(s=>s.prog||'TM'))];
   const filterRisk=window._counselRisk||'all';
-  let h=`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);margin-bottom:14px;min-height:36px;">
-    <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">辅导员老师记录 · GPA 预警追踪</span>
-    <span style="width:1px;height:14px;background:var(--line2);margin:0 4px;flex-shrink:0;"></span>
+  let h=`<div class="page-bar">
+    <span class="pb-title">辅导员老师记录 · GPA 预警追踪</span>
+    <span class="pb-sep"></span>
     <select onchange="window._counselProg=this.value;window._counselCohort='all';window._counselRisk='all';renderCounselPage()"
-      style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;">
+      class="pb-sel">
       ${progOpts.map(p=>`<option value="${p}" ${p===filterProg?'selected':''}>${p==='all'?'全部专业':DB.programs.find(x=>x.id===p)?.name||p}</option>`).join('')}
     </select>
     <select onchange="window._counselCohort=this.value;window._counselRisk='all';renderCounselPage()"
-      style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;">
+      class="pb-sel">
       <option value="all">全部届别</option>
       ${[...new Set(DB.students.filter(s=>filterProg==='all'||(s.prog||'TM')===filterProg).map(s=>s.cohort))].sort().map(co=>`<option value="${co}" ${co===filterCohort?'selected':''}>${co}届</option>`).join('')}
     </select>
-    <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">预警 ${atRisk} / ${all.length} 人 · 风险率 <strong style="color:${atRisk>0?'var(--amber)':'var(--g7)'}">${rate}%</strong></span>
-    <div style="flex:1;"></div>
-    ${filterRisk!=='all'?`<button onclick="window._counselRisk='all';renderCounselPage()" style="padding:2px 8px;border:1px solid var(--line2);border-radius:4px;background:var(--paper);color:var(--ink2);font-size:11px;cursor:pointer;">✕ 清除筛选</button>`:''}
+    <span class="pb-stat">预警 ${atRisk} / ${all.length} 人 · 风险率 <strong style="color:${atRisk>0?'var(--amber)':'var(--g7)'}">${rate}%</strong></span>
+    <div class="pb-sp"></div>
+    ${filterRisk!=='all'?`<button onclick="window._counselRisk='all';renderCounselPage()" class="pb-btn">✕ 清除筛选</button>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-bottom:14px;">
     <div onclick="window._counselRisk=window._counselRisk==='high'?'all':'high';renderCounselPage()" style="flex:1;padding:8px 12px;border-radius:7px;border:2px solid ${filterRisk==='high'?'#dc2626':'#fecaca'};background:${filterRisk==='high'?'#fee2e2':'#fef2f2'};cursor:pointer;transition:all .12s;min-width:0">
@@ -6033,11 +6034,11 @@ function renderClassTable(){
     const [ya,sa]=a.split('/');const [yb,sb]=b.split('/');
     return ya!==yb?parseInt(ya)-parseInt(yb):parseInt(sa)-parseInt(sb);
   });
-  let h=`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);margin-bottom:14px;min-height:36px;">
-    <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">班级课表 · 按学期查看</span>
-    <span style="width:1px;height:14px;background:var(--line2);margin:0 4px;flex-shrink:0;"></span>
-    <select onchange="window._ctClass=this.value;window._ctClass2='';renderClassTable()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;"><option value="all" ${selClass==='all'?'selected':''}>全部班级</option>${codes.map(c=>`<option value="${c}" ${c===selClass?'selected':''}>${c}</option>`).join('')}</select>
-    <select onchange="window._ctSem=this.value;window._ctClass2='';renderClassTable()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;">
+  let h=`<div class="page-bar">
+    <span class="pb-title">班级课表 · 按学期查看</span>
+    <span class="pb-sep"></span>
+    <select onchange="window._ctClass=this.value;window._ctClass2='';renderClassTable()" class="pb-sel"><option value="all" ${selClass==='all'?'selected':''}>全部班级</option>${codes.map(c=>`<option value="${c}" ${c===selClass?'selected':''}>${c}</option>`).join('')}</select>
+    <select onchange="window._ctSem=this.value;window._ctClass2='';renderClassTable()" class="pb-sel">
       <option value="${NOW_SEM}" ${selSem===NOW_SEM?'selected':''}>📅 ${NOW_SEM}（当前）</option>
       ${(()=>{
         const opts=semOpts.filter(s=>s!==NOW_SEM);
@@ -6052,14 +6053,14 @@ function renderClassTable(){
         }).join('');
       })()}
     </select>
-    <span style="width:1px;height:14px;background:var(--line2);margin:0 2px;flex-shrink:0;"></span>
+    <span class="pb-sep"></span>
     <input id="ct-search-input" type="search" placeholder="🔍 搜课程代码 / 名称" value="${(window._ctSearch||'').replace(/"/g,'&quot;')}"
       oninput="window._ctSearch=this.value;_ctApplySearch()"
-      style="padding:2px 9px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;height:24px;width:170px;outline:none;"
-      onfocus="this.style.borderColor='var(--sky)'" onblur="this.style.borderColor='var(--line2)'">
-    <div style="flex:1;"></div>
-    <button onclick="_ctReconcileBA()" title="对账 BA 排课(只读，不改任何数据)" style="padding:2px 10px;border:1px solid var(--sky);border-radius:5px;background:#eff6ff;color:var(--sky);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">🔗 对账 BA</button>
-    <button onclick="_ctExportCSV()" title="导出当前学期排课为 CSV（供导入用）" style="padding:2px 10px;border:1px solid var(--g6);border-radius:5px;background:#f0fdf4;color:var(--g8);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">📥 导出排课 CSV</button>
+      class="pb-input" style="width:170px"
+     >
+    <div class="pb-sp"></div>
+    <button onclick="_ctReconcileBA()" title="对账 BA 排课(只读，不改任何数据)" class="pb-btn blue">🔗 对账 BA</button>
+    <button onclick="_ctExportCSV()" title="导出当前学期排课为 CSV（供导入用）" class="pb-btn green">📥 导出排课 CSV</button>
   </div>`;
   if(!codes.length){h+='<p style="color:var(--ink3)">尚无班级代码</p>';page.innerHTML=h;return;}
   if(!semCodes.size){h+=`<div style="text-align:center;padding:40px;color:var(--ink3)">📭 ${selClass==="all"?"全部班级":selClass} · ${selSem} 无排课记录</div>`;page.innerHTML=h;return;}
@@ -6739,20 +6740,20 @@ function renderGraduates(){
   });
 
   // 工具栏（跟班级课表一致：小字 mono + 单行）
-  let h = `<div style="padding:0 18px 18px">
-    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);margin-bottom:14px;min-height:36px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--ink3);font-family:var(--mono);">毕业生清单 · 按学年查看</span>
+  let h = `<div>
+    <div class="page-bar">
+      <span class="pb-title">毕业生清单 · 按学年查看</span>
       ${allYears.length ? `
-        <span style="width:1px;height:14px;background:var(--line2);margin:0 4px;flex-shrink:0;"></span>
-        <select onchange="window._gradSelectedYear=this.value;renderGraduates()" style="padding:2px 7px;border:1px solid var(--line2);border-radius:5px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer;height:24px;">
+        <span class="pb-sep"></span>
+        <select onchange="window._gradSelectedYear=this.value;renderGraduates()" class="pb-sel">
           ${allYears.map(y => `<option value="${y}" ${y===selYear?'selected':''}>${y} 学年</option>`).join('')}
         </select>
       ` : ''}
-      <div style="flex:1"></div>
-      <span style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${getProg(activeProg)?.name||activeProg} · 共 ${grads.length} 位</span>
+      <div class="pb-sp"></div>
+      <span class="pb-stat">${getProg(activeProg)?.name||activeProg} · 共 ${grads.length} 位</span>
       ${allYears.length ? `
-        <button onclick="exportGraduatesByYear('${selYear}')" title="导出 ${selYear} 学年为 CSV" style="padding:2px 10px;border:1px solid var(--g6);border-radius:5px;background:#f0fdf4;color:var(--g8);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">📥 导出 CSV</button>
-        <button onclick="printGraduatesYear('${selYear}')" title="A4 打印 ${selYear} 学年名单" style="padding:2px 10px;border:1px solid #854d0e;border-radius:5px;background:#fffbeb;color:#854d0e;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);height:24px;white-space:nowrap" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fffbeb'">🖨 打印 A4</button>
+        <button onclick="exportGraduatesByYear('${selYear}')" title="导出 ${selYear} 学年为 CSV" class="pb-btn green">📥 导出 CSV</button>
+        <button onclick="printGraduatesYear('${selYear}')" title="A4 打印 ${selYear} 学年名单" class="pb-btn amber">🖨 打印 A4</button>
       ` : ''}
     </div>`;
 

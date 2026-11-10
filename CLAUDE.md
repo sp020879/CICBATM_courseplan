@@ -163,6 +163,13 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 灌 2570 catalog + 建 2565→2570 对接 mapping —— 等 `tm-tqf2-2570-draft` TQF2 定稿。
 - IB/FA 接入、阶段 2：用户说先不动。
 
+**2026-11-10 · 统一版面（分支 `ui/unify-layout`，未 commit、未部署）**
+- `style.css` 新增共用 class：`.page-bar`（各 tab 顶部工具列，吸顶、满版、margin -16/-24 抵消 `.main` padding）、`.pb-title / .pb-stat / .pb-sep / .pb-sp / .pb-sel / .pb-input / .pb-btn(.green/.blue/.amber) / .pb-wrap / .pb-search-ic`；下拉选单 `.dd-menu(.left/.right) / .dd-item / .dd-sep`；header 小按钮 `.bar-chip(.solid)`。
+- 6 个 tab（总览/学生进度/班级课表/辅导员/毕业生 + 隐藏的排课总览）工具列改用 `.page-bar`；总览的 18px 大标题改成同款工具列；拿掉总览双重 padding + 1280 max-width（内容区改 max-width 1400、两栏 auto-fit）、毕业生多的 18px 外距；工作台 `.wb-toolbar` 对齐页面边缘（左右 24px）并吸顶。
+- 管理 / 导出 / 名单 三个下拉、右上角 学期/操作者/用户管理/登出 按钮改用共用 class；JS 仍靠 `style.display` 开关，未改逻辑。
+- 新增 CSS 新写法：新工具列一律用 `.page-bar` + `.pb-*`，不要再写行内 style。
+- 本机预览（无数据）6 个 tab 已看过；**有数据时的卡片/矩阵/吸顶滚动未验证**。备份 `_backups/index.html.bak_layout_20261110`、`_backups/style.css.bak_layout_20261110`。
+
 **部署方式（TM）**：在本机 Claude Code 里用户说「部署」→ Claude 合并到 `main` 并 `git push origin main`（2026-11-09 实测可推），GitHub Pages 约 40-60 秒生效，curl 线上 index.html 确认新代码。⚠️ 不要用 `tmpush`（`git add -A` 会把 `tmpush-setup.sh`、`课程目录_本机版_v0.7.2.html`、`.claude/` 一起推上去）。本机预览：`.claude/launch.json` 的 `tm-preview`（从 scratchpad 拷贝 index.html + style.css 服务，Documents 目录 python 读不了）。
 
 ## 📌 英文毕业考提醒（2026-11-09 · 已部署 commit b0d25b4）
