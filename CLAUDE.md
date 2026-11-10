@@ -145,6 +145,9 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-09）
 
+**2026-11-10 已完成**
+- ✅ 修 macOS Secure Input（Chrome App 打开后 OpenVanilla 变灰）：登入 PIN 框 `pw-input` 不再在载入/过期/登出时自动 focus；登入成功与切走视窗时先 `blur()`（`_releasePwInput`）。全页只有这一个 password 框；用户管理 PIN 用 `window.prompt`，不涉及。验收：`ioreg -l -w 0 | grep -i SecureInput` 不再出现 `kCGSSessionSecureInputPID`。
+
 **2026-11-09 已完成（都已上线）**
 - ✅ v0.2 回归（线上网页跑）：catalog 61 门（去重后）· 相同 51 门 · 新增 10 门；**课程级 0 处不一致、学生级 36/36 一致**。
 - ✅ TM 单一真源阶段 1 接线并部署 `1040bd9`；本机预览实测课表 51 门、36 位学生进度、36 张卡片文字与旧版完全一致；线上确认 `_fromCatalog=true`。
