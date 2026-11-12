@@ -2664,7 +2664,7 @@ function cardHTML(s, idx) {
   const xFail=tx&&parseInt(tx.score||0)<TEP_PASS&&!(tx.retest&&parseInt(tx.retest||0)>=TEP_PASS);
   const _tags=parseTags(s.note);
   let badgesHtml=_tags.map(k=>{const cls=k==='jmei'?'b-j':k==='btec'?'b-b':'';const lab=k==='jmei'?'集美':k==='btec'?'BTEC':k;return `<span class="bdg ${cls}">${String(lab).replace(/</g,'&lt;')}</span>`;}).join('');
-  if((s.noteText||'').trim())badgesHtml+=`<span class="bdg" title="${(s.noteText||'').replace(/"/g,'&quot;')}" style="cursor:help">📝</span>`;
+  if((s.noteText||'').trim()){const _nt=s.noteText.trim();const _ntShort=_nt.length>14?_nt.slice(0,14)+'…':_nt;badgesHtml+=`<span class="bdg" title="${_nt.replace(/"/g,'&quot;')}" style="cursor:help;background:#fffbeb;color:#92400e;border:1px solid #fde68a">📝 ${_ntShort.replace(/</g,'&lt;')}</span>`;}
   // ── 实习资格判断 ──
   const gpaNum=gpa?parseFloat(gpa):null;
   const gpaOk=gpaNum!=null&&gpaNum>=2.0;
