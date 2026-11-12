@@ -258,10 +258,14 @@
       </div>
       <div class="fr"><label>姓名（英文）</label><input type="text" id="f-name" placeholder="例：Miss Wang Fang"></div>
       <div class="fr"><label>中文姓名 <span style="font-weight:400;color:var(--ink3)">（选填）</span></label><input type="text" id="f-cname" placeholder="例：王芳"></div>
-      <div class="fr-row">
-        <div class="fr"><label>备注</label><select id="f-note" onchange="toggleOther(this.value)"><option value="">— 无 —</option><option value="jmei">集美学生</option><option value="btec">BTEC学生</option><option value="other">其他</option></select></div>
-        <div class="fr" id="f-other-row" style="display:none"><label>说明</label><input type="text" id="f-other"></div>
+      <div class="fr"><label>标签 <span style="font-weight:400;color:var(--ink3)">（可多选）</span></label>
+        <div id="f-tags" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px"></div>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="f-tag-input" placeholder="自定义标签，按 Enter 新增" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addFTag();}">
+          <button type="button" onclick="addFTag()" style="padding:5px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--g1);color:var(--g7);font-size:11px;cursor:pointer;white-space:nowrap;font-family:var(--font)">＋ 新增</button>
+        </div>
       </div>
+      <div class="fr"><label>备注 <span style="font-weight:400;color:var(--ink3)">（选填）</span></label><input type="text" id="f-note-text" placeholder="自由备注…"></div>
       <div class="fr"><label>班级代码</label>
         <div style="display:flex;gap:6px">
           <input type="text" id="f-classcode" list="f-classcode-options" placeholder="选/填，例：TM66" style="flex:1;font-family:var(--mono);font-weight:600;">
@@ -2125,8 +2129,10 @@ function visStudents() {
   });
   const nt=document.getElementById('bar-note')?.value||'';
   if(nt){
-    if(nt==='jmei'||nt==='btec'||nt==='other'){
-      s=s.filter(x=>x.note===nt);
+    if(nt==='jmei'||nt==='btec'){
+      s=s.filter(x=>parseTags(x.note).includes(nt));
+    } else if(nt==='other'){
+      s=s.filter(x=>{const _tg=parseTags(x.note);return (x.noteText||'').trim()||_tg.some(t=>t!=='jmei'&&t!=='btec');});
     } else if(nt==='tep_fail'){
       s=s.filter(x=>{const tx=x.tep?.exit;return tx&&parseInt(tx.score||0)<TEP_PASS&&!(tx.retest&&parseInt(tx.retest||0)>=TEP_PASS);});
     } else if(nt==='tep_due'||nt==='tep_overdue'){
@@ -2656,8 +2662,9 @@ function cardHTML(s, idx) {
   const trend=gpa&&lastG?(gpa>lastG?'↑':gpa<lastG?'↓':'→'):'';
   const te=s.tep?.entry,tx=s.tep?.exit;
   const xFail=tx&&parseInt(tx.score||0)<TEP_PASS&&!(tx.retest&&parseInt(tx.retest||0)>=TEP_PASS);
-  const bl=s.note==='jmei'?'b-j':s.note==='btec'?'b-b':'';
-  const bt=s.note==='jmei'?'集美':s.note==='btec'?'BTEC':s.noteText||'';
+  const _tags=parseTags(s.note);
+  let badgesHtml=_tags.map(k=>{const cls=k==='jmei'?'b-j':k==='btec'?'b-b':'';const lab=k==='jmei'?'集美':k==='btec'?'BTEC':k;return `<span class="bdg ${cls}">${String(lab).replace(/</g,'&lt;')}</span>`;}).join('');
+  if((s.noteText||'').trim())badgesHtml+=`<span class="bdg" title="${(s.noteText||'').replace(/"/g,'&quot;')}" style="cursor:help">📝</span>`;
   // ── 实习资格判断 ──
   const gpaNum=gpa?parseFloat(gpa):null;
   const gpaOk=gpaNum!=null&&gpaNum>=2.0;
@@ -2747,7 +2754,7 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
         <div style="font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.id}${s.cname?' · '+s.cname:''}</div>
         <div style="font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.advisor||''}</div>
         <div class="sc-badges" style="margin-top:1px;display:flex;flex-wrap:wrap;gap:3px;">
-          ${bt?`<span class="bdg ${bl}">${bt}</span>`:''}
+          ${badgesHtml}
           <span class="bdg ${s.type==='transfer'?'b-x':'b-n'}">${s.type==='transfer'?'专升本':'全日生'}</span>
           ${s.scoreNote?`<span class="bdg" style="background:#f0fdf4;color:#166534" title="已录逐科成绩(点 ✏️ 编辑查看/修改):\n${String(s.scoreNote).replace(/"/g,'&quot;').slice(0,300)}">📝 成绩</span>`:''}
           ${(()=>{const sd=s.statusDetail||{};
@@ -3642,7 +3649,28 @@ function autoClassCode(cohort,type,progId){
   const short = _p?.meta?.shortCode || _PROG_SHORT[pid] || pid;
   return short + (cohort||'') + (type==='transfer'?'ZSB':'');
 }
-function toggleOther(v){document.getElementById('f-other-row').style.display=v==='other'?'flex':'none';}
+// ── 学生标签（可多选）+ 备注 ──────────────────────────
+const TAG_LABELS={jmei:'集美学生',btec:'BTEC学生'};
+// 把 note 栏解析成标签阵列：兼容旧单值('jmei')与新 JSON(["jmei","btec"]);旧 'other' 不再是标签
+function parseTags(v){
+  if(Array.isArray(v)) return v.filter(Boolean);
+  if(v==null||v==='') return [];
+  const s=String(v).trim();
+  if(s.charAt(0)==='['){try{const a=JSON.parse(s);return Array.isArray(a)?a.filter(Boolean):[];}catch(e){}}
+  return s==='other'?[]:[s];
+}
+let _fTags=[];
+function renderFTags(){
+  const el=document.getElementById('f-tags'); if(!el) return;
+  const fixed=['jmei','btec'];
+  const customs=_fTags.filter(t=>!fixed.includes(t));
+  el.innerHTML =
+    fixed.map(k=>{const on=_fTags.includes(k);return `<button type="button" onclick="toggleFTag('${k}')" style="padding:3px 11px;border-radius:14px;border:1px solid ${on?'var(--g7)':'var(--line2)'};background:${on?'var(--g1)':'#fff'};color:${on?'var(--g7)':'var(--ink3)'};font-size:11px;cursor:pointer;font-family:var(--font)${on?';font-weight:600':''}">${on?'✓ ':''}${TAG_LABELS[k]}</button>`;}).join('')
+    + customs.map(t=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:14px;padding:3px 9px;font-size:11px">${String(t).replace(/</g,'&lt;')}<button type="button" onclick="removeFTag('${String(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="border:none;background:none;cursor:pointer;color:#3730a3;font-size:12px;line-height:1;padding:0 1px">×</button></span>`).join('');
+}
+function toggleFTag(k){const i=_fTags.indexOf(k);if(i>=0)_fTags.splice(i,1);else _fTags.push(k);renderFTags();}
+function addFTag(){const inp=document.getElementById('f-tag-input');const v=(inp?.value||'').trim();if(!v)return;if(!_fTags.includes(v))_fTags.push(v);if(inp)inp.value='';renderFTags();}
+function removeFTag(t){_fTags=_fTags.filter(x=>x!==t);renderFTags();}
 
 // 在籍状况
 let _leaveSems = [];
@@ -3858,7 +3886,8 @@ function _populateClassCodeOptions(){
 function openAddStudent(){
   document.getElementById('am-title').textContent='新增学生';
   renderProgSelect();  // ★ 重新渲染专业 dropdown，确保跟上当前 activeProg
-  ['f-id','f-name','f-cname','f-other','f-score'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-id','f-name','f-cname','f-note-text','f-score','f-tag-input'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  _fTags=[];renderFTags();
   const ccEl=document.getElementById('f-classcode');
   if(ccEl) ccEl.value=autoClassCode(document.getElementById('f-cohort').value,document.getElementById('f-type').value);
   _populateClassCodeOptions();
@@ -3879,11 +3908,10 @@ function openEditStudent(id){
   document.getElementById('f-cname').value=s.cname||'';
   document.getElementById('f-cohort').value=s.cohort;
   document.getElementById('f-type').value=s.type;
-  document.getElementById('f-note').value=s.note||'';
+  _fTags=parseTags(s.note);renderFTags();
   document.getElementById('f-advisor').value=s.advisor||'';
   const _fs=document.getElementById('f-score'); if(_fs) _fs.value=s.scoreNote||'';
-  document.getElementById('f-other').value=s.noteText||'';
-  document.getElementById('f-other-row').style.display=s.note==='other'?'flex':'none';
+  document.getElementById('f-note-text').value=s.noteText||'';
   // 在籍状况
   const sd=s.statusDetail||{};
   _leaveSems=sd.leave?[...sd.leave]:[];
@@ -3909,8 +3937,8 @@ async function confirmAdd(){
   const id=document.getElementById('f-id').value.trim();
   const name=document.getElementById('f-name').value.trim();
   if(!id||!name){alert('请填写学号和姓名');return;}
-  const note=document.getElementById('f-note').value;
-  const nt=note==='other'?document.getElementById('f-other').value.trim():'';
+  const note=_fTags.length?JSON.stringify(_fTags):'';
+  const nt=(document.getElementById('f-note-text')?.value||'').trim();
   const pid=document.getElementById('f-prog').value;
   const ei=DB.students.findIndex(s=>s.id===id);
   if(ei>=0){
@@ -7795,7 +7823,7 @@ function _getStudentListData(){
   Object.keys(byYear).sort().forEach(yr=>{
     byYear[yr].sort((a,b)=>a.id.localeCompare(b.id)).forEach((s,i)=>{
       const typeLabel=s.type==='transfer'?'专升本':'全日生';
-      const noteLabel=noteMap[s.note]||'';
+      const noteLabel=parseTags(s.note).map(t=>noteMap[t]||t).join('、');
       const fullType=noteLabel?`${typeLabel}(${noteLabel})`:typeLabel;
       const sd=s.statusDetail||{};
       const _p=calcProgress(s,progCourses(s.prog||'TM'));
