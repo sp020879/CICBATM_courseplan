@@ -28,6 +28,16 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 
 ⚠️ **路径陷阱**：此工作区命名「排课 (TM & BA)」但实际 git remote 是 **TM 仓库**。改 BA 前端要去 BA-repo（不在工作区里）改。
 
+## 🔐 安全 / 备份现状（2026-11-13 复验）
+
+**安全（RLS）✅ 实测通过**：用公开 anon key 直拉 `students / passcodes / sessions` 三张 PII 表，均回 **0 笔** → anon 拖不走资料，RLS 生效中。⚠️ 验收看返回行数，不是状态码（enable RLS 无策略时空数组 `[]` 仍回 HTTP 200）。登录走 `verify_pin` RPC + 12h session token；anon key 印在公开 HTML 是设计，防线就是 RLS。旧 `backups/*.json` git 历史外泄已于 2026-07-05 force-push 抹除、线上 404。TM Supabase=`xzplzckugyvutsqocrtw`。
+
+**备份 ✅ 每天自动在跑**：
+- **数据库**：launchd `com.cicba.backup.plist` → `~/CICBA-backups/backup_all.sh` → `tm_backup.mjs`，**每天 16:00** 自动跑；落地**本机 `~/Documents/网站备份/TM智能排课/` + Google Drive** 双份，留存 30 天 + 更早每月一份。最新 2026-11-12（students 36 等全表）。**不走公开仓库 = 无外泄风险**。
+- **代码**：git（`sp020879/CICBATM_courseplan`）+ 本机 `_backups/`（改动前快照，`.gitignore` 不进 git）。
+
+> 背景：2026-06 原 GitHub Action `backup.yml` 每日 dump 明文 PII 外泄 → 已删除停用 + RLS 锁死；现改用上面的本机定时备份。详见 memory `tm-backup-exposure-remediation`。
+
 ## 🎯 当前工作焦点（2026-11-09）· 双课纲 2570 + TM 单一真源
 
 **背景**：2570 学年（2027-08 起）**TM / IB / FA** 三个专业换新课纲（旧版 **2565** → 新 **2570**），旧生 teach-out 约 3 年、两套并行；其余 5 专业这轮不动。详见 memory `ba-dual-curriculum-2570`。
@@ -200,4 +210,4 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ---
 
-**最后更新**：2026-11-09 · 由 Claude 自动维护 · 重大变动同步更新此文件
+**最后更新**：2026-11-13 · 由 Claude 自动维护 · 重大变动同步更新此文件
