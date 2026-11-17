@@ -214,7 +214,8 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 | LA160、LA161 和 LA162 | 40 | 4.0 | 400 | 40 |
 
 - 备注：LA130、LA131 和 LA132 课程的学分认定，适用相同的分数档次。
-- 认定表仅作信息记录（用户 2026-11-17 说明），不是待办：不需要网页按此表做自动认定/提示。
+- 认定表只展示信息，不做自动认定（用户 2026-11-17 说明）。
+- **网页显示位置（2026-11-17 已部署）**：TEP 弹窗（`openTep`）。入学/毕业分数框下各一行「达标线 39 分」（`.tep-hint`）；弹窗底部可展开的「学分认定标准」表（`TEP_CREDIT_REF` / `TEP_REF_HTML`，在 `TEP_PASS` 下方；样式 `.tep-ref*` 在 style.css `.tep-val` 之后）。备份 `_backups/index.html.bak_tepref_20261117`、`_backups/style.css.bak_tepref_20261117`。本机预览量过：桌机与 375px 弹窗内无横向溢出；**登录后真实数据下未验证（待用户在线上点一次）**。
 
 ## 📌 英文毕业考提醒（2026-11-09 · 已部署 commit b0d25b4）
 

@@ -688,6 +688,16 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const COHORTS = ['66','67','68','69','70','71','72','73','74','75']; // 动态扩展
 let NOW_SEM = localStorage.getItem('now_sem') || '2568/2';
 const TEP_PASS = 39;
+// 英文学分认定标准（2026-11-17 用户提供；只展示，不做自动认定）。显示在 TEP 弹窗底部
+const TEP_CREDIT_REF = [
+  ['LA160', '30', '3.0', '300', '30'],
+  ['LA160 和 LA161', '35', '3.5', '350', '35'],
+  ['LA160、LA161 和 LA162', '40', '4.0', '400', '40'],
+];
+const TEP_REF_HTML = `<details class="tep-ref"><summary>学分认定标准（按成绩档次）</summary>
+  <table><thead><tr><th>可认定课程</th><th>托福<br>TOEFL iBT</th><th>雅思<br>IELTS</th><th>托业<br>TOEIC</th><th>VERSANT</th></tr></thead>
+  <tbody>${TEP_CREDIT_REF.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>
+  <div class="tep-ref-note">备注：LA130、LA131 和 LA132 课程的学分认定，适用相同的分数档次。</div></details>`;
 
 // ── State ──────────────────────────────────────────────
 let DB = { students: [], programs: [], masterCourses: [] };
@@ -3612,16 +3622,18 @@ function openTep(sid,type){
   document.getElementById('tm-i').textContent=type==='entry'?'入学时 (Entry)':'毕业前 (Exit)';
   const t=(s.tep||{})[type]||{};
   if(type==='entry'){
-    document.getElementById('tm-body').innerHTML=`<div class="fr"><label>入学 TEP 分数</label><input type="number" id="tm-score" value="${t.score||''}"></div>`;
+    document.getElementById('tm-body').innerHTML=`<div class="fr"><label>入学 TEP 分数</label><input type="number" id="tm-score" value="${t.score||''}"></div>
+      <div class="tep-hint">入学达标线 ${TEP_PASS} 分</div>${TEP_REF_HTML}`;
   } else {
     const fail=t.score&&parseInt(t.score)<TEP_PASS;
     document.getElementById('tm-body').innerHTML=`
       <div class="fr"><label>毕业 TEP 分数（满分 100）</label>
         <input type="number" id="tm-score" value="${t.score||''}" oninput="checkTepFail(this.value)"></div>
+      <div class="tep-hint">毕业达标线 ${TEP_PASS} 分</div>
       <div id="tm-fail-wrap" style="${fail?'':'display:none'}">
         <div class="notice n-warn" style="margin-bottom:10px">低于 ${TEP_PASS} 分，需要重考</div>
         <div class="fr"><label>重考分数</label><input type="number" id="tm-retest" value="${t.retest||''}"></div>
-      </div>`;
+      </div>${TEP_REF_HTML}`;
   }
   openModal('tep-modal');
 }
