@@ -199,6 +199,23 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 **部署方式（TM）**：在本机 Claude Code 里用户说「部署」→ Claude 合并到 `main` 并 `git push origin main`（2026-11-09 实测可推），GitHub Pages 约 40-60 秒生效，curl 线上 index.html 确认新代码。⚠️ 不要用 `tmpush`（`git add -A` 会把 `tmpush-setup.sh`、`课程目录_本机版_v0.7.2.html`、`.claude/` 一起推上去）。本机预览：`.claude/launch.json` 的 `tm-preview`（从 scratchpad 拷贝 index.html + style.css 服务，Documents 目录 python 读不了）。
 
+## 📌 英文标准：入学 TEP 与学分认定（2026-11-17 记）
+
+- **入学 TEP 达标线：39 分**（学生资料栏位 `s.tep.entry`）。
+- **毕业 TEP 达标线：39 分**（学生资料栏位 `s.tep.exit`）。
+- 两条线都是 39，代码共用常数 `TEP_PASS`=39（用户 2026-11-17 确认）。
+
+**可认定课程（按成绩档次划分）**
+
+| 可认定课程 | 托福 TOEFL iBT | 雅思 IELTS | 托业 TOEIC | VERSANT |
+|---|---|---|---|---|
+| LA160 | 30 | 3.0 | 300 | 30 |
+| LA160 和 LA161 | 35 | 3.5 | 350 | 35 |
+| LA160、LA161 和 LA162 | 40 | 4.0 | 400 | 40 |
+
+- 备注：LA130、LA131 和 LA132 课程的学分认定，适用相同的分数档次。
+- 认定表仅作信息记录（用户 2026-11-17 说明），不是待办：不需要网页按此表做自动认定/提示。
+
 ## 📌 英文毕业考提醒（2026-11-09 · 已部署 commit b0d25b4）
 
 - 规则:实习前一学期要考过 **TEP 毕业**(沿用现有 `s.tep.exit`,及格 `TEP_PASS`=39,补考分也算)。
@@ -211,3 +228,15 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 ---
 
 **最后更新**：2026-11-13 · 由 Claude 自动维护 · 重大变动同步更新此文件
+
+## web-design-rules 体检设定
+
+> 给 skill `web-design-rules` 的「体检模式」用（2026-11-13 加）。说「体检」就照这里的参数跑 8 项，只读不改。
+
+- 网站根资料夹：TM/single-file
+- 线上网址：https://sp020879.github.io/CICBATM_courseplan/TM/single-file（GitHub Pages，keep-ext）
+- 测试指令：无自动测试（`双课纲2570/tm_regression_check.js` 是在线上网页里跑的回归脚本）
+- 备份：~/Documents/网站备份/TM智能排课｜'TM-数据-*.json'｜2 天
+- 匿名读取：--supabase xzplzckugyvutsqocrtw --key-from TM/single-file/index.html students passcodes sessions
+- 反向验证纪录：无（没有自动测试可反向验证）
+- 已知：GitHub Pages 不能自订安全标头；登录后的画面要在浏览器里量
