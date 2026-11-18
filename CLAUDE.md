@@ -55,7 +55,7 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 
 **产出（都在 `双课纲2570/`）**：`排课双课纲方案_2570_20261104.md`（总方案）、`tm_catalog_adapter_draft.js` v0.2（适配层草稿，已被线上版取代）、`tm_regression_check.js` v0.2（回归脚本）。
 
-## 🟣 SG/IS 修课方式（2026-11-18 · 本机已改，**未 commit / 未部署**）
+## 🟣 SG/IS 修课方式（2026-11-18 · ✅ 已部署 `a39c7df`，线上 hash 与本机一致）
 
 - 学期弹窗（`cell-modal`）在学期格下方多一排「修课方式」：正常上课 / SG / IS（对应 BA 的 SG-222 / IS-222）。普通课与外系选修 slot 都能用。
 - **存法**：`students.status_detail.sgis = {课程码或slot: 'SG@2569/1'}`，**不动 `courses` 的学期格式**（全站几十处 `/^25\d\d\/\d$/` 不受影响）。标记带学期 → 格子被批次删除/改学期后旧标记自动失效。读一律走 `sgisOf(s,code)`。
