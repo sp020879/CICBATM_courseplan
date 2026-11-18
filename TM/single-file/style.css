@@ -349,6 +349,8 @@ table thead tr:first-child th{border-top:1px solid var(--line);}
 .sopt.mopt{font-family:var(--font);}
 .sopt.mopt.sel{background:var(--plum);border-color:var(--plum);}
 .sopt.mopt:not(.sel):hover{border-color:var(--plum);color:var(--plum);background:var(--plum-l);}
+/* 工作台格子里的 SG / IS 小标（颜色由行内状态决定） */
+.wb-sgis{display:inline-block;margin-left:2px;font:700 7px/1.3 var(--font);border-radius:3px;padding:0 2px;vertical-align:middle;letter-spacing:0;}
 /* 矩阵格右上角的 SG / IS 角标 */
 .dc.sgis{position:relative;}
 .dc.sgis::after{content:attr(data-m);position:absolute;top:0;right:0;font:600 6px/8px var(--font);letter-spacing:0;padding:0 2px;background:var(--plum);color:#fff;border-radius:0 0 0 3px;}

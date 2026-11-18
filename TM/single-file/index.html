@@ -5243,10 +5243,29 @@ async function loadSchedHalves(force){
     const con={};
     Object.keys(_SCHED_HALF_CO).forEach(k=>{ const j=k.lastIndexOf('|'); const n=_normCohort(k.slice(j+1)); if(!n) return; const nk=k.slice(0,j)+'|'+n; con[nk]=_mergeMark(con[nk], _SCHED_HALF_CO[k]); });
     _SCHED_HALF_CON=con;
+    // BA「IS/SG 排课」(special):学号|课程码(过桥)|学期 → 'SG'/'IS',给工作台格子角标用
+    try{
+      const sp=await fetch(`${_BA_SUPA_URL}/rest/v1/special?select=student_id,course_code,class_code,sem&limit=5000`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
+      if(Array.isArray(sp)){ const m={}; sp.forEach(r=>{ const sid=String(r.student_id||'').trim(), c=String(r.course_code||'').trim().toUpperCase(); if(!sid||!c) return;
+        m[sid+'|'+_bridge(c)+'|'+_normSem(r.sem)]=/^SG/i.test(r.class_code||'')?'SG':/^IS/i.test(r.class_code||'')?'IS':'SG/IS'; }); _BA_SGIS=m; }
+    }catch(e){ console.warn('[sched] 读 BA special 失败：', e.message); }
   }catch(e){ _SCHED_HALF={}; _SCHED_HALF_CO={}; _SCHED_HALF_CON={}; _SCHED_ROWS={}; _SCHED_PRES={}; console.warn('[sched] 读 BA Supabase schedule 失败：', e.message); }
   finally{ _schedLoading=false; }
 }
 // 小标记：先按【课+学期+届别】精确查，查不到退回课程级；再查不到返回空。size='sm'|'md'
+// 工作台格子的 SG/IS 角标:TM 标记 ⇄ BA「IS/SG 排课」。回 '' = 这格跟 SG/IS 无关(照旧显示上下半/BA无)
+let _BA_SGIS=null;   // null = 还没读到 BA special(不下「BA无」的结论)
+function _sgisMark(s, key, realCode, sem){
+  const tm=sgisOf(s,key);
+  const ba=_BA_SGIS?(_BA_SGIS[String(s.id)+'|'+_bridge(realCode)+'|'+_normSem(sem)]||''):'';
+  if(!tm&&!ba) return '';
+  const b=(txt,sty,tip)=>`<span class="wb-sgis" style="${sty}" title="${tip}">${txt}</span>`;
+  if(!tm) return b(ba+'?','color:var(--plum);border:1px dashed var(--plum)',`BA「IS/SG 排课」登记为 ${ba},TM 这格还没标 → 点格子标上`);
+  let h=b(tm,'color:#fff;background:var(--plum);border:1px solid var(--plum)',ba===tm?`${tm} · BA 已登记`:`TM 标为 ${tm}`);
+  if(_BA_SGIS&&!ba) h+=b('BA无','color:#fff;background:var(--red);border:1px solid var(--red)',`BA「IS/SG 排课」${_normSem(sem)} 没有这笔 ${_bridge(realCode)}（去 BA 补登记）`);
+  else if(ba&&ba!==tm) h+=b('BA:'+ba,'color:#fff;background:var(--amber);border:1px solid var(--amber)',`TM 标 ${tm},BA 登记的是 ${ba}`);
+  return h;
+}
 function _halfMark(code, sem, cohort, size){
   const r=_resolveHalf(code, sem, cohort);
   // 交叉比对角标(只在有届别的格子:工作台学生×课程)
@@ -5992,6 +6011,64 @@ function _tmSemAgg(sem){
   });
   return agg;
 }
+// ── SG/IS 逐笔对账:TM 标的 SG/IS ⇄ BA「IS/SG 排课」(special 表)。纯只读 ──
+// 以「学号+课程码」为一笔;不受隐藏毕业/休学筛选影响(避免筛掉后误报)。
+function _sgisTmRows(sem){
+  const out={};
+  DB.students.filter(s=>(s.prog||'TM')===activeProg).forEach(s=>{
+    Object.entries(s.courses||{}).forEach(([key,raw])=>{
+      const parts=String(raw||'').split('|'); if(parts[parts.length-1]!==sem) return;
+      const md=sgisOf(s,key); if(!md) return;
+      const real=parts.length>1?parts[0]:key;                 // 外系 slot:真正课程码在 '|' 前
+      if(!real||/[^\x00-\x7F]/.test(real)) return;
+      out[s.id+'|'+_bridge(real)]={s,code:String(real).toUpperCase(),mode:md};
+    });
+  });
+  return out;
+}
+function _sgisFindTm(s,codeB){   // 这位学生在 TM 有没有排这门课(任何学期),回 {sem,mode}
+  for(const [key,raw] of Object.entries(s.courses||{})){
+    const parts=String(raw||'').split('|'); const real=parts.length>1?parts[0]:key;
+    if(_bridge(real)!==codeB) continue;
+    return {sem:parts[parts.length-1],mode:sgisOf(s,key)};
+  }
+  return null;
+}
+async function _sgisReconHTML(sem,short){
+  const _e=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const semBA=sem.replace('/','-');
+  let rowsBA;
+  try{
+    rowsBA=await fetch(`${_BA_SUPA_URL}/rest/v1/special?select=student_id,name,major,course_code,class_code,teacher&sem=eq.${encodeURIComponent(semBA)}&limit=5000`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
+    if(!Array.isArray(rowsBA)) throw new Error((rowsBA&&rowsBA.message)||'回传格式不对');
+  }catch(e){ return `<div style="margin-top:14px;font-size:12px;color:#991b1b">❌ SG/IS 对账:读取 BA「IS/SG 排课」失败(${_e(e.message)}),这一段没比。</div>`; }
+  const byId={}; DB.students.filter(s=>(s.prog||'TM')===activeProg).forEach(s=>{ byId[String(s.id)]=s; });
+  const tm=_sgisTmRows(sem), ba={}, noStu=[];
+  rowsBA.forEach(r=>{
+    const sid=String(r.student_id||'').trim(), code=String(r.course_code||'').toUpperCase(); if(!sid||!code) return;
+    const mode=/^SG/i.test(r.class_code||'')?'SG':/^IS/i.test(r.class_code||'')?'IS':'';
+    if(!byId[sid]){ if(String(r.major||'').toUpperCase()===short) noStu.push({sid,name:r.name,code,mode}); return; }
+    ba[sid+'|'+_bridge(code)]={sid,name:r.name,code,mode,teacher:r.teacher||''};
+  });
+  const nm=s=>_e((s.cname||'')+' '+shortName(s.name||''));
+  const list=[]; let okN=0;
+  Object.keys(tm).forEach(k=>{ const t=tm[k], b=ba[k];
+    if(!b) list.push([t.s.id,nm(t.s),t.code,'🔴 BA 没有这笔',`TM 标 ${t.mode},BA「IS/SG 排课」${sem} 没有记录`]);
+    else if(b.mode!==t.mode) list.push([t.s.id,nm(t.s),t.code,'🟡 方式不同',`TM ${t.mode} / BA ${b.mode||_e(b.code)}`]);
+    else okN++;
+  });
+  Object.keys(ba).forEach(k=>{ if(tm[k]) return; const b=ba[k], s=byId[b.sid], f=_sgisFindTm(s,_bridge(b.code));
+    const why=!f?`BA 有 ${b.mode},TM 没排这门课`:f.sem!==sem?`BA 有 ${b.mode},TM 排在 ${_e(f.sem)||'—'}`:`BA 有 ${b.mode},TM 排了 ${sem} 但没标 SG/IS`;
+    list.push([b.sid,nm(s),b.code,(f&&f.sem===sem)?'🟠 TM 未标':'🟣 TM 没这笔',why]);
+  });
+  noStu.forEach(b=>list.push([b.sid,_e(b.name),b.code,'⚪ TM 无此学生',`BA 记为 ${short} 专业 ${b.mode},TM 名单里没有这个学号`]));
+  list.sort((a,b)=>String(a[0]).localeCompare(String(b[0]))||a[2].localeCompare(b[2]));
+  const head=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><b style="font-size:13px">👤 SG/IS 逐笔对账 · ${sem}</b><span style="font-size:11px;color:#6b7280;margin-left:8px">TM 标了 ${Object.keys(tm).length} 笔 · BA 有 ${Object.keys(ba).length+noStu.length} 笔 · 一致 ${okN} 笔</span></div>`;
+  if(!list.length) return head+`<div style="color:#16a34a;padding:8px 0;font-size:12px">✅ SG/IS 两边一致${okN?'':'(这学期两边都没有 SG/IS)'}。</div>`;
+  return head+`<div style="font-size:12px;color:#b45309;margin:6px 0">发现 <b>${list.length}</b> 笔不一致 · 纯只读</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;text-align:left"><th style="padding:6px 8px">学号</th><th style="padding:6px 8px">姓名</th><th style="padding:6px 8px">课程</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">明细</th></tr></thead><tbody>`
+    +list.map(r=>`<tr style="border-top:1px solid #eee"><td style="padding:5px 8px;font-family:var(--mono)">${_e(r[0])}</td><td style="padding:5px 8px">${r[1]}</td><td style="padding:5px 8px;font-family:var(--mono);font-weight:600">${_e(r[2])}</td><td style="padding:5px 8px;white-space:nowrap">${r[3]}</td><td style="padding:5px 8px;font-size:11px;color:#4b5563">${r[4]}</td></tr>`).join('')
+    +`</tbody></table><div style="font-size:10px;color:#9ca3af;margin-top:6px;line-height:1.6">🔴 TM 标了但 BA 没登记 → 去 BA「IS/SG 排课」补 · 🟠 BA 有、TM 同学期有排但没标 → 在 TM 格子点 SG/IS · 🟣 BA 有、TM 这学期没这门课 · 🟡 一边 SG 一边 IS</div>`;
+}
 async function _ctReconcileBA(){
   const sem=window._ctSem||NOW_SEM, semBA=sem.replace('/','-');
   const short=(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg;
@@ -6005,6 +6082,7 @@ async function _ctReconcileBA(){
   await loadSchedHalves();          // 确保代码桥(_CODE_ALIAS)已载入,对账才对齐
   _tmSemAgg.sgis=0;
   const tm=_tmSemAgg(sem);
+  const _sgisHTML=await _sgisReconHTML(sem,short);
   let baRows;
   try{ baRows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,half,cohorts,teacher&sem=eq.${encodeURIComponent(semBA)}`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json()); }
   catch(e){ body.innerHTML='❌ 读取 BA 失败:'+e.message; return; }
@@ -6044,6 +6122,7 @@ async function _ctReconcileBA(){
     +(issues
       ? `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 0;margin-bottom:8px"><span style="font-size:12px;color:#b45309;margin-right:10px">发现 <b>${issues}</b> 处不一致 · 纯只读</span>${_statBar}</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;text-align:left"><th style="padding:6px 8px">课程</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">明细(TM/BA)</th><th style="padding:6px 8px;text-align:center">BA上下半</th></tr></thead><tbody>${rows}</tbody></table>`
       : `<div style="color:#16a34a;padding:10px 0">✅ ${sem} · TM 与 BA 完全一致,没有需要处理的差异。</div>`)
+    +_sgisHTML
     +`<div style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.6">口径:只对账 ${short} 学生修的课、只比 ${short} 届别;外系选修/中文 slot 不含${_tmSemAgg.sgis?`;标了 SG/IS 的 ${_tmSemAgg.sgis} 人次不计入(BA 记在「IS/SG 排课」)`:''}。BA 数据实时来自 Supabase。<br>🔴 BA完全没排 · 🟠 BA有课但缺某届别 · 🟡 某届别人数对不上 · 🟣 BA有此届别但TM无(可能TM已删/漂移)。</div>`;
 }
 function _ctExportCSV(){
@@ -8601,7 +8680,7 @@ function renderWorkbench(){
           cellTxt = '✈抵免';
         } else if(hasVal){
           cellStyle = (val === TARGET) ? globalSemStyleBold(val) : globalSemStyle(val);
-          cellTxt = val + _halfMark(co.c, val, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm');
+          cellTxt = val + (_sgisMark(s, co.c, co.c, val) || _halfMark(co.c, val, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm'));
         }
         if(_cellConflict){
           cellStyle += ';border:1.5px solid #dc2626;background:#fef2f2;color:#991b1b';
@@ -8691,7 +8770,7 @@ function renderWorkbench(){
           cellTxt = sem;
           if(extCode){
             // 外系选修也显示 BA 排课的上下半(用拆出的真实码 extCode + 学期查 schedule)
-            const _hm = _halfMark(extCode, sem, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm');
+            const _hm = _sgisMark(s, slotKey, extCode, sem) || _halfMark(extCode, sem, (s.classCode||autoClassCode(s.cohort,s.type,s.prog)), 'sm');
             cellTxt = `<span style="position:relative">${sem}${_hm}<span style="position:absolute;top:-3px;right:-6px;width:5px;height:5px;background:#10b981;border-radius:50%;" title="代码: ${extCode}"></span></span>`;
             tip = ` title="${extCode}"`;
           }

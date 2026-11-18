@@ -61,7 +61,9 @@ DPU CIC（Chinese International College，泰国博仁大学华人国际学院�
 - **存法**：`students.status_detail.sgis = {课程码或slot: 'SG@2569/1'}`，**不动 `courses` 的学期格式**（全站几十处 `/^25\d\d\/\d$/` 不受影响）。标记带学期 → 格子被批次删除/改学期后旧标记自动失效。读一律走 `sgisOf(s,code)`。
 - 存档走 `apiSaveStudent`（整行 upsert）+ audit `update_course_mode`；学生资料表单保存时保留 `sgis`。
 - 矩阵格右上角紫色小角标（`.dc.sgis::after`，色用 `--plum`）；🔗 对账 BA 时 SG/IS 人次不计入班级人数（脚注显示排除几人次）。
-- 待办：登入后真数据看角标；要不要进一步跟 BA `special` 表逐笔对账（未做）。
+- **逐笔对账（2026-11-18 · 本机已改，未 commit / 未部署）**：🔗 对账 BA 弹窗下方多一段「👤 SG/IS 逐笔对账」。`_sgisReconHTML(sem,short)` 读 BA `special`（anon 可读；栏位 student_id / course_code / class_code=IS-222|SG-222 / sem=`2569-1`），以「学号+课程码(过 `_bridge`)」比 TM 的 `sgis` 标记。四种状态：🔴 BA 没有这笔 / 🟠 TM 未标 / 🟣 TM 没这笔 / 🟡 方式不同，另 ⚪ TM 无此学生。不受隐藏毕业/休学筛选影响。纯只读。备份 `_backups/index_before_sgisrecon_20261118.html`。
+- 已用 BA 真实 special 记录 + 假 TM 学生测过四种状态；**登入后真数据未验证**。
+- **工作台角标（2026-11-18 · 本机已改，未 commit / 未部署）**：`loadSchedHalves` 顺带读 BA `special` 存 `_BA_SGIS`（学号|过桥码|学期 → SG/IS）；`_sgisMark(s,key,realCode,sem)` 在工作台格子（普通课 + 外系 slot）学期后面出小标（`.wb-sgis`）：紫底 `SG`/`IS`=TM 已标；后面跟红 `BA无`=BA 没登记、橘 `BA:IS`=方式不同；紫虚线 `IS?`=BA 有登记但 TM 没标。有 SG/IS 小标的格子不再显示上下半与 schedule 的「BA无/缺」。备份 `_backups/index_before_sgiswb_20261118.html`。
 - 改动前快照：`_backups/index_before_sgis_20261118.html`、`style_before_sgis_20261118.css`。
 
 ## 🗂 早期焦点（2026-06 · 课程目录子系统）
