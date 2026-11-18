@@ -346,6 +346,12 @@ table thead tr:first-child th{border-top:1px solid var(--line);}
 .sopt:hover{border-color:var(--g6);color:var(--g7);background:var(--g2);}
 .sopt.sel{background:var(--g7);color:#fff;border-color:var(--g7);font-weight:500;}
 .sopt.now{border-color:var(--g6);color:var(--g7);}
+.sopt.mopt{font-family:var(--font);}
+.sopt.mopt.sel{background:var(--plum);border-color:var(--plum);}
+.sopt.mopt:not(.sel):hover{border-color:var(--plum);color:var(--plum);background:var(--plum-l);}
+/* 矩阵格右上角的 SG / IS 角标 */
+.dc.sgis{position:relative;}
+.dc.sgis::after{content:attr(data-m);position:absolute;top:0;right:0;font:600 6px/8px var(--font);letter-spacing:0;padding:0 2px;background:var(--plum);color:#fff;border-radius:0 0 0 3px;}
 .sp-row{display:flex;gap:5px;margin-top:3px;}
 .sp{flex:1;padding:8px 7px;border:1px solid var(--line);border-radius:5px;text-align:center;cursor:pointer;font-size:12px;transition:all .12s;}
 .sp-t{background:var(--sky-l);color:var(--sky);border-color:var(--sky-m);}

@@ -228,6 +228,7 @@
   <div class="modal" style="width:340px">
     <div class="mh"><div><h3 id="cm-n"></h3><div class="sub" id="cm-i"></div></div><button class="mx" onclick="closeModal('cell-modal')">✕</button></div>
     <div class="mb"><div class="chip" id="cm-chip"></div><div class="sl">选择学期</div><div class="sgrid" id="cm-grid"></div>
+      <div class="sl">修课方式</div><div class="sgrid" id="cm-mode"><div class="sopt mopt" id="mo-N" onclick="pickMode('')">正常上课</div><div class="sopt mopt" id="mo-SG" onclick="pickMode('SG')" title="对应 BA 的 SG-222">SG</div><div class="sopt mopt" id="mo-IS" onclick="pickMode('IS')" title="对应 BA 的 IS-222">IS</div></div>
       <div class="sp-row"><div class="sp sp-t" id="sp-t" onclick="pick('Transferred')">✈ Transferred（已抵免）</div><div class="sp sp-c" onclick="pick('')">✕ 清除（未修）</div></div>
     </div>
     <div class="mf"><button class="tbtn" onclick="closeModal('cell-modal')">取消</button><button class="tbtn acc" onclick="confirmCell()">确认</button></div>
@@ -813,6 +814,7 @@ let activeProg = 'TourismManagement';
 let activeFilter = 'all';
 let cellCtx = null;
 let pickedVal = null;
+let pickedMode = '';   // 弹窗内选的修课方式：''=正常 / 'SG' / 'IS'
 let tepCtx = null;
 let pendingDiffs = [];
 let pendingProgCourses = [];
@@ -3394,7 +3396,8 @@ function blockHTML(co, _studs, _classCode, _prebuilt) {
         const _bRowSty=_canAct?(_bSel?(_isDel?'background:#991b1b;color:#fff;cursor:pointer;':'background:#166534;color:#fff;cursor:pointer;'):'cursor:pointer;'):'';
         const _bClick=_canAct?`toggleBatchCourse('${co}','${course.c}')`:`openCell('${s.id}','${course.c}','${pid}')`;
         const _bTitle=_canAct?(_bSel?'已选 → 点击取消':(_isDel?'点击批次删除':'点击批次排入')):(v||'未修');
-        h+=`<td class="dc ${v?'vd':'vn'}" style="${_canAct?_bRowSty:sty}" onclick="${_bClick}" title="${_bTitle}${isEx?' ★外系':''}">${_bSel&&_canAct?(_isDel?'✕':'✓'):disp}</td>`;
+        const _md=/^25\d\d\/\d$/.test(v)?sgisOf(s,course.c):'';
+        h+=`<td class="dc ${v?'vd':'vn'}${_md?' sgis':''}"${_md?` data-m="${_md}"`:''} style="${_canAct?_bRowSty:sty}" onclick="${_bClick}" title="${_bTitle}${_md?' · '+_md:''}${isEx?' ★外系':''}">${_bSel&&_canAct?(_isDel?'✕':'✓'):disp}</td>`;
       });
       h+='</tr>';
     });
@@ -3439,7 +3442,8 @@ function blockHTML(co, _studs, _classCode, _prebuilt) {
       }
       const sty=isT?'background:#dbeafe;color:#1e40af;font-size:7.5px;letter-spacing:-.4px;font-weight:600':semStyle(v);
       const cellStyle=sty||(v?'background:var(--g1)':'');
-      const cellCls='dc '+(v||isT?'vd':'vn');
+      const _mdX=v&&!isT?sgisOf(s,slot):'';
+      const cellCls='dc '+(v||isT?'vd':'vn')+(_mdX?' sgis" data-m="'+_mdX:'');
       // 非fixed：单元格只显示学期（课程代码存在数据里，模态框编辑）
       // 右上角小圆点表示代码已设
       let cellDisp;
@@ -3561,18 +3565,49 @@ function openCell(sid,code,pid){
   // 进入前先清掉 readonly class（避免之前查看模式残留）
   const _cm=document.getElementById('cell-modal'); if(_cm) _cm.classList.remove('readonly');
   const cur=(s.courses||{})[code]||'';
-  cellCtx={sid,code,pid:pid||activeProg,orig:cur}; pickedVal=cur;
+  cellCtx={sid,code,pid:pid||activeProg,orig:cur,origMode:sgisOf(s,code)}; pickedVal=cur;
   document.getElementById('cm-n').textContent=shortName(s.name);
   document.getElementById('cm-i').textContent=`${s.cohort}届 · ${s.id}`;
-  document.getElementById('cm-chip').innerHTML=`<div class="ccode">${course.c} · ${course.cr}学分</div><div class="cname">${course.n}</div><div class="cgrp">${course.g}</div>${cur?`<div class="ccur">目前：<span class="cur-pill">${cur}</span></div>`:''}`;
+  document.getElementById('cm-chip').innerHTML=`<div class="ccode">${course.c} · ${course.cr}学分</div><div class="cname">${course.n}</div><div class="cgrp">${course.g}</div>${cur?`<div class="ccur">目前：<span class="cur-pill">${cur}${cellCtx.origMode?' · '+cellCtx.origMode:''}</span></div>`:''}`;
   const sems=semsByStudent(s);
   document.getElementById('cm-grid').innerHTML=sems.map(sem=>`<div class="sopt${sem===cur?' sel':sem===NOW_SEM?' now':''}" onclick="pick('${sem}')" id="so-${sem.replace('/','_')}">${sem}${sem===NOW_SEM?' ★':''}</div>`).join('');
   document.getElementById('sp-t').className='sp sp-t'+(cur==='Transferred'?' sel':'');
+  pickMode(cellCtx.origMode);
   openModal('cell-modal');
+}
+// ── SG/IS 修课方式（与 BA「IS/SG 排课」对应）：存 statusDetail.sgis = {课程码或slot:'SG@2569/1'}，不动 courses 的学期格式 ──
+// 标记带学期：格子之后被批次删除/改学期时，旧标记自动失效，不会跟到别的学期去
+function sgisOf(s,code){
+  const m=((s&&s.statusDetail)||{}).sgis; const v=String((m&&m[code])||''); if(!v) return '';
+  const [md,sem]=v.split('@'); if(md!=='SG'&&md!=='IS') return '';
+  const cur=String(((s.courses||{})[code])||'').split('|').pop();
+  return sem===cur?md:'';
+}
+function pickMode(m){
+  pickedMode=(m==='SG'||m==='IS')?m:'';
+  document.querySelectorAll('#cm-mode .mopt').forEach(e=>e.classList.remove('sel'));
+  const el=document.getElementById('mo-'+(pickedMode||'N')); if(el) el.classList.add('sel');
+}
+// 只有排了学期的格子才有修课方式；清除/Transferred 一律清掉标记。返回是否有变动
+function _applySgis(s,key,val,mode){
+  const isSem=/^25\d\d\/\d$/.test(val||'');
+  const want=isSem?mode:'', had=sgisOf(s,key);
+  if(want===had) return false;
+  const sd=s.statusDetail||{}; const m={...(sd.sgis||{})};
+  if(want) m[key]=want+'@'+val; else delete m[key];
+  if(Object.keys(m).length) sd.sgis=m; else delete sd.sgis;
+  s.statusDetail=sd;
+  return true;
+}
+async function _saveSgis(s,key,had){
+  const now=sgisOf(s,key);
+  await apiSaveStudent(s);
+  apiAudit('update_course_mode','student',s.id,`${(s.cname||'')+' '+(s.name||'')} · ${key} 修课方式: ${had||'正常'} → ${now||'正常'}`.trim(),{[key]:had},{[key]:now});
 }
 function pick(val){
   pickedVal=val;
-  document.querySelectorAll('.sopt').forEach(e=>e.classList.remove('sel'));
+  if(!/^25\d\d\/\d$/.test(val||'')) pickMode('');
+  document.querySelectorAll('.sopt:not(.mopt)').forEach(e=>e.classList.remove('sel'));
   document.getElementById('sp-t').classList.remove('sel');
   if(val==='Transferred') document.getElementById('sp-t').classList.add('sel');
   else if(val){const el=document.getElementById('so-'+val.replace('/','_'));if(el)el.classList.add('sel');}
@@ -3602,15 +3637,23 @@ async function confirmCell(){
     if(!pickedVal){delete s.courses[cellCtx.code];}
     else if(pickedVal==='Transferred'){s.courses[cellCtx.code]=code?code+'|Transferred':'Transferred';}
     else{s.courses[cellCtx.code]=code?code+'|'+pickedVal:pickedVal;}
+    const _mChgX=_applySgis(s,cellCtx.code,pickedVal,pickedMode);
     closeModal('cell-modal'); _renderOverviewKeepScroll();
-    try{await apiSaveCourse(cellCtx.sid,cellCtx.code,s.courses[cellCtx.code]||'');}
+    try{
+      if((s.courses[cellCtx.code]||'')!==(cellCtx.orig||'')) await apiSaveCourse(cellCtx.sid,cellCtx.code,s.courses[cellCtx.code]||'');
+      if(_mChgX) await _saveSgis(s,cellCtx.code,cellCtx.origMode);
+    }
     catch(e){alert('同步失败：'+e.message);}
     return;
   }
   if(pickedVal && !_tepInternGuard(s, cellCtx.code, pickedVal)) return;
   if(!pickedVal) delete s.courses[cellCtx.code]; else s.courses[cellCtx.code]=pickedVal;
+  const _mChg=_applySgis(s,cellCtx.code,pickedVal,pickedMode);
   closeModal('cell-modal'); _renderOverviewKeepScroll();
-  try{await apiSaveCourse(cellCtx.sid,cellCtx.code,pickedVal||'');}
+  try{
+    if((pickedVal||'')!==(cellCtx.orig||'')) await apiSaveCourse(cellCtx.sid,cellCtx.code,pickedVal||'');
+    if(_mChg) await _saveSgis(s,cellCtx.code,cellCtx.origMode);
+  }
   catch(e){alert('同步失败：'+e.message);}
 }
 
@@ -3863,7 +3906,7 @@ function openExtCell(sid, slot, co, n) {
     rawSem = looksLikeSem ? only : '';
   }
   const curSem=rawSem&&/^\d\/25\d\d$/.test(rawSem)?(rawSem.match(/^(\d)\/(25\d\d)$/)||[])[2]+'/'+rawSem.split('/')[0]:rawSem;
-  cellCtx={sid,code:slot,pid:activeProg,isExt:true,extCode:curCode,extCo:co,extN:n,orig:val};
+  cellCtx={sid,code:slot,pid:activeProg,isExt:true,extCode:curCode,extCo:co,extN:n,orig:val,origMode:sgisOf(s,slot)};
   pickedVal=curSem||'';
   document.getElementById('cm-n').textContent=shortName(s.name);
   document.getElementById('cm-i').textContent=s.cohort+'届 · '+s.id;
@@ -3874,12 +3917,13 @@ function openExtCell(sid, slot, co, n) {
       <input id="ext-modal-code" value="${curCode}" placeholder="例：FA301"
         style="border:1px solid var(--line2);border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:12px;width:90px;margin-left:4px">
     </div>
-    ${curSem?`<div class="ccur">目前：<span class="cur-pill">${curSem}</span></div>`:''}`;
+    ${curSem?`<div class="ccur">目前：<span class="cur-pill">${curSem}${cellCtx.origMode?' · '+cellCtx.origMode:''}</span></div>`:''}`;
   const sems=semsByStudent(s);
   document.getElementById('cm-grid').innerHTML=sems.map(sem=>
     `<div class="sopt${sem===curSem?' sel':sem===NOW_SEM?' now':''}" id="so-${sem.replace('/','_')}" onclick="pick('${sem}')">${sem}${sem===NOW_SEM?' ★':''}</div>`
   ).join('');
   document.getElementById('sp-t').className='sp sp-t'+(curSem==='Transferred'?' sel':'');
+  pickMode(cellCtx.origMode);
   openModal('cell-modal');
 }
 // 填入班级代码 datalist 选项（合并：班级届别清单 + 学生实际班级）
@@ -3979,6 +4023,7 @@ async function confirmAdd(){
   const advisor=(document.getElementById('f-advisor')?.value||'').trim();
   const cname=(document.getElementById('f-cname')?.value||'').trim();
   const scoreNote=(document.getElementById('f-score')?.value||'').trim();
+  if(ei>=0 && DB.students[ei].statusDetail?.sgis) statusDetail.sgis=DB.students[ei].statusDetail.sgis;  // SG/IS 修课方式不随在籍状况表单清掉
   const st={id,name,cname,cohort:document.getElementById('f-cohort').value,type:document.getElementById('f-type').value,note,noteText:nt,prog:pid,classCode,advisor,scoreNote,
     status:statusRadio,  // 同步文字状态
     statusDetail,
@@ -5938,6 +5983,7 @@ function _tmSemAgg(sem){
     const cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);
     Object.entries(s.courses||{}).forEach(([code,v])=>{
       if(v!==sem) return;
+      if(sgisOf(s,code)){ _tmSemAgg.sgis=(_tmSemAgg.sgis||0)+1; return; }   // SG/IS 在 BA 记在「IS/SG 排课」不在 schedule → 不计入班级人数
       if(/[^\x00-\x7F]/.test(code)) return;              // 跳过中文孤儿 key(外系选修等)
       const C=_bridge(code);                             // 过代码桥,对齐到 BA schedule 码
       const K=_normCohort(cc)||cc;                       // 届别码正规化(TM67-2 → TM67),与 BA 同一把尺
@@ -5957,6 +6003,7 @@ async function _ctReconcileBA(){
   document.body.appendChild(ov);
   const body=ov.querySelector('#recon-body');
   await loadSchedHalves();          // 确保代码桥(_CODE_ALIAS)已载入,对账才对齐
+  _tmSemAgg.sgis=0;
   const tm=_tmSemAgg(sem);
   let baRows;
   try{ baRows=await fetch(`${_BA_SUPA_URL}/rest/v1/schedule?select=course_code,half,cohorts,teacher&sem=eq.${encodeURIComponent(semBA)}`,{headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json()); }
@@ -5997,7 +6044,7 @@ async function _ctReconcileBA(){
     +(issues
       ? `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 0;margin-bottom:8px"><span style="font-size:12px;color:#b45309;margin-right:10px">发现 <b>${issues}</b> 处不一致 · 纯只读</span>${_statBar}</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb;text-align:left"><th style="padding:6px 8px">课程</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">明细(TM/BA)</th><th style="padding:6px 8px;text-align:center">BA上下半</th></tr></thead><tbody>${rows}</tbody></table>`
       : `<div style="color:#16a34a;padding:10px 0">✅ ${sem} · TM 与 BA 完全一致,没有需要处理的差异。</div>`)
-    +`<div style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.6">口径:只对账 ${short} 学生修的课、只比 ${short} 届别;外系选修/中文 slot 不含。BA 数据实时来自 Supabase。<br>🔴 BA完全没排 · 🟠 BA有课但缺某届别 · 🟡 某届别人数对不上 · 🟣 BA有此届别但TM无(可能TM已删/漂移)。</div>`;
+    +`<div style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.6">口径:只对账 ${short} 学生修的课、只比 ${short} 届别;外系选修/中文 slot 不含${_tmSemAgg.sgis?`;标了 SG/IS 的 ${_tmSemAgg.sgis} 人次不计入(BA 记在「IS/SG 排课」)`:''}。BA 数据实时来自 Supabase。<br>🔴 BA完全没排 · 🟠 BA有课但缺某届别 · 🟡 某届别人数对不上 · 🟣 BA有此届别但TM无(可能TM已删/漂移)。</div>`;
 }
 function _ctExportCSV(){
   const selSem=window._ctSem||NOW_SEM;
