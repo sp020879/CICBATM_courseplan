@@ -24,11 +24,8 @@
 │       └── app.js
 │
 └── 📂 TM/                               ← TM 前端（HTML + Supabase 后端）
-    ├── single-file/index.html           ⭐ TM 生产版（内嵌 CSS/JS）
-    └── split/                           ⭐ TM 生产版（拆分版，跟 GitHub 上结构一致）
-        ├── index.html
-        ├── css/style.css
-        └── js/app.js
+    ├── single-file/index.html + style.css  ⭐ TM 生产版（唯一现役版本，线上就是这个）
+    └── split/index.html                 🚫 2026-11-22 停用：只剩一页转址到 single-file（旧拆分版 6 月起没同步、7 月起读不到学生，旧程序码已删，要看去 git 历史）
 ```
 
 ⭐ = 现役版本，需要时直接用  

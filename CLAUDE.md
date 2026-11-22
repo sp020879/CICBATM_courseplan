@@ -166,6 +166,12 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-22）
 
+**2026-11-22 · 旧拆分版 `TM/split/` 停用 → 换成转址页（⏳ 已改未部署，等用户说「部署」）**
+- 起因：做 supabase-lock-table skill 时 `find_usages` 发现 `TM/split/js/app.js` 还在 anon 直读直写 audit_log，且线上 `…/TM/split/` 仍 HTTP 200。
+- 查证没人在用：TM／BA／测验／建祯都没有连结到它；`TM/学生标签多选_改动说明_2026-11-12.md` 写明「上线的是 single-file，split 未同步」；它直读 `students`，7 月锁表后只会看到 0 位学生；编辑记录的 action 名 split 都是 single-file 的子集，分不出来源。
+- 遗留风险：split 的登录是前端比对写死在 `js/app.js` 的旧密码（公开可见；single-file 注释说「不再使用」）。**待用户到「用户管理」确认没有任何 PIN 等于那组旧密码**（我用它试登录被系统挡下，不该由我试）。旧密码仍在 git 历史里（公开 repo），清不掉，重点是它不能是有效 PIN。
+- 改：`git rm` `TM/split/js/app.js`、`TM/split/css/style.css`；`TM/split/index.html` 换成转址页（meta refresh＋`location.replace('../single-file/'+search+hash)`＋手动连结，`noindex`）。`README_总览.md` 改成只有 single-file 是现役、split 标「🚫 停用」。本机测过打开 split 会跳到 single-file。
+
 **2026-11-22 · 🔴 编辑记录 audit_log 外露 → 锁表（✅ 已完成：前端 `5a6f0a3` 已上线、04【A】【B】用户已跑、匿名读写都 401）**
 - **问题（体检发现）**：`audit_log` 用网页公开的 anon key 就读得到（2,533 笔；抽样含学号与 GPA 改前/改后；**没有存 PIN**）。前端也是 anon 直写 → 外人大概也能写假纪录（没实测，实测会真的写进正式库）。`02_phase2_auth.sql`【D】早就列了「audit_log 之后再锁」，一直没做。`programs` 匿名读得到 = 课纲，非机密，不动。
 - **SQL**：`TM/supabase/04_lock_audit_log_2026-11-22.sql`。【A】新增 `write_audit(p_token, p_row jsonb)`（who 用前端「操作者」，空就用登录者）、`list_audit(p_token, p_limit, p_offset)`（新到旧、最多 5000）；【B】清掉 audit_log 所有 policy → 开 RLS → revoke anon/authenticated 直连（默认注释掉，要跑时删 `/* */`）。
