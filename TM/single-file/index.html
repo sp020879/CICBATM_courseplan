@@ -1098,8 +1098,21 @@ function apiAudit(action, target_type, target_id, note, before, after){
     before: before === undefined ? null : before,
     after: after === undefined ? null : after
   };
-  sb('audit_log', { method:'POST', body:JSON.stringify(payload), prefer:'return=minimal' })
+  // 2026-11-22:改走带令牌的 RPC write_audit(supabase/04);RPC 不存在时退回直写(04【B】锁表后直写会失败,无妨)
+  const _tok = sessionStorage.getItem('cic_token') || '';
+  sb('rpc/write_audit', { method:'POST', body:JSON.stringify({ p_token:_tok, p_row:payload }), prefer:'return=minimal' })
+    .catch(() => sb('audit_log', { method:'POST', body:JSON.stringify(payload), prefer:'return=minimal' }))
     .catch(e => console.warn('[audit_log] write failed:', e.message));
+}
+
+// 读编辑记录(新到旧):走带令牌的 RPC list_audit(supabase/04);RPC 不存在时退回直读
+async function apiAuditList(limit){
+  const _tok = sessionStorage.getItem('cic_token') || '';
+  try{
+    return await sb('rpc/list_audit', { method:'POST', body:JSON.stringify({ p_token:_tok, p_limit:limit, p_offset:0 }) }) || [];
+  }catch(e){
+    return await sb(`audit_log?select=ts,who,action,target_type,target_id,note,before,after&order=ts.desc&limit=${limit}`) || [];
+  }
 }
 
 async function apiGetAll() {
@@ -2305,7 +2318,7 @@ async function renderDashboard(){
   // 抓最新 8 笔 audit log（fire-and-forget · 失败显示提示）
   let recent = [];
   try{
-    const data = await sb('audit_log?select=ts,who,action,target_type,target_id,note&order=ts.desc&limit=8');
+    const data = await apiAuditList(8);
     recent = data || [];
   }catch(e){ recent = []; }
 
@@ -7271,7 +7284,7 @@ async function openAuditModal(){
   if(stat) stat.textContent = '';
   const limit = parseInt(document.getElementById('audit-limit')?.value)||500;
   try{
-    const data = await sb(`audit_log?select=ts,who,action,target_type,target_id,note,before,after&order=ts.desc&limit=${limit}`);
+    const data = await apiAuditList(limit);
     window._auditData = data || [];
     // 填筛选下拉
     const actSet = new Set(), whoSet = new Set();

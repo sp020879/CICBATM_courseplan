@@ -164,7 +164,15 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 出错坦诚说 · 不甩锅
 - 对话末尾用「问你 X 件事」结构让用户决定下一步
 
-## 📌 进度 / 待办（2026-11-09）
+## 📌 进度 / 待办（2026-11-22）
+
+**2026-11-22 · 🔴 编辑记录 audit_log 外露 → 锁表（⏳ 前端已改未部署；SQL 待用户跑）**
+- **问题（体检发现）**：`audit_log` 用网页公开的 anon key 就读得到（2,533 笔；抽样含学号与 GPA 改前/改后；**没有存 PIN**）。前端也是 anon 直写 → 外人大概也能写假纪录（没实测，实测会真的写进正式库）。`02_phase2_auth.sql`【D】早就列了「audit_log 之后再锁」，一直没做。`programs` 匿名读得到 = 课纲，非机密，不动。
+- **SQL**：`TM/supabase/04_lock_audit_log_2026-11-22.sql`。【A】新增 `write_audit(p_token, p_row jsonb)`（who 用前端「操作者」，空就用登录者）、`list_audit(p_token, p_limit, p_offset)`（新到旧、最多 5000）；【B】清掉 audit_log 所有 policy → 开 RLS → revoke anon/authenticated 直连（默认注释掉，要跑时删 `/* */`）。
+- **前端**（`TM/single-file/index.html`，diff 16 行）：`apiAudit` 改走 `rpc/write_audit`、新 `apiAuditList(limit)` 走 `rpc/list_audit`；总览「最近 8 笔」与编辑记录弹窗改用它。**RPC 不存在时退回旧的直读直写**，所以前端先上线也不会断。语法检查通过；用模拟回应测过 4 种情况（RPC 已建／未建／已锁+令牌过期／全断）都照预期。**登录后的真实画面未验证**（需 PIN）。备份 `_backups/index_before_auditlock_20261122.html`。
+- **备份脚本**（repo 外 `~/Documents/网站备份/_脚本/tm_backup.mjs`）：audit_log 改用令牌走 `list_audit` 分页读（RPC 404 时退回匿名直读），不然锁表后备份里的编辑记录会悄悄变 0 笔。`node --check` 通过；**还没实跑**。备份 `tm_backup.mjs.bak_auditlock_20261122`。
+- **上线顺序**：① 用户在 Supabase SQL Editor 跑 04【A】 → ② 用户说「部署」→ 推 main → ③ 线上登录看编辑记录读得到、做一个动作看有新纪录；等一次每日备份（或手动跑）看 audit_log 笔数正常 → ④ 用户跑 04【B】 → ⑤ `check_anon_read.sh … audit_log` 要 0 笔。**回退**：`alter table public.audit_log disable row level security;`
+- 顺带（BA，不是 TM）：BA 的 `staging.html`、`index_supa_test.html` 载入/登出时还会 `setTimeout(...pin-input.focus())`（Secure Input 问题，主页 index.html 已修）。
 
 **2026-11-10 · BA⇄TM 交叉比对（✅ 已部署 `983ffa9`，GitHub Pages 确认生效）**
 - `loadSchedHalves` 多存 `_SCHED_PRES`（课|学期 → BA 名单届别 Set，含原码大写 + 正规化码，不管有没有填上下半，含等价码镜像）与 `_SCHED_SEM_CNT`（每学期开班数）。
@@ -239,7 +247,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ---
 
-**最后更新**：2026-11-13 · 由 Claude 自动维护 · 重大变动同步更新此文件
+**最后更新**：2026-11-22 · 由 Claude 自动维护 · 重大变动同步更新此文件
 
 ## web-design-rules 体检设定
 
@@ -249,6 +257,12 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 线上网址：https://sp020879.github.io/CICBATM_courseplan/TM/single-file（GitHub Pages，keep-ext）
 - 测试指令：无自动测试（`双课纲2570/tm_regression_check.js` 是在线上网页里跑的回归脚本）
 - 备份：~/Documents/网站备份/TM智能排课｜'TM-数据-*.json'｜2 天
-- 匿名读取：--supabase xzplzckugyvutsqocrtw --key-from TM/single-file/index.html students passcodes sessions
+- 匿名读取：--supabase xzplzckugyvutsqocrtw --key-from TM/single-file/index.html students passcodes sessions audit_log
 - 反向验证纪录：无（没有自动测试可反向验证）
-- 已知：GitHub Pages 不能自订安全标头；登录后的画面要在浏览器里量
+- 已知：GitHub Pages 不能自订安全标头；登录后的画面要在浏览器里量；`programs`（课纲）匿名可读是正常的
+- 密码框：PIN 框 `pw-input` 是跨两行写的 `<input>`（2026-11-22 起 skill 的检查读得到跨行标签）
+
+### 体检纪录
+- **2026-11-22**：网站面都过；维护面 1 个严重问题（处理中）。
+  - 网站面：375px over=0（量到的是登录画面）；PIN 框无自动聚焦、登录成功/切走/登出都 blur；线上与本机 `index.html`、`style.css` 一致、与 origin 同步；安全标头缺（GitHub Pages 限制，已知）。
+  - 维护面：备份 11-22 09:48 本机＋云端各 26 份、排程 exit 0；students/passcodes/sessions 匿名 0 笔；❌ **audit_log 匿名读得到 2,533 笔（含学号、GPA）** → 见「进度 / 待办」2026-11-22，04 SQL 待跑、前端待部署。
