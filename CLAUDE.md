@@ -166,12 +166,13 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-22）
 
-**2026-11-22 · 🔴 编辑记录 audit_log 外露 → 锁表（⏳ 前端已改未部署；SQL 待用户跑）**
+**2026-11-22 · 🔴 编辑记录 audit_log 外露 → 锁表（✅ 已完成：前端 `5a6f0a3` 已上线、04【A】【B】用户已跑、匿名读写都 401）**
 - **问题（体检发现）**：`audit_log` 用网页公开的 anon key 就读得到（2,533 笔；抽样含学号与 GPA 改前/改后；**没有存 PIN**）。前端也是 anon 直写 → 外人大概也能写假纪录（没实测，实测会真的写进正式库）。`02_phase2_auth.sql`【D】早就列了「audit_log 之后再锁」，一直没做。`programs` 匿名读得到 = 课纲，非机密，不动。
 - **SQL**：`TM/supabase/04_lock_audit_log_2026-11-22.sql`。【A】新增 `write_audit(p_token, p_row jsonb)`（who 用前端「操作者」，空就用登录者）、`list_audit(p_token, p_limit, p_offset)`（新到旧、最多 5000）；【B】清掉 audit_log 所有 policy → 开 RLS → revoke anon/authenticated 直连（默认注释掉，要跑时删 `/* */`）。
 - **前端**（`TM/single-file/index.html`，diff 16 行）：`apiAudit` 改走 `rpc/write_audit`、新 `apiAuditList(limit)` 走 `rpc/list_audit`；总览「最近 8 笔」与编辑记录弹窗改用它。**RPC 不存在时退回旧的直读直写**，所以前端先上线也不会断。语法检查通过；用模拟回应测过 4 种情况（RPC 已建／未建／已锁+令牌过期／全断）都照预期。**登录后的真实画面未验证**（需 PIN）。备份 `_backups/index_before_auditlock_20261122.html`。
 - **备份脚本**（repo 外 `~/Documents/网站备份/_脚本/tm_backup.mjs`）：audit_log 改用令牌走 `list_audit` 分页读（RPC 404 时退回匿名直读），不然锁表后备份里的编辑记录会悄悄变 0 笔。`node --check` 通过；**还没实跑**。备份 `tm_backup.mjs.bak_auditlock_20261122`。
-- **上线顺序**：① 用户在 Supabase SQL Editor 跑 04【A】 → ② 用户说「部署」→ 推 main → ③ 线上登录看编辑记录读得到、做一个动作看有新纪录；等一次每日备份（或手动跑）看 audit_log 笔数正常 → ④ 用户跑 04【B】 → ⑤ `check_anon_read.sh … audit_log` 要 0 笔。**回退**：`alter table public.audit_log disable row level security;`
+- **实际经过（2026-11-22）**：04【A】第一版用了 `public._session()`，**线上没有这个函数**（02 模板有、线上没建；线上 list_students 是直接查 sessions）→ 呼叫报 42883；改成新 `_audit_who(p_token)`（直接查 sessions、只依赖 token 栏，`to_jsonb` 读 expires_at/name，anon 不能直接叫）重跑才对。前端上线后线上 hash 一致（`bc4a0f15`）；用户登录确认读写正常（库里多一笔 11-22 登录纪录，2,533→2,534）；跑【B】后验收：anon 读 audit_log 401、anon 直写 401、RPC 假令牌回 28000、students/passcodes/sessions 仍 0 笔。**待确认**：下一次每日备份的 audit_log 笔数正常（备份脚本已改走 list_audit）。
+- **上线顺序（原计划）**：① 用户在 Supabase SQL Editor 跑 04【A】 → ② 用户说「部署」→ 推 main → ③ 线上登录看编辑记录读得到、做一个动作看有新纪录；等一次每日备份（或手动跑）看 audit_log 笔数正常 → ④ 用户跑 04【B】 → ⑤ `check_anon_read.sh … audit_log` 要 0 笔。**回退**：`alter table public.audit_log disable row level security;`
 - 顺带（BA，不是 TM）：BA 的 `staging.html`、`index_supa_test.html` 载入/登出时还会 `setTimeout(...pin-input.focus())`（Secure Input 问题，主页 index.html 已修）。
 
 **2026-11-10 · BA⇄TM 交叉比对（✅ 已部署 `983ffa9`，GitHub Pages 确认生效）**
@@ -265,4 +266,4 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 ### 体检纪录
 - **2026-11-22**：网站面都过；维护面 1 个严重问题（处理中）。
   - 网站面：375px over=0（量到的是登录画面）；PIN 框无自动聚焦、登录成功/切走/登出都 blur；线上与本机 `index.html`、`style.css` 一致、与 origin 同步；安全标头缺（GitHub Pages 限制，已知）。
-  - 维护面：备份 11-22 09:48 本机＋云端各 26 份、排程 exit 0；students/passcodes/sessions 匿名 0 笔；❌ **audit_log 匿名读得到 2,533 笔（含学号、GPA）** → 见「进度 / 待办」2026-11-22，04 SQL 待跑、前端待部署。
+  - 维护面：备份 11-22 09:48 本机＋云端各 26 份、排程 exit 0；students/passcodes/sessions 匿名 0 笔；❌→✅ **audit_log 匿名读得到 2,533 笔（含学号、GPA）→ 当天已锁**（见「进度 / 待办」2026-11-22）。
