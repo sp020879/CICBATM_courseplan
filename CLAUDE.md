@@ -166,7 +166,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-22）
 
-**2026-11-22 · 旧拆分版 `TM/split/` 停用 → 换成转址页（⏳ 已改未部署，等用户说「部署」）**
+**2026-11-22 · 旧拆分版 `TM/split/` 停用 → 换成转址页（✅ 已上线 `be86267`，2026-11-22；线上 split/ 是转址页、`js/app.js`／`css/style.css` 都 404、打开 split 落在现役 TM 登录页、线上原始码无旧密码）**
 - 起因：做 supabase-lock-table skill 时 `find_usages` 发现 `TM/split/js/app.js` 还在 anon 直读直写 audit_log，且线上 `…/TM/split/` 仍 HTTP 200。
 - 查证没人在用：TM／BA／测验／建祯都没有连结到它；`TM/学生标签多选_改动说明_2026-11-12.md` 写明「上线的是 single-file，split 未同步」；它直读 `students`，7 月锁表后只会看到 0 位学生；编辑记录的 action 名 split 都是 single-file 的子集，分不出来源。
 - 遗留风险：split 的登录是前端比对写死在 `js/app.js` 的旧密码（公开可见；single-file 注释说「不再使用」）。**待用户到「用户管理」确认没有任何 PIN 等于那组旧密码**（我用它试登录被系统挡下，不该由我试）。旧密码仍在 git 历史里（公开 repo），清不掉，重点是它不能是有效 PIN。
