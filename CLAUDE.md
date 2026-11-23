@@ -173,6 +173,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 - 规则（✅ 用户 2026-11-23 确认）：A B+ B C+ C D+ D S P 算通过；F W U 与无成绩不算；重修取最近一次通过；TM 标 Transferred 算已修；本学期还没出成绩算「在修」、不算缺。SLCM 的学期列无序，读取时按年/学期排序；没有任何已出成绩学期的学生 SLCM 会给 GPA 0.00，程序当作「没有」。
 - 验证：22 位 SLCM 累计 GPA 与名单页 GPAX 一致 21/21（另 1 位无成绩）；TM 手填 GPA 与 SLCM 无一位不同（1 位 TM 空白）；与 TM 自己 `calcProgress` 的「还差几门」13/22 完全相同，其余差 1–2 门（TM 登记已修但 SLCM 无纪录：LA132 等 6 位；TM 外系选修 KH160 在 SLCM 是 F：1 位；另 2 位没查出原因）；375px 下 22 位弹窗溢出 0、页面溢出 0；密码框检查通过。**登入后用真数据（线上）未验证。**
 - 改动：`TM/single-file/index.html`（`_SLCM` 变量、工具列按钮、`#slcm-modal`、`cardHTML` 的 SLCM 小标、GPA 历史 `slcm` 来源色、`slcmAnalyze/openSlcm/importSlcmFile/slcmApplyGpa`）、`style.css`（`.sl-*`）、新增 `TM/tools/build_slcm_bundle.py`。备份 `_backups/index_before_slcm_20261123.html`、`style_before_slcm_20261123.css`。
+- **更新提醒（2026-11-23 设）**：用户给的成绩公布日 2027-01-11 / 05-30 / 08-30，公布后一周 09:00（+07:00）各一次性提醒（排程 `slcm-grade-reminder-2027-01/-06/-09`，只提醒、不自动抓、不登入）。每个只响一次，之后日期要重新问用户再设。提醒响了 → 用户登入 SLCM → 说「抓 SLCM 成绩」→ 照上面流程重抓。
 - 没做：SLCM 名单里不在 TM 的 44 位、TM 有但不在导生名单的 14 位（多半休学／别的导师）；定期自动抓取（SLCM token 只有 30 分钟，要用户登入，不自动化）。
 
 **2026-11-22 · 旧拆分版 `TM/split/` 停用 → 换成转址页（✅ 已上线 `be86267`，2026-11-22；线上 split/ 是转址页、`js/app.js`／`css/style.css` 都 404、打开 split 落在现役 TM 登录页、线上原始码无旧密码）**
