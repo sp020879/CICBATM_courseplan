@@ -174,6 +174,9 @@
             <button onclick="exportStudentListExcel();document.getElementById('roster-menu').style.display='none'" class="dd-item">📊 导出 Excel</button>
           </div>
         </div>
+        <button onclick="document.getElementById('slcm-file').click()" class="pb-btn" id="slcm-btn" title="选本机的 slcm_bundle.json；资料只放在这个页面的内存里，不上传、不存库，关掉页面就没了">📥 导入 SLCM 成绩</button>
+        <input type="file" id="slcm-file" accept=".json,application/json" style="display:none" onchange="importSlcmFile(this)">
+        <span id="slcm-stat" style="font-size:11px;color:var(--ink3);padding:0 4px;"></span>
         <button onclick="toggleSelectMode()" class="pb-btn">☐ 批次管理</button>
         <span class="pb-sep"></span>
         <div style="display:flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden;">
@@ -482,6 +485,23 @@
     <div class="mf">
       <span style="font-size:10px;color:var(--ink3);flex:1"></span>
       <button class="tbtn" onclick="closeModal('student-card-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📥 SLCM 成绩 / 未修课 Modal（资料只在内存，见 openSlcm）-->
+<div class="overlay" id="slcm-modal">
+  <div class="modal" style="width:820px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="mh">
+      <div><h3 id="slcm-title">SLCM 成绩</h3><div class="sub" id="slcm-sub"></div></div>
+      <button class="mx" onclick="closeModal('slcm-modal')">✕</button>
+    </div>
+    <div class="mb" style="flex:1;overflow:auto;padding:14px 18px;background:var(--paper)">
+      <div id="slcm-body"></div>
+    </div>
+    <div class="mf">
+      <span style="font-size:10px;color:var(--ink3);flex:1">资料来自 SLCM 导入档，只在这个页面的内存里，关掉页面就没了；「已修／未修」按 SLCM 成绩算（F、W、U、无成绩不算通过）。</span>
+      <button class="tbtn" onclick="closeModal('slcm-modal')">关闭</button>
     </div>
   </div>
 </div>
@@ -925,6 +945,8 @@ function fromRow(r) {
 // ══════════════════════════════════════════════════════
 // ★ 共用规则常数（之前散落 17+ 处，集中在这里）
 // ══════════════════════════════════════════════════════
+var _SLCM = {};        // 📥 SLCM 导入：学号 → {gpax, earned, sems, courses}。只存内存，不上传、不存库（逻辑见 importSlcmFile）
+var _SLCM_META = null; // {generatedAt, currentSem, count, matched}
 const _RULES = {
   INTERN_CODES: new Set(['KT411','KT331','KT332']),           // 实习课（不占 38 名额）
   GE_SEL_GROUPS: new Set(['终身学习-选修','价值论理-选修','生活质量-选修']),  // GE 选修组（每组只算 1 门）
@@ -2885,13 +2907,13 @@ ${(()=>{const _cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);const _pal=
           `:`<div class="gpa-val" onclick="event.stopPropagation();_promptEditGpa('${s.id}')" style="color:var(--ink3);font-weight:400;cursor:pointer" title="点击手动输入 GPA">—</div>
              <div style="font-size:9px;margin-top:2px;color:var(--ink3)">点击手动输入<br/>或「更新成绩」上传 PDF</div>`}
         </div>
-        <div class="gpa-item"><div class="gpa-label">GPA 历史 <span onclick="event.stopPropagation();openAuditForStudent('${s.id}')" style="cursor:pointer;font-size:11px;opacity:.55;margin-left:2px" title="查看这位学生的完整操作记录" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.55'">📜</span></div>
+        <div class="gpa-item"><div class="gpa-label">GPA 历史 <span onclick="event.stopPropagation();openAuditForStudent('${s.id}')" style="cursor:pointer;font-size:11px;opacity:.55;margin-left:2px" title="查看这位学生的完整操作记录" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.55'">📜</span>${_SLCM[s.id]?`<span class="sl-link" onclick="event.stopPropagation();openSlcm('${s.id}')" title="看这位学生在 SLCM 的成绩、已修课、未修课">SLCM</span>`:''}</div>
           ${hist.length?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:3px;line-height:1.5">${hist.map(e=>{
             const n=(typeof e==='number')?{gpa:e,date:'',src:'legacy'}:e;
             const v=parseFloat(n.gpa);
             if(!Number.isFinite(v))return '';
             const color=v>=2?'var(--g7)':v>=1.5?'var(--amber)':'var(--red)';
-            const srcChip=n.src==='manual'?'<span style="font-size:8px;background:#fef3c7;color:#92400e;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">手</span>':n.src==='pdf'?'<span style="font-size:8px;background:#dbeafe;color:#1e40af;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">PDF</span>':'';
+            const srcChip=n.src==='slcm'?'<span style="font-size:8px;background:#ede9fe;color:#5b21b6;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">SLCM</span>':n.src==='manual'?'<span style="font-size:8px;background:#fef3c7;color:#92400e;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">手</span>':n.src==='pdf'?'<span style="font-size:8px;background:#dbeafe;color:#1e40af;padding:0 3px;border-radius:2px;margin:0 2px;font-weight:600">PDF</span>':'';
             const dateStr=n.date?`<span style="color:var(--ink3);font-size:9px">${n.date.slice(5)}</span>`:'';
             return `<div style="display:flex;align-items:center;gap:2px;white-space:nowrap">${dateStr}${srcChip}<span style="color:${color};font-weight:600">${v}</span></div>`;
           }).join('')}</div>`:`<div style="font-size:10px;color:var(--ink3);margin-top:3px">—</div>`}
@@ -7113,6 +7135,242 @@ function openStudentCardModal(sid){
   openModal('student-card-modal');
 }
 window.openStudentCardModal = openStudentCardModal;
+
+// ═══════════════════════════════════════════════════════════════
+// 📥 SLCM 成绩导入（2026-11-23）
+// 资料流：本机脚本 TM/tools/build_slcm_bundle.py 把 SLCM 抓下来的成绩合成 slcm_bundle.json（无姓名、不进 git）
+//   → 这里用文件选择器读进 _SLCM（只放内存）→ 算 GPA / 已修 / 未修 / 与 TM 登记的差异。
+// 不写数据库；唯一会写库的是弹窗里「用 SLCM 更新 TM GPA」按钮（走既有 applyGPA，要用户按、会先确认）。
+// 通过规则：A B+ B C+ C D+ D S P 算通过；F W U 与没有成绩不算；重修取最近一次通过；TM 标 Transferred 的算已修。
+// ═══════════════════════════════════════════════════════════════
+const _SL_PASS = new Set(['A','B+','B','C+','C','D+','D','S','P']);
+const _slEsc = v => String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const _slSemV = v => { const m=/^(\d{4})\/(\d)$/.exec(v||''); return m ? (+m[1])*10+(+m[2]) : null; };
+const _slF2 = v => (v==null||!Number.isFinite(v)) ? '—' : v.toFixed(2);
+
+function _slStatus(){
+  const el = document.getElementById('slcm-stat'); if(!el) return;
+  if(!_SLCM_META){ el.textContent=''; el.title=''; return; }
+  const m=_SLCM_META;
+  el.textContent = `SLCM ${m.count} 位（对上 TM ${m.matched}）· ${m.generatedAt||''}`;
+  el.title = m.matched<m.count ? `有 ${m.count-m.matched} 位在 TM 找不到学号，已忽略：${m.unmatched.join('、')}` : '全部对得上 TM 学生';
+  el.style.color = m.matched<m.count ? 'var(--amber)' : 'var(--ink3)';
+}
+
+function importSlcmFile(inp){
+  const f = inp.files && inp.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onerror = () => alert('读不到这个档案');
+  rd.onload = () => {
+    try{
+      const j = JSON.parse(rd.result);
+      if(j.version!==1 || !j.students || typeof j.students!=='object') throw new Error('这不是「导入 SLCM 成绩」用的档案（缺 version / students）。请选 slcm_bundle.json。');
+      const ids = Object.keys(j.students);
+      const have = new Set(DB.students.map(s=>s.id));
+      const unmatched = ids.filter(id=>!have.has(id));
+      _SLCM = j.students;
+      _SLCM_META = {generatedAt:(j.generatedAt||'').slice(0,10), currentSem:j.currentSem||'', count:ids.length, matched:ids.length-unmatched.length, unmatched};
+      _slStatus();
+      renderCards();
+    }catch(e){ alert('导入失败：'+e.message); }
+    inp.value='';
+  };
+  rd.readAsText(f);
+}
+window.importSlcmFile = importSlcmFile;
+
+// 算一位学生：GPA、每门课状态、各组缺几门、与 TM 登记的差异
+function slcmAnalyze(s){
+  const d = _SLCM[s.id]; if(!d) return null;
+  const curSem = (_SLCM_META && _SLCM_META.currentSem) || NOW_SEM, curV = _slSemV(curSem);
+  const tmc = s.courses || {};
+  const pid = s.prog || 'TM', pcs = progCourses(pid), prog = getProg(pid) || {};
+  const pcSet = new Set(pcs.map(c=>c.c));
+
+  // 每个课程码在 SLCM 的纪录（builder 已按学期排序）
+  const by = {};
+  (d.courses||[]).forEach(([code,y,se,cr,gr,rt,name])=>{
+    const o = by[code] || (by[code]={code,name,cr,rows:[]});
+    o.rows.push({sem:y+'/'+se, gr, rt}); if(name) o.name=name; if(cr) o.cr=cr;
+  });
+  Object.values(by).forEach(o=>{
+    const ps = o.rows.filter(r=>_SL_PASS.has(r.gr));
+    o.passed = ps.length ? ps[ps.length-1] : null;
+    o.last = o.rows[o.rows.length-1];
+    o.inprog = !o.passed && o.last.gr==null;
+    o.failed = !o.passed && !o.inprog;
+  });
+  // 状态：pass 已通过 / xfer TM 标转学分 / prog 在修 / fail F·W·U 需重修 / none 没修过
+  const st = code => {
+    const o = by[code];
+    if(o && o.passed) return {k:'pass', o, label:o.passed.gr, sem:o.passed.sem};
+    if(tmc[code]==='Transferred') return {k:'xfer', o, label:'转学分'};
+    if(o && o.inprog) return {k:'prog', o, label:'在修', sem:o.last.sem};
+    if(o && o.failed) return {k:'fail', o, label:o.last.gr||'—', sem:o.last.sem};
+    return {k:'none', o:null, label:''};
+  };
+  const isDone = k => k==='pass' || k==='xfer';
+  const planned = code => { const v=tmc[code]; return (typeof v==='string' && /^\d{4}\/\d$/.test(v)) ? v : ''; };
+
+  // 课纲分组（沿用 TM 的 _gtype/_gcr，没设时按 _RULES 的组名 fallback）
+  const groups = [], gmap = {};
+  pcs.forEach(c=>{
+    if(!gmap[c.g]){
+      let t = c._gtype;
+      if(!t) t = _RULES.SKIP_GROUPS.has(c.g) ? 'skip' : (_RULES.GE_SEL_GROUPS.has(c.g)||_RULES.LANG_GROUP_NAMES.has(c.g)) ? 'elective' : 'required';
+      gmap[c.g] = {g:c.g, type:t, gcr:c._gcr||0, items:[]}; groups.push(gmap[c.g]);
+    }
+    gmap[c.g].items.push(c);
+  });
+  let needReq=0, needElec=0, needIntern=0;
+  groups.forEach(G=>{
+    G.items.forEach(c=>{ c._st = st(c.c); c._plan = planned(c.c); });
+    if(G.type==='required'){
+      G.missing = G.items.filter(c=>!isDone(c._st.k) && c._st.k!=='prog');   // 在修的不算缺，另列在「在修」
+      G.doneN = G.items.filter(c=>isDone(c._st.k)).length; G.needN = G.items.length;
+      needReq += G.missing.length;
+    }else if(G.type==='skip'){
+      const ok = G.items.some(c=>isDone(c._st.k)), ing = G.items.some(c=>c._st.k==='prog');
+      G.ok = ok; G.ing = ing; G.doneN = ok?1:0; G.needN = 1; G.missing = ok?[]:G.items;
+      if(!ok && !ing) needIntern = 1;
+    }else{ // elective
+      const avg = G.items.reduce((a,c)=>a+(c.cr||0),0)/Math.max(G.items.length,1) || 3;
+      G.needN = Math.max(1, Math.round((G.gcr||avg)/avg));
+      let cnt = G.items.filter(c=>isDone(c._st.k)).length, ing = G.items.filter(c=>c._st.k==='prog').length;
+      if(_RULES.LANG_GROUP_NAMES.has(G.g)){     // 语言修选：5 门要同语种（KE 英文 / KH 泰文），取多的那边
+        const ke = G.items.filter(c=>c.c.startsWith('KE')&&isDone(c._st.k)).length;
+        const kh = G.items.filter(c=>c.c.startsWith('KH')&&isDone(c._st.k)).length;
+        G.route = kh>ke ? 'KH' : 'KE';
+        cnt = G.route==='KH' ? kh : ke;
+        ing = G.items.filter(c=>c.c.startsWith(G.route)&&c._st.k==='prog').length;
+        G.mixed = (G.route==='KH'?ke:kh) > 0;
+        G.missing = G.items.filter(c=>c.c.startsWith(G.route) && !isDone(c._st.k) && c._st.k!=='prog');
+      }else{
+        G.missing = G.items.filter(c=>!isDone(c._st.k) && c._st.k!=='prog');
+      }
+      G.doneN = Math.min(cnt, G.needN); G.ingN = ing;
+      G.remain = Math.max(0, G.needN - cnt - ing);
+      needElec += G.remain;
+    }
+  });
+  // 课纲外的已通过课（外系 / 自由选修，如 KH160）
+  const freeDone = Object.values(by).filter(o=>o.passed && !pcSet.has(o.code) && !_RULES.INTERN_CODES.has(o.code));
+  const freeNeed = (prog.meta && prog.meta.extSlots && prog.meta.extSlots.length) || 0;
+  const freeIng = Object.values(by).filter(o=>o.inprog && !pcSet.has(o.code) && !_RULES.INTERN_CODES.has(o.code)).length;
+  const freeRemain = Math.max(0, freeNeed - freeDone.length - freeIng);
+
+  // GPA
+  const lastSem = (d.sems||[]).filter(r=>r[7]!=null).slice(-1)[0] || null;
+  // 没有任何「已出成绩的学期」时（新生、只有进行中学期）SLCM 会给 0.00，那不是真 GPA → 当作没有
+  const slG = lastSem ? lastSem[7] : (d.gpax>0 ? d.gpax : null);
+  const tmG = (s.gpa==null||s.gpa==='') ? null : parseFloat(s.gpa);
+  const gpaDiff = slG!=null && (tmG==null || Math.abs(tmG-slG)>=0.005);
+
+  // 与 TM 登记对账
+  const slotRe = /^ext(_\d+|2)$/;
+  const tmKnown = new Set();
+  Object.keys(tmc).forEach(k=>{
+    if(slotRe.test(k)){ const p=String(tmc[k]||'').split('|'); if(p.length>1 && p[0].trim()) tmKnown.add(p[0].trim().toUpperCase()); }
+    else tmKnown.add(k);
+  });
+  ((prog.meta&&prog.meta.extSlots)||[]).forEach(x=>{ const n=(x.name||'').trim().toUpperCase(); if(/^[A-Z]{2,4}\d{3,4}$/.test(n)) tmKnown.add(n); });
+  const tmOnly = [], slcmOnly = [];
+  Object.keys(tmc).forEach(key=>{             // TM 登记在「已到的学期」，但 SLCM 没有通过也不是在修
+    let code = key, v = planned(key);
+    if(slotRe.test(key)){                      // 外系选修栏位：值是「课程码|学期」
+      const p = String(tmc[key]||'').split('|');
+      if(p.length<2 || !p[0].trim()) return;
+      code = p[0].trim().toUpperCase(); v = /^\d{4}\/\d$/.test(p[1]) ? p[1] : '';
+    }
+    if(!v) return;                             // Transferred 等不比
+    const vv = _slSemV(v);
+    if(curV==null || vv==null || vv>curV) return;   // TM 排在未来学期的不比
+    const o = by[code];
+    const ok = o && (o.passed || o.rows.some(r=>r.sem===v && r.gr==null));
+    if(!ok) tmOnly.push({code, tmSem:v, slcm: o ? ((o.last.gr||'在修')+' @'+o.last.sem) : '无纪录'});
+  });
+  Object.values(by).forEach(o=>{              // SLCM 已通过，但 TM 完全没登记
+    if(o.passed && !tmKnown.has(o.code.toUpperCase())) slcmOnly.push({code:o.code, name:o.name, sem:o.passed.sem, gr:o.passed.gr});
+  });
+  return {d, curSem, groups, needReq, needElec, needIntern, freeDone, freeNeed, freeRemain, slG, tmG, gpaDiff, lastSem, tmOnly, slcmOnly};
+}
+
+function slcmApplyGpa(sid){
+  const s = DB.students.find(x=>x.id===sid); if(!s) return;
+  const a = slcmAnalyze(s); if(!a || a.slG==null) return;
+  const from = a.tmG==null ? '（空）' : a.tmG.toFixed(2);
+  if(!confirm(`把 ${s.cname||s.name||sid} 的 GPA 从 ${from} 改成 SLCM 的 ${a.slG.toFixed(2)}？\n\n会写进 TM 数据库，并在 GPA 历史记一笔「SLCM」来源。`)) return;
+  applyGPA(sid, a.slG, new Date().toISOString().slice(0,10), 'slcm');
+  closeModal('slcm-modal');
+}
+window.slcmApplyGpa = slcmApplyGpa;
+
+function openSlcm(sid){
+  const s = DB.students.find(x=>x.id===sid); if(!s) return;
+  const a = slcmAnalyze(s);
+  if(!a){ alert('这位学生不在导入的 SLCM 资料里'); return; }
+  const E = _slEsc;
+  document.getElementById('slcm-title').textContent = `${s.name||sid}${s.cname?' · '+s.cname:''}`;
+  document.getElementById('slcm-sub').textContent = `${s.id} · SLCM 资料 ${_SLCM_META.generatedAt} · 目前学期 ${a.curSem}`;
+
+  const chip = c => {
+    const k=c._st.k, nm=(c.n||'').slice(0,32);
+    const tag = k==='none' && c._plan ? `<i>TM 排 ${E(c._plan)}</i>` : (c._st.label ? `<b>${E(c._st.label)}</b>` : '');
+    return `<span class="sl-c k-${k}" title="${E(c.c+' '+(c.n||''))}${c._st.sem?' · '+E(c._st.sem):''}${k==='fail'?' · 需重修':''}">${E(c.c)} ${E(nm)}${tag}</span>`;
+  };
+  const allItems = a.groups.flatMap(G=>G.items);
+  const nProg = allItems.filter(c=>c._st.k==='prog').length;
+  const nFail = allItems.filter(c=>c._st.k==='fail').length;
+
+  // ① 概况
+  const cc = a.lastSem ? a.lastSem[6] : null;
+  let h = `<div class="sl-sum">
+    <div><div class="sl-k">SLCM 累计 GPA</div><div class="sl-v">${_slF2(a.slG)}</div></div>
+    <div><div class="sl-k">TM 记录的 GPA</div><div class="sl-v" style="color:${a.gpaDiff?'var(--red)':'var(--g7)'}">${_slF2(a.tmG)}</div>
+      <div class="sl-n">${a.slG==null?'SLCM 还没有成绩':(a.gpaDiff?(a.tmG==null?'TM 还没填':'和 SLCM 不同'):'✓ 一致')}</div></div>
+    <div><div class="sl-k">累计学分（SLCM）</div><div class="sl-v">${cc==null?'—':cc}</div><div class="sl-n">已出成绩的学期合计</div></div>
+    <div><div class="sl-k">尚缺（不含在修）</div><div class="sl-v sl-lines"><span>必修 ${a.needReq} 门</span><span>选修 ${a.needElec} 门</span>${a.freeNeed?`<span>外系 ${a.freeRemain} 门</span>`:''}${a.needIntern?'<span>实习未完成</span>':''}</div></div>
+    <div><div class="sl-k">在修 / 需重修</div><div class="sl-v">${nProg} / <span style="color:${nFail?'var(--red)':'inherit'}">${nFail}</span></div><div class="sl-n">门（课纲内）</div></div>
+  </div>`;
+  if(a.gpaDiff) h += `<div style="margin:8px 0"><button class="tbtn acc" onclick="slcmApplyGpa('${E(s.id)}')">用 SLCM 的 ${_slF2(a.slG)} 更新 TM 的 GPA</button> <span style="font-size:11px;color:var(--ink3)">会先让你确认；写进数据库并在 GPA 历史记「SLCM」</span></div>`;
+
+  // ② 未修
+  let todo = '';
+  a.groups.forEach(G=>{
+    if(G.type==='required' && G.missing.length) todo += `<div class="sl-gh">${E(G.g)} <span>还差 ${G.missing.length} 门</span></div><div class="sl-cs">${G.missing.map(chip).join('')}</div>`;
+    else if(G.type==='skip' && !G.ok && !G.ing) todo += `<div class="sl-gh">${E(G.g)} <span>还没做（任一门完成即算）</span></div><div class="sl-cs">${G.items.map(chip).join('')}</div>`;
+    else if(G.type==='elective' && G.remain>0) todo += `<div class="sl-gh">${E(G.g)} <span>已修 ${G.doneN}/${G.needN}${G.ingN?`、在修 ${G.ingN}`:''}，还差 ${G.remain} 门（${G.route?(G.route==='KE'?'英文':'泰文')+'路线，':''}可选）</span></div><div class="sl-cs">${G.missing.map(chip).join('')}</div>`;
+  });
+  if(a.freeRemain>0) todo += `<div class="sl-gh">外系 / 自由选修 <span>已修 ${a.freeDone.length}/${a.freeNeed}，还差 ${a.freeRemain} 门</span></div>`;
+  h += `<div class="sl-sec">未修的课</div>${todo || '<div style="color:var(--g7);font-size:12px;padding:4px 0">✓ 课纲要求的都已完成</div>'}`;
+
+  // ③ 在修
+  const prog = allItems.filter(c=>c._st.k==='prog');
+  if(prog.length) h += `<div class="sl-sec">在修（${E(a.curSem)} 还没出成绩）</div><div class="sl-cs">${prog.map(chip).join('')}</div>`;
+
+  // ④ 已修
+  let did = '';
+  a.groups.forEach(G=>{
+    const ds = G.items.filter(c=>c._st.k==='pass'||c._st.k==='xfer');
+    if(ds.length) did += `<div class="sl-gh">${E(G.g)} <span>${G.type==='elective'?`${G.doneN}/${G.needN}`:`${ds.length}/${G.items.length}`}${G.mixed?'（另有不同语种的课不计）':''}</span></div><div class="sl-cs">${ds.map(chip).join('')}</div>`;
+  });
+  if(a.freeDone.length) did += `<div class="sl-gh">课纲外（外系 / 自由选修） <span>${a.freeDone.length} 门</span></div><div class="sl-cs">${a.freeDone.map(o=>`<span class="sl-c k-pass" title="${E(o.name||'')}">${E(o.code)} ${E((o.name||'').slice(0,32))}<b>${E(o.passed.gr)}</b></span>`).join('')}</div>`;
+  h += `<div class="sl-sec">已修的课</div>${did||'<div style="color:var(--ink3);font-size:12px">（还没有通过的课）</div>'}`;
+
+  // ⑤ 各学期
+  const rows = (a.d.sems||[]).map(r=>`<tr><td>${r[0]}/${r[1]}</td><td>${r[2]==null?'进行中':_slF2(r[2])}</td><td>${r[3]==null?'—':r[3]}</td><td>${r[4]==null?'—':r[4]}</td><td>${r[6]==null?'—':r[6]}</td><td>${r[7]==null?'—':_slF2(r[7])}</td></tr>`).join('');
+  h += `<div class="sl-sec">各学期</div><div class="sl-tw"><table class="sl-t"><thead><tr><th>学期</th><th>学期 GPA</th><th>修习学分</th><th>取得学分</th><th>累计学分</th><th>累计 GPA</th></tr></thead><tbody>${rows||'<tr><td colspan="6">没有学期纪录</td></tr>'}</tbody></table></div>`;
+
+  // ⑥ 对账
+  if(a.tmOnly.length || a.slcmOnly.length){
+    h += `<div class="sl-sec">和 TM 登记对不上（供对账，不会自动改）</div>`;
+    if(a.tmOnly.length) h += `<div class="sl-gh">TM 登记已修，但 SLCM 没有通过 <span>${a.tmOnly.length} 门</span></div><div style="font-size:12px;line-height:1.7">${a.tmOnly.map(x=>`${E(x.code)}（TM 记 ${E(x.tmSem)}；SLCM：${E(x.slcm)}）`).join('　')}</div>`;
+    if(a.slcmOnly.length) h += `<div class="sl-gh">SLCM 已通过，但 TM 完全没登记 <span>${a.slcmOnly.length} 门</span></div><div style="font-size:12px;line-height:1.7">${a.slcmOnly.map(x=>`${E(x.code)} ${E(x.name||'')}（${E(x.sem)} · ${E(x.gr)}）`).join('　')}</div>`;
+  }
+  document.getElementById('slcm-body').innerHTML = h;
+  openModal('slcm-modal');
+}
+window.openSlcm = openSlcm;
 
 // 按学年导出 CSV
 function exportGraduatesByYear(year){

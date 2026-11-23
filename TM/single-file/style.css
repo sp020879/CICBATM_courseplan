@@ -648,3 +648,29 @@ input[type=file]{display:none;}
 #cell-modal.readonly .mf .tbtn.acc{display:none!important;}
 #cell-modal.readonly .mf::before{content:'🔍 只读 · 若要修改请切换到 ⚡ 单次排课';color:var(--ink3);font-size:11px;flex:1;text-align:right;padding-right:6px;}
 
+
+/* ── 📥 SLCM 成绩弹窗（2026-11-23）── */
+.sl-link{cursor:pointer;font-size:9px;margin-left:5px;padding:0 5px;border-radius:3px;background:#ede9fe;color:#5b21b6;font-weight:600;font-family:var(--font);}
+.sl-link:hover{background:#ddd6fe;}
+.sl-sum{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:6px;}
+.sl-sum>div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;}
+.sl-k{font-size:10px;color:var(--ink3);}
+.sl-v{font-size:20px;font-weight:600;font-family:var(--mono);margin-top:2px;}
+.sl-lines{font-size:12px;line-height:1.55;font-family:var(--font);display:flex;flex-direction:column;}
+.sl-n{font-size:10px;color:var(--ink3);margin-top:1px;}
+.sl-sec{font-size:12px;font-weight:600;color:var(--ink);margin:14px 0 4px;padding-bottom:3px;border-bottom:1px solid var(--line);}
+.sl-gh{font-size:11px;color:var(--ink2);margin:8px 0 3px;font-weight:500;}
+.sl-gh span{color:var(--ink3);font-weight:400;margin-left:4px;}
+.sl-cs{display:flex;flex-wrap:wrap;gap:4px;}
+.sl-c{font-size:11px;padding:2px 7px;border-radius:5px;border:1px solid var(--line2);background:var(--card);color:var(--ink2);max-width:100%;overflow-wrap:anywhere;}
+.sl-c b{margin-left:5px;font-family:var(--mono);}
+.sl-c i{margin-left:5px;font-style:normal;color:var(--ink3);font-size:10px;}
+.sl-c.k-pass,.sl-c.k-xfer{background:#f0fdf4;border-color:#bbf7d0;color:#166534;}
+.sl-c.k-prog{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;}
+.sl-c.k-fail{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+.sl-c.k-none{background:#fff;border-style:dashed;}
+.sl-t{width:100%;border-collapse:collapse;font-size:12px;background:var(--card);}
+.sl-t th,.sl-t td{border:1px solid var(--line);padding:3px 8px;text-align:center;}
+.sl-t th{background:var(--paper);font-weight:500;color:var(--ink2);}
+.sl-tw{overflow-x:auto;}
+@media (max-width:640px){.sl-sum{grid-template-columns:repeat(2,1fr);}.sl-t th,.sl-t td{padding:3px 2px;font-size:11px;}}
