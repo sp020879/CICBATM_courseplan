@@ -166,7 +166,7 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-22）
 
-**2026-11-23 · 📥 导入 SLCM 成绩（✅ 本机验证通过、**尚未部署**；分支 `feat/slcm-grade-import`，未 commit）**
+**2026-11-23 · 📥 导入 SLCM 成绩（✅ 已部署 `c072ffe`，2026-11-23；线上 index.html／style.css 与本机 sha256 一致（3b546ebb／ea459bd6），一次就中；**登入后用真数据（线上）待用户点一次**）**
 - 做什么：学生进度页工具列多「📥 导入 SLCM 成绩」。选本机 `slcm_bundle.json` → 有资料的学生卡片 GPA 区出现紫色「SLCM」小标 → 弹窗显示 SLCM 累计 GPA／与 TM 是否一致／累计学分／**未修的课**（按课纲分组：必修缺几门、选修还差几门、实习、外系选修）／在修／已修（含成绩）／各学期 GPA／与 TM 登记对不上的清单。
 - **资料只放页面内存**（`_SLCM`），不上传、不存库、关页面就没了；公开仓库里没有任何学生资料。唯一会写库的是弹窗里「用 SLCM 更新 TM 的 GPA」按钮（走既有 `applyGPA`，先 confirm，来源记 `slcm`，GPA 历史出紫色「SLCM」标）。
 - 资料怎么来：用户登入 SLCM（`slcm.dpu.ac.th`）→「Check Student Grade」(isqy41) 列出导生（studentCode＝TM 的 `students.id`）→ 逐位点 Detail 触发 `getMaster`（加密 studentId 由网页自己产生）→ 存成 `_backups/slcm_<日期>/master_<学号>.json`（`_backups/` 不进 git）→ `python3 TM/tools/build_slcm_bundle.py <该资料夹>` 合成 `slcm_bundle.json`（无姓名）。2026-11-23 抓了导生 66 位中与 TM 重叠的 22 位。
