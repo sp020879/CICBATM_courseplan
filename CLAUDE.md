@@ -166,6 +166,12 @@ BA/production-with-csv-dedup/index.html ← BA 前端（v8.13）
 
 ## 📌 进度 / 待办（2026-11-22）
 
+**2026-11-23 · 班级课表 × BA 课表存档交叉核对（⏳ 已改、本机测过，分支 `feat/class-timetable-ba-crosscheck`，未提交、未部署）**
+- 做什么：班级课表读 BA `timetable`（anon 可读，只有课/届别/周几/时段/教室，无个资），用 TM 学生逐位核对。**A**：有存档的学期，「上下半」栏改「上课时间」（例「上 周三下午、周五上午 · 232」，表头标 BA 定版/草稿 vN），上方一条黄/绿条「对的是 BA 定版 v43 · N 门课不一样 · N 位学生撞课」＋「只看有问题」「详情与撞课名单」「↻」。**C**：页首「📋 清单｜🗓 周课表」，周课表按上半/下半各一张（跟班级下拉与班级 pill 走），撞课格子红框。没存档的学期照旧显示上下半、黄条写「BA 还没有 X 的课表存档」。
+- 核对 5 项：课表没这门课（BA 没开／有开但没排进课表）、课表没有该届别、只排 1 节／没排时间、分不出哪一班（同一门课多班都含该届别）、同一位学生两门课同半同时段（Capstone 之间不算、SG/IS 不算、全学期课如实习不算）。课码过代码桥＋等价码（LA131→LA161）。**不比人数**（人数仍看「🔗 对账 BA」）。
+- 代码：`index.html` 里 `_BA_TT / loadBaTimetable / _ctbAnalyze / _ctbCourseView / _ctbSummary / _ctbStripHTML / _ctbDetail / _ctbWeekHTML`（在 `_ctApplySearch` 之后、`renderClassTable` 之前；`renderClassTable` 里 4 处接线）；`style.css` 末尾 `.ctb-*`、`.pb-btn.on`。BA 存档 2 分钟内不重抓，之后每次重画顺便刷新；纯只读。备份 `_backups/index_before_ctbatt_20261123.html`、`style_before_ctbatt_20261123.css`。
+- 验证：BA 真实 2569-2 存档（v43 定版，73 门）＋假 TM 学生测过 BA 没开／缺届别／撞课／全学期／等价码／SG-IS 排除，结果都对；浏览器里桌机与 375px（清单／周课表／只看有问题／无存档学期）页面溢出 0；密码框检查通过。**登入后用真实学生资料未验证**；2569/1、2569/3 BA 没有课表存档所以对不了。
+
 **2026-11-23 · 📥 导入 SLCM 成绩（✅ 已部署 `c072ffe`，2026-11-23；线上 index.html／style.css 与本机 sha256 一致（3b546ebb／ea459bd6），一次就中；**登入后用真数据（线上）待用户点一次**）**
 - 做什么：学生进度页工具列多「📥 导入 SLCM 成绩」。选本机 `slcm_bundle.json` → 有资料的学生卡片 GPA 区出现紫色「SLCM」小标 → 弹窗显示 SLCM 累计 GPA／与 TM 是否一致／累计学分／**未修的课**（按课纲分组：必修缺几门、选修还差几门、实习、外系选修）／在修／已修（含成绩）／各学期 GPA／与 TM 登记对不上的清单。
 - **资料只放页面内存**（`_SLCM`），不上传、不存库、关页面就没了；公开仓库里没有任何学生资料。唯一会写库的是弹窗里「用 SLCM 更新 TM 的 GPA」按钮（走既有 `applyGPA`，先 confirm，来源记 `slcm`，GPA 历史出紫色「SLCM」标）。

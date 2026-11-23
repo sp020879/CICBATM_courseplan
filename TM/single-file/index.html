@@ -6255,6 +6255,250 @@ function _ctApplySearch(){
   });
 }
 window._ctApplySearch=_ctApplySearch;
+
+// ── 班级课表 × BA「课表制作」存档(2026-11-23 · 纯只读,不写任何库)──
+// 读 BA 的 timetable(anon 可读,内容只有 课/届别/周几/时段/教室,无个资),
+// 再用 TM 学生资料逐位对:课表有没有这门课、有没有这个届别、只排 1 节、同一位学生两门课撞时段。
+let _BA_TT={};   // { '2569/2': {at, rec:null|{version,final_version,final_at,saved_at,pls:[…]}, err} }
+const _CTB_DAYS=['周一','周二','周三','周四','周五','周六','周日'];
+const _CTB_SLOT={am:'上午',pm:'下午'};
+function _ctbE(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _ctbDate(x){ if(!x) return ''; const d=new Date(x); return isNaN(d)?'':d.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); }
+async function loadBaTimetable(sem, force){
+  sem=_normSem(sem); if(!_semNum(sem)) return;
+  const ent=_BA_TT[sem];
+  if(ent && ent.loading) return;
+  if(ent && !force && Date.now()-ent.at<120000) return;    // 2 分钟内不重抓;之后每次重画会顺便刷新,秘书处刚定版也看得到
+  _BA_TT[sem]=Object.assign({at:0,rec:null,err:''}, ent||{}, {loading:true});
+  let rec=null, err='';
+  try{
+    const rows=await fetch(`${_BA_SUPA_URL}/rest/v1/timetable?select=sem,placements,version,final_version,final_by,final_at,saved_at,saved_by&sem=eq.${encodeURIComponent(sem.replace('/','-'))}`,
+      {headers:{apikey:_BA_SUPA_KEY,Authorization:'Bearer '+_BA_SUPA_KEY}}).then(r=>r.json());
+    if(!Array.isArray(rows)) throw new Error((rows&&rows.message)||'回传格式不对');
+    rec=rows[0]||null;
+  }catch(e){ err=e.message||String(e); }
+  const old=ent&&ent.rec;
+  if(err && old){ rec=old; err=''; }                         // 重抓失败 → 沿用上一份,不闪错误
+  if(rec && !rec.pls){
+    rec.pls=(Array.isArray(rec.placements)?rec.placements:[]).filter(p=>p&&p.course).map(p=>{
+      const coSet=new Set();
+      (Array.isArray(p.cohorts)?p.cohorts:[]).forEach(x=>{
+        const raw=String(x&&typeof x==='object'?x.cohort:x||'').replace(/\(\d+\)\s*$/,'').trim().toUpperCase(); if(!raw) return;
+        coSet.add(raw); const n=_normCohort(raw); if(n) coSet.add(n);
+      });
+      return { id:String(p.id), course:String(p.course).trim().toUpperCase(), cls:p.cls||'', tc:p.tc||'', isCap:!!p.isCap, count:p.count||0,
+        half:p.half==='up'?'up':p.half==='dn'?'dn':'',
+        cells:(Array.isArray(p.cells)?p.cells:[]).filter(c=>Array.isArray(c)&&c[0]&&c[1]),
+        coSet };
+    });
+    delete rec.placements;
+  }
+  const changed=!ent || ent.err!==err || (old&&old.version)!==(rec&&rec.version) || (old&&old.final_version)!==(rec&&rec.final_version) || (!!old)!==(!!rec);
+  _BA_TT[sem]={at:Date.now(),rec,err,loading:false};
+  if(changed && document.getElementById('tab-classtable')?.classList.contains('on')) renderClassTable();
+}
+function _ctbReload(){ loadBaTimetable(window._ctSem||NOW_SEM, true); }
+// TM 课码 → BA 课表里可能的课码(代码桥 + 等价码)
+function _ctbCands(code){
+  const c=String(code||'').toUpperCase(), s=new Set([c, _bridge(c)]);
+  if(_PARTNER){ [c,_bridge(c)].forEach(k=>{ (_PARTNER[k]||[]).forEach(p=>s.add(p)); }); }
+  return s;
+}
+function _ctbCellsText(p){
+  const cs=p.cells; if(!cs.length) return '还没排时间';
+  const sn=_ctbE;
+  if(p.isCap && cs.length>=2 && cs.every(c=>c[0]===cs[0][0]) && cs.some(c=>c[1]==='am') && cs.some(c=>c[1]==='pm') && cs.every(c=>c[2]===cs[0][2]))
+    return `${sn(cs[0][0])} 整天 · ${sn(cs[0][2]||'—')}`;
+  if(cs.every(c=>c[2]===cs[0][2])) return cs.map(c=>sn(c[0])+sn(_CTB_SLOT[c[1]]||c[1])).join('、')+` · ${sn(cs[0][2]||'—')}`;
+  return cs.map(c=>`${sn(c[0])}${sn(_CTB_SLOT[c[1]]||c[1])} ${sn(c[2]||'—')}`).join('、');
+}
+// TM 学生这学期修的课(普通 key + 外系选修 slot),跟班级课表同一套取法
+function _ctbStudCourses(s, sem, extSlots){
+  const out=[], filled=new Set();
+  extSlots.forEach(sl=>{ const v=(s.courses||{})[sl]||''; if(!v) return; const parts=v.split('|'); const sm=parts.length>1?parts[1]:parts[0]; const code=parts.length>1?parts[0]:''; if(sm===sem && code){ out.push({key:sl,code}); filled.add(code); } });
+  Object.entries(s.courses||{}).forEach(([code,v])=>{ if(extSlots.has(code)||filled.has(code)) return; if(/[^\x00-\x7F]/.test(code)) return; if(v===sem) out.push({key:code,code}); });
+  return out;
+}
+// 核心:每位学生每门课对到课表里哪一格(kind: co=届别对上 / lack=课表没有他的届别 / amb=分不出哪一班 / none=课表没这门课)
+function _ctbAnalyze(sem, studs){
+  const ent=_BA_TT[_normSem(sem)], rec=ent&&ent.rec; if(!rec) return null;
+  const pls=rec.pls||[];
+  const extSlots=new Set(((typeof _wbGetExtSlots==='function')?_wbGetExtSlots(getProg(activeProg)):[{slot:'ext2'}]).map(x=>x.slot));
+  const stuRes=[];
+  studs.forEach(s=>{
+    if(isOnLeaveAt(s,sem)) return;
+    const cc=s.classCode||autoClassCode(s.cohort,s.type,s.prog);
+    const co=String(cc||'').trim().toUpperCase(), n=_normCohort(co), items=[];
+    _ctbStudCourses(s,sem,extSlots).forEach(({key,code})=>{
+      if(sgisOf(s,key)) return;                                   // SG/IS 不上课表(BA 记在「IS/SG 排课」)
+      const cands=_ctbCands(code), L=pls.filter(p=>cands.has(p.course));
+      let kind='none', p=null, ps=[];
+      if(L.length){
+        const ex=L.filter(x=>x.coSet.has(co)||(n&&x.coSet.has(n)));
+        if(ex.length===1){ kind='co'; p=ex[0]; }
+        else if(ex.length>1){ kind='amb'; ps=ex; }
+        else if(L.length===1){ kind='lack'; p=L[0]; }              // 课表没这个届别,但只有一班 → 推测他上这班
+        else { kind='lack'; ps=L; }
+      }
+      items.push({code,key,kind,p,ps,cands});
+    });
+    stuRes.push({s,cc,items});
+  });
+  // 同一位学生两门课同半、同一天同时段 = 撞课(Capstone 之间不算,跟 BA 规则一致)
+  const conflicts=[];
+  stuRes.forEach(r=>{
+    const act=r.items.filter(i=>i.p);
+    for(let i=0;i<act.length;i++) for(let j=i+1;j<act.length;j++){
+      const a=act[i], b=act[j];
+      if(a.p===b.p || (a.p.isCap&&b.p.isCap) || !a.p.half || a.p.half!==b.p.half) continue;
+      a.p.cells.forEach(c1=>b.p.cells.forEach(c2=>{ if(c1[0]===c2[0] && c1[1]===c2[1]) conflicts.push({s:r.s,cc:r.cc,a,b,day:c1[0],slot:c1[1],half:a.p.half,guess:a.kind==='lack'||b.kind==='lack'}); }));
+    }
+  });
+  return {rec,stuRes,conflicts};
+}
+// 某一门课的核对结果(stuList = 修这门课的 stuRes 子集)
+function _ctbCourseView(code, stuList, A, sem){
+  const pls=new Map(), lack={}; let noneN=0, ambN=0, cands=null;
+  const ids=new Set();
+  stuList.forEach(r=>{
+    const it=r.items.find(i=>i.code===code); if(!it) return;
+    ids.add(String(r.s.id)); cands=it.cands;
+    if(it.kind==='none') noneN++;
+    else if(it.kind==='co') pls.set(it.p.id,it.p);
+    else if(it.kind==='lack'){ lack[r.cc]=(lack[r.cc]||0)+1; if(it.p) pls.set(it.p.id,it.p); }
+    else if(it.kind==='amb'){ ambN++; it.ps.forEach(p=>pls.set(p.id,p)); }
+  });
+  let noneKind='';
+  if(noneN && cands){
+    const S=_normSem(sem), keys=[...cands].map(c=>c+'|'+S);
+    if(_SCHED_HALF && keys.some(k=>_SCHED_HALF[k]==='全')) noneKind='full';
+    else if(_SCHED_PRES && keys.some(k=>_SCHED_PRES[k])) noneKind='unplaced';
+    else if(_SCHED_PRES && _SCHED_SEM_CNT && (_SCHED_SEM_CNT[S]||0)>=_BA_SEM_MIN_ROWS) noneKind='nosched';
+    else noneKind='unknown';
+  }
+  const list=[...pls.values()].sort((a,b)=>(a.half>b.half?1:a.half<b.half?-1:0)||a.id.localeCompare(b.id));
+  const short=list.filter(p=>!p.isCap && p.cells.length<2);
+  const cs=new Set(); A.conflicts.forEach(c=>{ if(ids.has(String(c.s.id)) && (c.a.code===code||c.b.code===code)) cs.add(String(c.s.id)); });
+  const hasIssue=(noneKind && noneKind!=='full') || Object.keys(lack).length>0 || ambN>0 || short.length>0 || cs.size>0;
+  return {code,list,noneKind,lack,ambN,short,conflictN:cs.size,hasIssue};
+}
+function _ctbProblems(v){   // 一门课的问题文字(纯文字,已转义)
+  const t=[];
+  if(v.noneKind==='nosched') t.push('BA 没开这门课');
+  else if(v.noneKind==='unplaced') t.push('BA 有开,但没排进课表');
+  else if(v.noneKind==='unknown') t.push('课表里没有这门课');
+  Object.keys(v.lack).forEach(cc=>t.push(`课表没有届别 ${_ctbE(cc)}(${v.lack[cc]} 人)`));
+  if(v.ambN) t.push(`分不出哪一班(${v.ambN} 人)`);
+  v.short.forEach(p=>t.push(p.cells.length?'只排到 1 节':'还没排时间'));
+  if(v.conflictN) t.push(`⚠ ${v.conflictN} 位学生撞课`);
+  return t;
+}
+function _ctbRowHTML(v){
+  let h='';
+  v.list.forEach(p=>{
+    const tip=_ctbE(`BA 课表 ${p.course} ${p.cls}${p.tc?' · '+p.tc:''}`);
+    h+=`<div class="ctb-t" title="${tip}">${p.half?`<span class="ctb-h ${p.half}">${p.half==='up'?'上':'下'}</span>`:''}<span>${_ctbCellsText(p)}</span></div>`;
+  });
+  if(v.noneKind==='full') h+='<div class="ctb-p mute">全学期课,不排进课表</div>';
+  _ctbProblems(v).forEach(t=>{ h+=`<div class="ctb-p">${t}</div>`; });
+  return h||'<span class="ctb-p mute">—</span>';
+}
+// 整学期汇总(给上方黄条与详情窗)。studs = 班级课表当前的学生范围(已套毕业/休学筛选)
+function _ctbSummary(sem, studs){
+  const A=_ctbAnalyze(sem, studs); if(!A) return null;
+  const codes=new Set(); A.stuRes.forEach(r=>r.items.forEach(i=>codes.add(i.code)));
+  const views=[], issues=[];
+  [...codes].sort().forEach(code=>{
+    const v=_ctbCourseView(code, A.stuRes.filter(r=>r.items.some(i=>i.code===code)), A, sem);
+    views.push(v); if(v.hasIssue) issues.push(v);
+  });
+  const confStu=new Set(A.conflicts.map(c=>String(c.s.id)));
+  const rec=A.rec, fin=rec.final_version!=null && rec.final_version===rec.version;
+  return {A,views,issues,confStu,fin,sem};
+}
+function _ctbStripHTML(sem, sum, view){
+  const ent=_BA_TT[_normSem(sem)];
+  if(!ent) return '';
+  if(ent.loading && !ent.rec) return '<div class="ctb-strip mute">⏳ 读取 BA 课表存档中…</div>';
+  if(ent.err) return `<div class="ctb-strip err">❌ 读取 BA 课表存档失败(${_ctbE(ent.err)})<span class="ctb-sp"></span><button class="ctb-lnk" onclick="_ctbReload()">↻ 重试</button></div>`;
+  if(!ent.rec) return `<div class="ctb-strip mute">BA 还没有 ${_ctbE(sem)} 的课表存档,上课时间没得对(仍只显示上下半)<span class="ctb-sp"></span><button class="ctb-lnk" onclick="_ctbReload()" title="重新读取 BA 课表存档">↻</button></div>`;
+  if(!sum) return '';
+  const rec=sum.A.rec, ni=sum.issues.length, nc=sum.confStu.size;
+  const ver=sum.fin?`BA 定版 v${rec.version}(${_ctbDate(rec.final_at)})`:`⚠ BA 还是草稿 v${rec.version}(未定版,存于 ${_ctbDate(rec.saved_at)})`;
+  const cls=(!sum.fin||ni||nc)?'':' ok';
+  return `<div class="ctb-strip${cls}">🔗 <span>对的是 <b>${ver}</b></span>`
+    +(ni||nc ? `<span>${ni?`<b>${ni}</b> 门课不一样`:''}${ni&&nc?' · ':''}${nc?`<b>${nc}</b> 位学生撞课`:''}</span>` : `<span>✓ 课、届别、时间都对得上,没有学生撞课</span>`)
+    +`<span class="ctb-sp"></span>`
+    +(ni&&view!=='week'?`<button class="ctb-lnk${window._ctBaOnly?' on':''}" onclick="window._ctBaOnly=!window._ctBaOnly;renderClassTable()">只看有问题</button>`:'')
+    +(ni||nc?`<button class="ctb-lnk" onclick="_ctbDetail()">详情${nc?'与撞课名单':''}</button>`:'')
+    +`<button class="ctb-lnk" onclick="_ctbReload()" title="重新读取 BA 课表存档">↻</button></div>`;
+}
+function _ctbDetail(){
+  const L=window._ctbLast; if(!L||!L.sum) return;
+  const {sum}=L, rec=sum.A.rec, e=_ctbE;
+  const nm=s=>e((s.cname||'')+' '+shortName(s.name||''));
+  const slotTxt=(day,slot)=>e(day)+e(_CTB_SLOT[slot]||slot);
+  let rows='';
+  sum.issues.forEach(v=>{ rows+=`<tr style="border-top:1px solid #eee"><td style="padding:5px 8px;font-family:var(--mono);font-weight:600;white-space:nowrap">${e(v.code)}</td><td style="padding:5px 8px;font-size:12px;color:#991b1b">${_ctbProblems(v).join('<br>')||'—'}</td></tr>`; });
+  const byKey={};
+  sum.A.conflicts.forEach(c=>{
+    const k=c.s.id+'|'+c.a.code+'|'+c.b.code; const o=byKey[k]=byKey[k]||{c,slots:[]};
+    o.slots.push(slotTxt(c.day,c.slot));
+  });
+  const crow=Object.values(byKey).sort((x,y)=>String(x.c.s.id).localeCompare(String(y.c.s.id))).map(({c,slots})=>{
+    const half=c.half==='up'?'上半':'下半';
+    return `<tr style="border-top:1px solid #eee"><td style="padding:5px 8px;font-family:var(--mono)">${e(c.s.id)}</td><td style="padding:5px 8px">${nm(c.s)}</td><td style="padding:5px 8px;font-family:var(--mono)">${e(c.cc)}</td><td style="padding:5px 8px;font-size:12px"><b style="font-family:var(--mono)">${e(c.a.code)}</b> × <b style="font-family:var(--mono)">${e(c.b.code)}</b> · ${half} ${slots.join('、')}${c.guess?' <span style="color:#b45309">(推测:课表没有他的届别)</span>':''}</td></tr>`;
+  }).join('');
+  let ov=document.getElementById('ctb-ov'); if(ov) ov.remove();
+  ov=document.createElement('div'); ov.id='ctb-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:5vh 16px;overflow:auto';
+  ov.onclick=ev=>{ if(ev.target===ov) ov.remove(); };
+  const th='padding:6px 8px;text-align:left';
+  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:860px;width:100%;padding:18px 20px;font-family:var(--font);font-size:13px;color:#374151">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font-size:14px">🔗 对 BA 课表存档 · ${e(sum.sem)} · ${sum.fin?'定版':'草稿'} v${rec.version}</b><button onclick="document.getElementById('ctb-ov').remove()" style="border:none;background:#f3f4f6;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px">✕</button></div>
+    ${rows?`<div style="font-size:12px;color:#b45309;margin-bottom:4px"><b>${sum.issues.length}</b> 门课不一样</div><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb"><th style="${th}">课程</th><th style="${th}">问题</th></tr></thead><tbody>${rows}</tbody></table>`:'<div style="color:#16a34a;padding:6px 0">✅ 课、届别、时间都对得上</div>'}
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><b>👤 学生撞课</b><span style="font-size:11px;color:#6b7280;margin-left:8px">${sum.confStu.size} 位</span></div>
+    ${crow?`<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px"><thead><tr style="background:#f9fafb"><th style="${th}">学号</th><th style="${th}">姓名</th><th style="${th}">班级</th><th style="${th}">撞的课与时段</th></tr></thead><tbody>${crow}</tbody></table>`:'<div style="color:#16a34a;padding:6px 0">✅ 没有学生撞课</div>'}
+    <div style="font-size:10px;color:#9ca3af;margin-top:12px;line-height:1.7">口径:只核对 ${e(L.short)} 学生修的课;标了 SG/IS 的不算(不排进课表);Capstone 之间不算撞课(跟 BA 规则一致);实习等全学期课 BA 不排进课表,不算不一样。人数不在这里比(请看「🔗 对账 BA」)。纯只读,TM 不写 BA。</div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+// 周课表检视:学生范围(studIds)内会上的课,按上半/下半各一张
+function _ctbWeekHTML(sem, sum, studIds){
+  const A=sum.A, e=_ctbE, use=new Map();
+  A.stuRes.forEach(r=>{ if(!studIds.has(String(r.s.id))) return; r.items.forEach(i=>{ if(!i.p) return; const o=use.get(i.p.id)||{p:i.p,code:i.code,n:0}; o.n++; use.set(i.p.id,o); }); });
+  const conf=A.conflicts.filter(c=>studIds.has(String(c.s.id)));
+  let h='';
+  [['up','上半学期'],['dn','下半学期']].forEach(([half,label])=>{
+    const items=[...use.values()].filter(o=>o.p.half===half);
+    const days=_CTB_DAYS.filter((d,i)=>i<5 || items.some(o=>o.p.cells.some(c=>c[0]===d)));
+    const slots=['am','pm'].concat([...new Set(items.flatMap(o=>o.p.cells.map(c=>c[1])))].filter(s=>s!=='am'&&s!=='pm'));
+    h+=`<div class="ctb-wt">${label}<span>${items.length} 门课</span></div><div class="ctb-wkw"><div class="ctb-wk" style="grid-template-columns:48px repeat(${days.length},minmax(0,1fr))"><div></div>${days.map(d=>`<div class="ctb-wh">${e(d)}</div>`).join('')}`;
+    slots.forEach(sl=>{
+      h+=`<div class="ctb-wh ctb-ws">${e(_CTB_SLOT[sl]||sl)}</div>`;
+      days.forEach(d=>{
+        const here=items.filter(o=>o.p.cells.some(c=>c[0]===d&&c[1]===sl));
+        const cf=conf.filter(c=>c.half===half&&c.day===d&&c.slot===sl);
+        const cfS=[...new Map(cf.map(c=>[String(c.s.id),c.s])).values()];
+        const badIds=new Set(); cf.forEach(c=>{ badIds.add(c.a.p.id); badIds.add(c.b.p.id); });
+        h+=`<div class="ctb-wc${cfS.length?' bad':''}">`+here.map(o=>{
+          const room=(o.p.cells.find(c=>c[0]===d&&c[1]===sl)||[])[2]||'';
+          const code=String(o.code).replace(/[^A-Za-z0-9]/g,'');
+          const tip=e(`${o.p.course} ${o.p.cls}${o.p.tc?' · '+o.p.tc:''} · TM 学生 ${o.n} 位${o.p.isCap?' · Capstone':''}`);
+          return `<span class="ctb-chip${o.p.isCap?' cap':''}${badIds.has(o.p.id)?' bad':''}" title="${tip}" onclick="_ctShowCourseStudents('${code}',false)">${e(o.code)}${room?` · ${e(room)}`:''}</span>`;
+        }).join('')
+        +(cfS.length?`<div class="ctb-wwarn" title="${e(cfS.map(s=>(s.cname||'')+' '+shortName(s.name||'')).join(' / '))}">⚠ ${cfS.length} 位撞课</div>`:'')
+        +`</div>`;
+      });
+    });
+    h+='</div></div>';
+  });
+  // 放不进格子的课
+  const off=sum.views.filter(v=>v.noneKind||v.ambN||v.short.length);
+  if(off.length) h+=`<div class="ctb-off"><b>没放进上面格子的课</b>:`+off.map(v=>`<span class="ctb-offi"><b>${e(v.code)}</b> ${_ctbProblems(v).concat(v.noneKind==='full'?['全学期课,不排课表']:[]).join('、')}</span>`).join('')+`</div>`;
+  h+='<div class="ctb-note">格子里只列 TM 学生修的课;点课码看名单。红框 = 有学生同时要上两门课。资料来自 BA 课表存档,不是 TM 排的。</div>';
+  return h;
+}
 function renderClassTable(){
   const page=document.getElementById('classtable-page');if(!page)return;
   if(_SCHED_HALF===null && !_schedLoading){ loadSchedHalves().then(()=>{ if(document.getElementById('tab-classtable')?.classList.contains('on')) renderClassTable(); }); }
@@ -6271,6 +6515,9 @@ function renderClassTable(){
   const selClass=window._ctClass||'all';  // 默认全部班级
   const selSem=window._ctSem||NOW_SEM;
   if(!window._ctSem)window._ctSem=NOW_SEM;
+  loadBaTimetable(selSem);                                  // 读 BA 课表存档(有缓存;读完若有变动会自己重画)
+  const _ttEnt=_BA_TT[_normSem(selSem)], _ttRec=_ttEnt&&_ttEnt.rec;
+  const _ctView=(_ttRec && window._ctView==='week') ? 'week' : 'list';
   // 全部班级 or 指定班级
   const studs=selClass==='all'?progStuds:progStuds.filter(s=>(s.classCode||autoClassCode(s.cohort,s.type,s.prog))===selClass);
   const allPC=progCourses(activeProg).length?progCourses(activeProg):(getProg(activeProg)?.courses||getBuiltinTMCourses());
@@ -6341,6 +6588,7 @@ function renderClassTable(){
       oninput="window._ctSearch=this.value;_ctApplySearch()"
       class="pb-input" style="width:170px"
      >
+    ${_ttRec?`<span class="pb-sep"></span><button class="pb-btn${_ctView==='list'?' on':''}" onclick="window._ctView='list';renderClassTable()" title="按课程列出">📋 清单</button><button class="pb-btn${_ctView==='week'?' on':''}" onclick="window._ctView='week';renderClassTable()" title="照 BA 课表存档画成周课表">🗓 周课表</button>`:''}
     <div class="pb-sp"></div>
     <button onclick="_ctReconcileBA()" title="对账 BA 排课(只读，不改任何数据)" class="pb-btn blue">🔗 对账 BA</button>
     <button onclick="_ctExportCSV()" title="导出当前学期排课为 CSV（供导入用）" class="pb-btn green">📥 导出排课 CSV</button>
@@ -6389,6 +6637,16 @@ function renderClassTable(){
       }).join('');
     })()}
   </div>`;
+  // 对 BA 课表存档:整学期核对(范围 = 当前套了毕业/休学筛选的 TM 学生,不受班级下拉影响)
+  const _ctbSum=_ttRec?_ctbSummary(selSem, progStuds):null;
+  window._ctbLast=_ctbSum?{sum:_ctbSum,short:(DB.programs?.find(x=>x.id===activeProg)?.meta?.shortCode)||_PROG_SHORT[activeProg]||activeProg}:null;
+  h+=_ctbStripHTML(selSem,_ctbSum,_ctView);
+  if(_ctView==='week' && _ctbSum){
+    let _wk=studs; if(_selClass2Set.size) _wk=studs.filter(s=>_selClass2Set.has(s.classCode||autoClassCode(s.cohort,s.type,s.prog)));
+    h+=_ctbWeekHTML(selSem,_ctbSum,new Set(_wk.map(s=>String(s.id))));
+    page.innerHTML=h; return;
+  }
+  const _ttOn=!!_ctbSum;
   h+=`<div style="border:1px solid var(--line);border-radius:10px;overflow-x:auto"><table class="ct-course-table" style="min-width:100%;border-collapse:collapse;font-size:13px">
   <thead><tr style="background:var(--g8)">
     <th style="padding:8px 10px;width:36px;text-align:center;color:#e4f0e8;font-size:11px">#</th>
@@ -6397,7 +6655,7 @@ function renderClassTable(){
     </th>
     <th style="padding:8px 10px;min-width:140px;color:#e4f0e8;font-size:11px;white-space:normal">课程名称</th>
     <th style="padding:8px 10px;width:46px;text-align:center;color:#e4f0e8;font-size:11px">学分</th>
-    <th style="padding:8px 10px;width:54px;text-align:center;color:#e4f0e8;font-size:11px">上下半</th>
+    <th style="padding:8px 10px;${_ttOn?'min-width:170px;text-align:left':'width:54px;text-align:center'};color:#e4f0e8;font-size:11px">${_ttOn?`上课时间<span class="ctb-hv">BA ${_ctbSum.fin?'定版':'草稿'} v${_ctbSum.A.rec.version}</span>`:'上下半'}</th>
     <th style="padding:8px 10px;min-width:90px;color:#e4f0e8;font-size:11px;white-space:normal">修课班级</th>
     <th style="padding:8px 10px;width:60px;text-align:center;color:#e4f0e8;font-size:11px">人数</th>
     <th style="padding:8px 10px;min-width:100px;color:#e4f0e8;font-size:11px;white-space:normal">备注</th>
@@ -6430,6 +6688,12 @@ function renderClassTable(){
       const hasClass=pickedStuds.some(s=>_selClass2Set.has(s.classCode||autoClassCode(s.cohort,s.type,s.prog)));
       if(!hasClass) return;
     }
+    let _rv=null;
+    if(_ttOn){
+      const _ids=new Set(pickedStuds.map(s=>String(s.id)));
+      _rv=_ctbCourseView(realCode,_ctbSum.A.stuRes.filter(r=>_ids.has(String(r.s.id))),_ctbSum.A,selSem);
+      if(window._ctBaOnly && !_rv.hasIssue) return;          // 「只看有问题」
+    }
     rn++;
     // 每班修这门课的人数
     const _classCnt = {};
@@ -6454,7 +6718,9 @@ function renderClassTable(){
       <td style="padding:7px 10px"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--sky);background:var(--sky-l);padding:2px 6px;border-radius:4px">${realCode}</span>${_aliasNote(realCode)}</td>
       <td style="padding:7px 10px;color:var(--ink);font-size:12px;white-space:normal;word-break:break-word">${c.n}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--mono);font-weight:500;color:var(--g8);font-size:12px">${c.cr}</td>
-      <td style="padding:7px 10px;text-align:center">${_halfMark(realCode, selSem, null, 'md')||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
+      ${_ttOn
+        ? `<td class="ctb-td" style="padding:7px 10px">${_ctbRowHTML(_rv)}</td>`
+        : `<td style="padding:7px 10px;text-align:center">${_halfMark(realCode, selSem, null, 'md')||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>`}
       <td style="padding:7px 10px;white-space:normal">${classHtml||'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
       <td style="padding:7px 10px;text-align:center"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${picked>0?'var(--g7)':'var(--ink3)'}">${picked}</span></td>
       <td style="padding:5px 10px;white-space:normal" onclick="event.stopPropagation()"><input value="${noteVal.replace(/"/g,'&quot;')}" placeholder="备注..."
@@ -6465,6 +6731,7 @@ function renderClassTable(){
       </td>
     </tr>`;
   });
+  if(!rn && _ttOn && window._ctBaOnly) h+='<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--g7);font-size:13px">✅ 当前范围内没有「有问题」的课</td></tr>';
   h+='</tbody></table></div>';
   page.innerHTML=h;
   // 重画后重新套用当前搜索状态（class 切换/排序后保留搜索）
